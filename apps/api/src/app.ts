@@ -11,6 +11,7 @@ import { fleetRoutes } from "./routes/fleet.js";
 import { gpsRoutes } from "./routes/gps.js";
 import { rentalRoutes } from "./routes/rentals.js";
 import { envelope } from "./lib/http.js";
+import { runMigrations } from "./db/migrate.js";
 import { seedDatabase } from "./db/seed.js";
 
 export async function buildServer() {
@@ -33,6 +34,7 @@ export async function buildServer() {
 
   app.get("/health", async () => envelope({ ok: true, modules: platformModules }));
 
+  await runMigrations();
   await seedDatabase();
   installTenantContext(app);
   await app.register(authRoutes);

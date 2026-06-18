@@ -18,6 +18,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=build /app/apps/api/package.json apps/api/package.json
 COPY --from=build /app/apps/api/dist apps/api/dist
+COPY --from=build /app/infra/postgres/migrations infra/postgres/migrations
 COPY --from=build /app/packages/shared/package.json packages/shared/package.json
 COPY --from=build /app/packages/shared/src packages/shared/src
 COPY --from=build /app/node_modules node_modules
