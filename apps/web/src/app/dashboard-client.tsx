@@ -751,8 +751,22 @@ export default function DashboardClient() {
         ) : null}
       </section>
 
-      <MobileExperience data={data} notifications={notifications} />
+      <MobileAppNav activeSection={activeSection} notificationsCount={notifications.length} onSelect={setActiveSection} />
     </main>
+  );
+}
+
+function MobileAppNav({ activeSection, notificationsCount, onSelect }: { activeSection: Section; notificationsCount: number; onSelect: (section: Section) => void }) {
+  return (
+    <nav className="mobile-app-nav" aria-label="Mobile app navigation">
+      {sections.map((item) => (
+        <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
+          <span>{item === "Dashboard" ? "⌂" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
+          <small>{item === "Drivers/Clients" ? "Clients" : item}</small>
+          {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -881,30 +895,6 @@ function LatestRequests({ customers, invoices }: { customers: Customer[]; invoic
         const customer = customers.find((item) => item.id === invoice.customerId);
         return <p className="history-row" key={invoice.id}>{invoice.invoiceNumber} · {customer?.displayName} · {money.format(invoice.total)}</p>;
       })}
-    </section>
-  );
-}
-
-function MobileExperience({ data, notifications }: { data: AppData; notifications: UiNotification[] }) {
-  return (
-    <section className="mobile-showcase mobile-live">
-      <article className="phone-screen">
-        <div className="phone-status"><span>9:41</span><span>5G</span></div>
-        <h2>Сегодня</h2>
-        <div className="mini-grid">
-          <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "rented").length}</strong><span>В аренде</span></article>
-          <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "available").length}</strong><span>Свободно</span></article>
-          <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "maintenance").length}</strong><span>На сервисе</span></article>
-          <article><strong>{money.format(data.metrics.monthlyRevenue)}</strong><span>Доход</span></article>
-        </div>
-        <div className="mobile-list">
-          <h3>Ближайшие события <a>Все</a></h3>
-          {notifications.slice(0, 4).map((item) => (
-            <div className="event-row" key={item.id}><i className={item.tone} /> <div><strong>{item.title}</strong><span>{item.meta}</span></div><time>{item.time}</time></div>
-          ))}
-        </div>
-        <nav className="mobile-nav"><span className="active">⌂<small>Главная</small></span><span>▣<small>Авто</small></span><span>♙<small>Клиенты</small></span><span>⌖<small>Карта</small></span><span>◴<small>Уведомления</small></span></nav>
-      </article>
     </section>
   );
 }

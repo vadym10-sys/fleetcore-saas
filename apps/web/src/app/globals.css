@@ -1210,19 +1210,23 @@ h3 {
 
 @media (max-width: 760px) {
   .product-shell {
-    padding: 12px;
+    padding: 12px 12px 94px;
     gap: 14px;
   }
 
   .desktop-sidebar,
-  .desktop-workspace,
   .help-strip,
   .data-section {
     display: none;
   }
 
+  .desktop-workspace {
+    display: block;
+    min-width: 0;
+  }
+
   .mobile-showcase {
-    display: grid;
+    display: none;
     grid-template-columns: 1fr;
   }
 
@@ -1234,6 +1238,170 @@ h3 {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .desktop-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin: -12px -12px 14px;
+    padding: 12px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(247, 248, 252, 0.96);
+    backdrop-filter: blur(14px);
+  }
+
+  .desktop-header h1 {
+    font-size: 24px;
+  }
+
+  .header-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px 92px;
+    gap: 8px;
+  }
+
+  .header-actions .ghost-button,
+  .header-actions .primary-button {
+    min-width: 0;
+    padding: 0 10px;
+  }
+
+  .global-search {
+    min-width: 0;
+  }
+
+  .workspace-grid,
+  .dashboard-grid,
+  .finance-layout,
+  .settings-grid,
+  .split-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card {
+    min-height: 86px;
+    padding: 14px;
+  }
+
+  .metric-card strong {
+    margin-top: 10px;
+    font-size: 22px;
+  }
+
+  .business-map {
+    min-height: 320px;
+  }
+
+  .map-controls {
+    left: 12px;
+    bottom: 76px;
+  }
+
+  .map-legend {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    max-height: 58px;
+    overflow: auto;
+  }
+
+  .vehicle-row,
+  .finance-row,
+  .booking-card,
+  .customer-line {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .vehicle-row {
+    display: grid;
+    gap: 8px;
+  }
+
+  .vehicle-row .vehicle-art {
+    width: 112px;
+    height: 64px;
+  }
+
+  .booking-card {
+    display: grid;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .auth-two {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-app-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -12px 28px rgba(29, 32, 64, 0.08);
+  }
+
+  .mobile-app-nav button {
+    position: relative;
+    min-width: 0;
+    min-height: 58px;
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .mobile-app-nav button.active {
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+
+  .mobile-app-nav span {
+    font-size: 17px;
+    line-height: 1;
+  }
+
+  .mobile-app-nav small {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 9px;
+    line-height: 1.1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-app-nav em {
+    position: absolute;
+    right: 7px;
+    top: 5px;
+    min-width: 17px;
+    height: 17px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--red);
+    color: white;
+    font-size: 10px;
+    font-style: normal;
   }
 }
 
@@ -1628,6 +1796,10 @@ h3 {
   display: none;
 }
 
+.mobile-app-nav {
+  display: none;
+}
+
 @media (max-width: 1180px) {
   .auth-shell,
   .workspace-grid,
@@ -1659,6 +1831,10 @@ h3 {
   }
 
   .mobile-live {
+    display: none;
+  }
+
+  .mobile-app-nav {
     display: grid;
   }
 }
