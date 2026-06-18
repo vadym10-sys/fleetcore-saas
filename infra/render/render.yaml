@@ -3,7 +3,7 @@ services:
     name: fleetcore-api
     runtime: docker
     dockerfilePath: apps/api/Dockerfile
-    plan: starter
+    plan: free
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -21,13 +21,13 @@ services:
     name: fleetcore-web
     runtime: docker
     dockerfilePath: apps/web/Dockerfile
-    plan: starter
+    plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
         sync: false
 
 databases:
   - name: fleetcore-postgres
-    plan: starter
+    plan: free
     databaseName: fleetcore
     user: fleetcore
