@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import type { User, UserRole } from "@fleetcore/shared";
 
 export interface AuthClaims {
@@ -55,7 +55,21 @@ export function verifyAccessToken(token: string): AuthClaims | undefined {
   return claims;
 }
 
+export function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("base64url");
+  const hash = pbkdf2Sync(password, salt, 120_000, 32, "sha256").toString("base64url");
+  return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
 export function verifyPassword(password: string, storedHash: string) {
+  const [algorithm, iterations, salt, hash] = storedHash.split("$");
+  if (algorithm === "pbkdf2_sha256" && iterations && salt && hash) {
+    const actual = pbkdf2Sync(password, salt, Number(iterations), 32, "sha256").toString("base64url");
+    const expected = Buffer.from(hash);
+    const actualBuffer = Buffer.from(actual);
+    return expected.length === actualBuffer.length && timingSafeEqual(expected, actualBuffer);
+  }
+
   const expected = Buffer.from(storedHash);
   const actual = Buffer.from(password);
   return expected.length === actual.length && timingSafeEqual(expected, actual);

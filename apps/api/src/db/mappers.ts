@@ -1,4 +1,4 @@
-import type { Company, Customer, GpsDevice, Invoice, Payment, Rental, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, Expense, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 type DbRow = Record<string, unknown>;
 
@@ -159,5 +159,69 @@ export function mapVehicleDocument(row: DbRow): VehicleDocument {
     title: String(row.title),
     fileUrl: String(row.file_url),
     ...(row.expires_at ? { expiresAt: iso(row.expires_at) } : {}),
+  };
+}
+
+export function mapExpense(row: DbRow): Expense {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    ...(row.vehicle_id ? { vehicleId: String(row.vehicle_id) } : {}),
+    category: row.category as Expense["category"],
+    amount: number(row.amount),
+    currency: String(row.currency).trim(),
+    spentAt: iso(row.spent_at),
+    note: String(row.note),
+  };
+}
+
+export function mapServiceRecord(row: DbRow): ServiceRecord {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    vehicleId: String(row.vehicle_id),
+    type: row.type as ServiceRecord["type"],
+    odometerKm: number(row.odometer_km),
+    status: row.status as ServiceRecord["status"],
+    serviceAt: iso(row.service_at),
+    cost: number(row.cost),
+    note: String(row.note),
+  };
+}
+
+export function mapCustomerDocument(row: DbRow): CustomerDocument {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    customerId: String(row.customer_id),
+    type: row.type as CustomerDocument["type"],
+    title: String(row.title),
+    fileUrl: String(row.file_url),
+    verified: Boolean(row.verified),
+  };
+}
+
+export function mapRentalContract(row: DbRow): RentalContract {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    rentalId: String(row.rental_id),
+    customerId: String(row.customer_id),
+    status: row.status as RentalContract["status"],
+    documentUrl: String(row.document_url),
+    sentVia: row.sent_via as RentalContract["sentVia"],
+    ...(row.signed_at ? { signedAt: iso(row.signed_at) } : {}),
   };
 }

@@ -1,10 +1,9 @@
 import type { AuthSession } from "@fleetcore/shared";
 import type { FastifyPluginAsync } from "fastify";
-import { defaultCompanyId, defaultTenantId } from "../db/constants.js";
-import { getUserCredentialsByEmail } from "../db/repositories.js";
-import { signAccessToken, verifyPassword } from "../lib/auth.js";
+import { createCompanyAccount, getUserCredentialsByEmail } from "../db/repositories.js";
+import { hashPassword, signAccessToken, verifyPassword } from "../lib/auth.js";
 import { envelope } from "../lib/http.js";
-import { loginInput } from "../schemas.js";
+import { loginInput, registerCompanyInput } from "../schemas.js";
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/auth/login", async (request, reply): Promise<{ data: AuthSession } | void> => {
@@ -20,9 +19,33 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
     return envelope({
       accessToken: signAccessToken(credentials.user),
-      tenantId: defaultTenantId,
-      companyId: defaultCompanyId,
+      tenantId: credentials.user.tenantId,
+      companyId: credentials.user.companyId,
       user: credentials.user,
     });
+  });
+
+  app.post("/auth/register-company", async (request, reply): Promise<{ data: AuthSession } | void> => {
+    const parsed = registerCompanyInput.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid registration payload", issues: parsed.error.flatten() });
+    }
+
+    try {
+      const account = await createCompanyAccount(parsed.data, hashPassword(parsed.data.owner.password));
+
+      return reply.code(201).send(envelope({
+        accessToken: signAccessToken(account.user),
+        tenantId: account.user.tenantId,
+        companyId: account.user.companyId,
+        user: account.user,
+      }));
+    } catch (error) {
+      if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
+        return reply.code(409).send({ error: "Email already registered" });
+      }
+
+      throw error;
+    }
   });
 };

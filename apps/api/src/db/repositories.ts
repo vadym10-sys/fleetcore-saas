@@ -1,18 +1,23 @@
-import type { Customer, DashboardMetrics, GpsDevice, Invoice, Payment, Rental, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
-import { defaultCompanyId, defaultTenantId } from "./constants.js";
+import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
 import { createId } from "../lib/http.js";
-import { mapCompany, mapCustomer, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
+import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalContract, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
 import type {
   customerInput,
   customerPatchInput,
+  customerDocumentInput,
+  expenseInput,
   gpsDeviceInput,
   invoiceInput,
   invoicePatchInput,
   paymentInput,
+  registerCompanyInput,
   rentalReturnInput,
+  rentalContractInput,
   rentalInput,
   rentalPatchInput,
+  serviceRecordInput,
   vehicleDocumentInput,
   vehicleInput,
   vehiclePatchInput,
@@ -31,6 +36,11 @@ type PaymentInput = z.infer<typeof paymentInput>;
 type GpsDeviceInput = z.infer<typeof gpsDeviceInput>;
 type VehicleDocumentInput = z.infer<typeof vehicleDocumentInput>;
 type RentalReturnInput = z.infer<typeof rentalReturnInput>;
+type RegisterCompanyInput = z.infer<typeof registerCompanyInput>;
+type ExpenseInput = z.infer<typeof expenseInput>;
+type ServiceRecordInput = z.infer<typeof serviceRecordInput>;
+type CustomerDocumentInput = z.infer<typeof customerDocumentInput>;
+type RentalContractInput = z.infer<typeof rentalContractInput>;
 
 type PatchValue = string | number | undefined;
 
@@ -46,55 +56,113 @@ function patchSet(
   };
 }
 
-export async function listCompanies() {
+export async function createCompanyAccount(input: RegisterCompanyInput, passwordHash: string): Promise<{ company: Company; user: User }> {
+  const client = await pool.connect();
+  const tenantId = createId("tenant");
+  const companyId = createId("company");
+  const userId = createId("user");
+  try {
+    await client.query("begin");
+
+    const duplicate = await client.query("select 1 from users where lower(email) = lower($1) limit 1", [input.owner.email]);
+    if (duplicate.rowCount) {
+      await client.query("rollback");
+      throw new Error("EMAIL_ALREADY_REGISTERED");
+    }
+
+    await client.query(
+      `insert into tenants (id, name)
+       values ($1, $2)`,
+      [tenantId, input.company.tradingName],
+    );
+
+    const companyResult = await client.query(
+      `insert into companies (
+        id, tenant_id, legal_name, trading_name, country, currency, plan, fleet_size_limit
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+      returning *`,
+      [
+        companyId,
+        tenantId,
+        input.company.legalName,
+        input.company.tradingName,
+        input.company.country,
+        input.company.currency,
+        input.company.plan,
+        input.company.fleetSizeLimit,
+      ],
+    );
+
+    const userResult = await client.query(
+      `insert into users (
+        id, tenant_id, company_id, email, password_hash, full_name, role
+      ) values ($1, $2, $3, $4, $5, $6, 'owner')
+      returning *`,
+      [userId, tenantId, companyId, input.owner.email.toLowerCase(), passwordHash, input.owner.fullName],
+    );
+
+    await client.query("commit");
+    return {
+      company: mapCompany(companyResult.rows[0]),
+      user: mapUser(userResult.rows[0]),
+    };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listCompanies(scope: TenantScope) {
   const result = await pool.query(
     "select * from companies where tenant_id = $1 order by trading_name asc",
-    [defaultTenantId],
+    [scope.tenantId],
   );
   return result.rows.map(mapCompany);
 }
 
-export async function getCompany(companyId: string) {
+export async function getCompany(scope: TenantScope, companyId: string) {
   const result = await pool.query(
     "select * from companies where tenant_id = $1 and id = $2",
-    [defaultTenantId, companyId],
+    [scope.tenantId, companyId],
   );
   return result.rows[0] ? mapCompany(result.rows[0]) : undefined;
 }
 
 export async function getUserByEmail(email: string): Promise<User | undefined> {
   const result = await pool.query(
-    "select * from users where tenant_id = $1 and email = $2",
-    [defaultTenantId, email],
+    "select * from users where lower(email) = lower($1) order by created_at desc limit 1",
+    [email],
   );
   return result.rows[0] ? mapUser(result.rows[0]) : undefined;
 }
 
 export async function getUserCredentialsByEmail(email: string): Promise<{ passwordHash: string; user: User } | undefined> {
   const result = await pool.query(
-    "select * from users where tenant_id = $1 and email = $2",
-    [defaultTenantId, email],
+    "select * from users where lower(email) = lower($1) order by created_at desc limit 1",
+    [email],
   );
   return result.rows[0] ? { passwordHash: String(result.rows[0].password_hash), user: mapUser(result.rows[0]) } : undefined;
 }
 
-export async function listVehicles(): Promise<Vehicle[]> {
+export async function listVehicles(scope: TenantScope): Promise<Vehicle[]> {
   const result = await pool.query(
-    "select * from vehicles where tenant_id = $1 order by created_at asc",
-    [defaultTenantId],
+    "select * from vehicles where tenant_id = $1 and company_id = $2 order by created_at asc",
+    [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapVehicle);
 }
 
-export async function getVehicle(vehicleId: string) {
+export async function getVehicle(scope: TenantScope, vehicleId: string) {
   const result = await pool.query(
-    "select * from vehicles where tenant_id = $1 and id = $2",
-    [defaultTenantId, vehicleId],
+    "select * from vehicles where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, vehicleId],
   );
   return result.rows[0] ? mapVehicle(result.rows[0]) : undefined;
 }
 
-export async function createVehicle(input: VehicleInput): Promise<Vehicle> {
+export async function createVehicle(scope: TenantScope, input: VehicleInput): Promise<Vehicle> {
   const result = await pool.query(
     `insert into vehicles (
       id, tenant_id, company_id, vin, plate_number, make, model, year,
@@ -103,8 +171,8 @@ export async function createVehicle(input: VehicleInput): Promise<Vehicle> {
     returning *`,
     [
       createId("veh"),
-      defaultTenantId,
-      defaultCompanyId,
+      scope.tenantId,
+      scope.companyId,
       input.vin,
       input.plateNumber,
       input.make,
@@ -119,7 +187,7 @@ export async function createVehicle(input: VehicleInput): Promise<Vehicle> {
   return mapVehicle(result.rows[0]);
 }
 
-export async function updateVehicle(vehicleId: string, input: VehiclePatchInput) {
+export async function updateVehicle(scope: TenantScope, vehicleId: string, input: VehiclePatchInput) {
   const patch = patchSet(
     {
       vin: input.vin,
@@ -143,34 +211,34 @@ export async function updateVehicle(vehicleId: string, input: VehiclePatchInput)
       odometerKm: "odometer_km",
       dailyRate: "daily_rate",
     },
-    3,
+    4,
   );
-  if (!patch.sql) return getVehicle(vehicleId);
+  if (!patch.sql) return getVehicle(scope, vehicleId);
 
   const result = await pool.query(
-    `update vehicles set ${patch.sql}, updated_at = now() where tenant_id = $1 and id = $2 returning *`,
-    [defaultTenantId, vehicleId, ...patch.values],
+    `update vehicles set ${patch.sql}, updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3 returning *`,
+    [scope.tenantId, scope.companyId, vehicleId, ...patch.values],
   );
   return result.rows[0] ? mapVehicle(result.rows[0]) : undefined;
 }
 
-export async function listCustomers(): Promise<Customer[]> {
+export async function listCustomers(scope: TenantScope): Promise<Customer[]> {
   const result = await pool.query(
-    "select * from customers where tenant_id = $1 order by created_at asc",
-    [defaultTenantId],
+    "select * from customers where tenant_id = $1 and company_id = $2 order by created_at asc",
+    [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapCustomer);
 }
 
-export async function getCustomer(customerId: string) {
+export async function getCustomer(scope: TenantScope, customerId: string) {
   const result = await pool.query(
-    "select * from customers where tenant_id = $1 and id = $2",
-    [defaultTenantId, customerId],
+    "select * from customers where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, customerId],
   );
   return result.rows[0] ? mapCustomer(result.rows[0]) : undefined;
 }
 
-export async function createCustomer(input: CustomerInput): Promise<Customer> {
+export async function createCustomer(scope: TenantScope, input: CustomerInput): Promise<Customer> {
   const result = await pool.query(
     `insert into customers (
       id, tenant_id, company_id, display_name, email, phone, type, risk_level
@@ -178,8 +246,8 @@ export async function createCustomer(input: CustomerInput): Promise<Customer> {
     returning *`,
     [
       createId("cus"),
-      defaultTenantId,
-      defaultCompanyId,
+      scope.tenantId,
+      scope.companyId,
       input.displayName,
       input.email,
       input.phone,
@@ -190,7 +258,7 @@ export async function createCustomer(input: CustomerInput): Promise<Customer> {
   return mapCustomer(result.rows[0]);
 }
 
-export async function updateCustomer(customerId: string, input: CustomerPatchInput) {
+export async function updateCustomer(scope: TenantScope, customerId: string, input: CustomerPatchInput) {
   const patch = patchSet(
     {
       displayName: input.displayName,
@@ -206,45 +274,45 @@ export async function updateCustomer(customerId: string, input: CustomerPatchInp
       type: "type",
       riskLevel: "risk_level",
     },
-    3,
+    4,
   );
-  if (!patch.sql) return getCustomer(customerId);
+  if (!patch.sql) return getCustomer(scope, customerId);
 
   const result = await pool.query(
-    `update customers set ${patch.sql}, updated_at = now() where tenant_id = $1 and id = $2 returning *`,
-    [defaultTenantId, customerId, ...patch.values],
+    `update customers set ${patch.sql}, updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3 returning *`,
+    [scope.tenantId, scope.companyId, customerId, ...patch.values],
   );
   return result.rows[0] ? mapCustomer(result.rows[0]) : undefined;
 }
 
-export async function listRentals(): Promise<Rental[]> {
+export async function listRentals(scope: TenantScope): Promise<Rental[]> {
   const result = await pool.query(
-    "select * from rentals where tenant_id = $1 order by created_at asc",
-    [defaultTenantId],
+    "select * from rentals where tenant_id = $1 and company_id = $2 order by created_at asc",
+    [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapRental);
 }
 
-export async function getRental(rentalId: string) {
+export async function getRental(scope: TenantScope, rentalId: string) {
   const result = await pool.query(
-    "select * from rentals where tenant_id = $1 and id = $2",
-    [defaultTenantId, rentalId],
+    "select * from rentals where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, rentalId],
   );
   return result.rows[0] ? mapRental(result.rows[0]) : undefined;
 }
 
-export async function hasRentalReferences(customerId?: string, vehicleId?: string) {
+export async function hasRentalReferences(scope: TenantScope, customerId?: string, vehicleId?: string) {
   const customerResult = customerId
-    ? await pool.query("select 1 from customers where tenant_id = $1 and id = $2", [defaultTenantId, customerId])
+    ? await pool.query("select 1 from customers where tenant_id = $1 and company_id = $2 and id = $3", [scope.tenantId, scope.companyId, customerId])
     : { rowCount: 1 };
   const vehicleResult = vehicleId
-    ? await pool.query("select 1 from vehicles where tenant_id = $1 and id = $2", [defaultTenantId, vehicleId])
+    ? await pool.query("select 1 from vehicles where tenant_id = $1 and company_id = $2 and id = $3", [scope.tenantId, scope.companyId, vehicleId])
     : { rowCount: 1 };
 
   return Boolean(customerResult.rowCount && vehicleResult.rowCount);
 }
 
-export async function createRental(input: RentalInput): Promise<Rental> {
+export async function createRental(scope: TenantScope, input: RentalInput): Promise<Rental> {
   const result = await pool.query(
     `insert into rentals (
       id, tenant_id, company_id, customer_id, vehicle_id, status,
@@ -253,8 +321,8 @@ export async function createRental(input: RentalInput): Promise<Rental> {
     returning *`,
     [
       createId("ren"),
-      defaultTenantId,
-      defaultCompanyId,
+      scope.tenantId,
+      scope.companyId,
       input.customerId,
       input.vehicleId,
       input.status,
@@ -267,7 +335,7 @@ export async function createRental(input: RentalInput): Promise<Rental> {
   return mapRental(result.rows[0]);
 }
 
-export async function updateRental(rentalId: string, input: RentalPatchInput) {
+export async function updateRental(scope: TenantScope, rentalId: string, input: RentalPatchInput) {
   const patch = patchSet(
     {
       customerId: input.customerId,
@@ -287,30 +355,30 @@ export async function updateRental(rentalId: string, input: RentalPatchInput) {
       totalAmount: "total_amount",
       depositAmount: "deposit_amount",
     },
-    3,
+    4,
   );
-  if (!patch.sql) return getRental(rentalId);
+  if (!patch.sql) return getRental(scope, rentalId);
 
   const result = await pool.query(
-    `update rentals set ${patch.sql}, updated_at = now() where tenant_id = $1 and id = $2 returning *`,
-    [defaultTenantId, rentalId, ...patch.values],
+    `update rentals set ${patch.sql}, updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3 returning *`,
+    [scope.tenantId, scope.companyId, rentalId, ...patch.values],
   );
   return result.rows[0] ? mapRental(result.rows[0]) : undefined;
 }
 
-export async function returnRental(rentalId: string, input: RentalReturnInput) {
+export async function returnRental(scope: TenantScope, rentalId: string, input: RentalReturnInput) {
   const client = await pool.connect();
   try {
     await client.query("begin");
     const rentalResult = await client.query(
       `update rentals
        set status = 'closed',
-           return_at = $3,
-           total_amount = coalesce($4, total_amount),
+           return_at = $4,
+           total_amount = coalesce($5, total_amount),
            updated_at = now()
-       where tenant_id = $1 and id = $2 and status in ('active', 'return_due', 'reserved')
+       where tenant_id = $1 and company_id = $2 and id = $3 and status in ('active', 'return_due', 'reserved')
        returning *`,
-      [defaultTenantId, rentalId, input.returnedAt, input.finalAmount ?? null],
+      [scope.tenantId, scope.companyId, rentalId, input.returnedAt, input.finalAmount ?? null],
     );
     if (!rentalResult.rows[0]) {
       await client.query("rollback");
@@ -319,9 +387,9 @@ export async function returnRental(rentalId: string, input: RentalReturnInput) {
 
     await client.query(
       `update vehicles
-       set status = 'available', odometer_km = greatest(odometer_km, $3), updated_at = now()
-       where tenant_id = $1 and id = $2`,
-      [defaultTenantId, rentalResult.rows[0].vehicle_id, input.odometerKm],
+       set status = 'available', odometer_km = greatest(odometer_km, $4), updated_at = now()
+       where tenant_id = $1 and company_id = $2 and id = $3`,
+      [scope.tenantId, scope.companyId, rentalResult.rows[0].vehicle_id, input.odometerKm],
     );
     await client.query("commit");
 
@@ -334,24 +402,24 @@ export async function returnRental(rentalId: string, input: RentalReturnInput) {
   }
 }
 
-export async function listInvoices(): Promise<Invoice[]> {
+export async function listInvoices(scope: TenantScope): Promise<Invoice[]> {
   const result = await pool.query(
-    "select * from invoices where tenant_id = $1 order by created_at asc",
-    [defaultTenantId],
+    "select * from invoices where tenant_id = $1 and company_id = $2 order by created_at asc",
+    [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapInvoice);
 }
 
-export async function getInvoice(invoiceId: string) {
+export async function getInvoice(scope: TenantScope, invoiceId: string) {
   const result = await pool.query(
-    "select * from invoices where tenant_id = $1 and id = $2",
-    [defaultTenantId, invoiceId],
+    "select * from invoices where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, invoiceId],
   );
   return result.rows[0] ? mapInvoice(result.rows[0]) : undefined;
 }
 
-export async function createInvoice(input: InvoiceInput): Promise<Invoice> {
-  const invoiceCount = await pool.query("select count(*) from invoices where tenant_id = $1", [defaultTenantId]);
+export async function createInvoice(scope: TenantScope, input: InvoiceInput): Promise<Invoice> {
+  const invoiceCount = await pool.query("select count(*) from invoices where tenant_id = $1 and company_id = $2", [scope.tenantId, scope.companyId]);
   const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Number(invoiceCount.rows[0]?.count ?? 0) + 1).padStart(4, "0")}`;
   const result = await pool.query(
     `insert into invoices (
@@ -361,8 +429,8 @@ export async function createInvoice(input: InvoiceInput): Promise<Invoice> {
     returning *`,
     [
       createId("inv"),
-      defaultTenantId,
-      defaultCompanyId,
+      scope.tenantId,
+      scope.companyId,
       input.customerId,
       input.rentalId ?? null,
       invoiceNumber,
@@ -376,7 +444,7 @@ export async function createInvoice(input: InvoiceInput): Promise<Invoice> {
   return mapInvoice(result.rows[0]);
 }
 
-export async function updateInvoice(invoiceId: string, input: InvoicePatchInput) {
+export async function updateInvoice(scope: TenantScope, invoiceId: string, input: InvoicePatchInput) {
   const patch = patchSet(
     {
       customerId: input.customerId,
@@ -396,27 +464,27 @@ export async function updateInvoice(invoiceId: string, input: InvoicePatchInput)
       tax: "tax",
       dueAt: "due_at",
     },
-    3,
+    4,
   );
-  if (!patch.sql) return getInvoice(invoiceId);
+  if (!patch.sql) return getInvoice(scope, invoiceId);
 
   const result = await pool.query(
-    `update invoices set ${patch.sql}, updated_at = now() where tenant_id = $1 and id = $2 returning *`,
-    [defaultTenantId, invoiceId, ...patch.values],
+    `update invoices set ${patch.sql}, updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3 returning *`,
+    [scope.tenantId, scope.companyId, invoiceId, ...patch.values],
   );
   return result.rows[0] ? mapInvoice(result.rows[0]) : undefined;
 }
 
-export async function listPayments(): Promise<Payment[]> {
+export async function listPayments(scope: TenantScope): Promise<Payment[]> {
   const result = await pool.query(
-    "select * from payments where tenant_id = $1 order by paid_at desc, created_at desc",
-    [defaultTenantId],
+    "select * from payments where tenant_id = $1 and company_id = $2 order by paid_at desc, created_at desc",
+    [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapPayment);
 }
 
-export async function createInvoicePayment(invoiceId: string, input: PaymentInput): Promise<Payment | undefined> {
-  const invoice = await getInvoice(invoiceId);
+export async function createInvoicePayment(scope: TenantScope, invoiceId: string, input: PaymentInput): Promise<Payment | undefined> {
+  const invoice = await getInvoice(scope, invoiceId);
   if (!invoice) return undefined;
 
   const client = await pool.connect();
@@ -430,8 +498,8 @@ export async function createInvoicePayment(invoiceId: string, input: PaymentInpu
       returning *`,
       [
         createId("pay"),
-        defaultTenantId,
-        defaultCompanyId,
+        scope.tenantId,
+        scope.companyId,
         invoiceId,
         invoice.customerId,
         input.amount,
@@ -444,12 +512,12 @@ export async function createInvoicePayment(invoiceId: string, input: PaymentInpu
     await client.query(
       `update invoices
        set status = case
-         when (select coalesce(sum(amount), 0) from payments where tenant_id = $1 and invoice_id = $2) >= total then 'paid'
+         when (select coalesce(sum(amount), 0) from payments where tenant_id = $1 and company_id = $2 and invoice_id = $3) >= total then 'paid'
          else status
        end,
        updated_at = now()
-       where tenant_id = $1 and id = $2`,
-      [defaultTenantId, invoiceId],
+       where tenant_id = $1 and company_id = $2 and id = $3`,
+      [scope.tenantId, scope.companyId, invoiceId],
     );
     await client.query("commit");
 
@@ -462,31 +530,32 @@ export async function createInvoicePayment(invoiceId: string, input: PaymentInpu
   }
 }
 
-export async function listGpsDevices(): Promise<GpsDevice[]> {
+export async function listGpsDevices(scope: TenantScope): Promise<GpsDevice[]> {
   const result = await pool.query(
-    "select * from gps_devices where tenant_id = $1 order by last_signal_at desc",
-    [defaultTenantId],
+    "select * from gps_devices where tenant_id = $1 and company_id = $2 order by last_signal_at desc",
+    [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapGpsDevice);
 }
 
-export async function upsertGpsDevice(input: GpsDeviceInput): Promise<GpsDevice | undefined> {
-  if (!(await getVehicle(input.vehicleId))) return undefined;
+export async function upsertGpsDevice(scope: TenantScope, input: GpsDeviceInput): Promise<GpsDevice | undefined> {
+  if (!(await getVehicle(scope, input.vehicleId))) return undefined;
 
   const existingVehicleDevice = await pool.query(
     `update gps_devices
-     set provider = $3,
-         external_device_id = $4,
-         status = $5,
-         latitude = $6,
-         longitude = $7,
-         speed_kph = $8,
-         last_signal_at = $9,
+     set provider = $4,
+         external_device_id = $5,
+         status = $6,
+         latitude = $7,
+         longitude = $8,
+         speed_kph = $9,
+         last_signal_at = $10,
          updated_at = now()
-     where tenant_id = $1 and vehicle_id = $2
+     where tenant_id = $1 and company_id = $2 and vehicle_id = $3
      returning *`,
     [
-      defaultTenantId,
+      scope.tenantId,
+      scope.companyId,
       input.vehicleId,
       input.provider,
       input.externalDeviceId,
@@ -518,8 +587,8 @@ export async function upsertGpsDevice(input: GpsDeviceInput): Promise<GpsDevice 
     returning *`,
     [
       createId("gps"),
-      defaultTenantId,
-      defaultCompanyId,
+      scope.tenantId,
+      scope.companyId,
       input.vehicleId,
       input.provider,
       input.externalDeviceId,
@@ -533,18 +602,18 @@ export async function upsertGpsDevice(input: GpsDeviceInput): Promise<GpsDevice 
   return mapGpsDevice(result.rows[0]);
 }
 
-export async function listVehicleDocuments(vehicleId?: string): Promise<VehicleDocument[]> {
+export async function listVehicleDocuments(scope: TenantScope, vehicleId?: string): Promise<VehicleDocument[]> {
   const result = await pool.query(
     `select * from vehicle_documents
-     where tenant_id = $1 and ($2::text is null or vehicle_id = $2)
+     where tenant_id = $1 and company_id = $2 and ($3::text is null or vehicle_id = $3)
      order by created_at desc`,
-    [defaultTenantId, vehicleId ?? null],
+    [scope.tenantId, scope.companyId, vehicleId ?? null],
   );
   return result.rows.map(mapVehicleDocument);
 }
 
-export async function createVehicleDocument(input: VehicleDocumentInput): Promise<VehicleDocument | undefined> {
-  if (!(await getVehicle(input.vehicleId))) return undefined;
+export async function createVehicleDocument(scope: TenantScope, input: VehicleDocumentInput): Promise<VehicleDocument | undefined> {
+  if (!(await getVehicle(scope, input.vehicleId))) return undefined;
 
   const result = await pool.query(
     `insert into vehicle_documents (
@@ -553,8 +622,8 @@ export async function createVehicleDocument(input: VehicleDocumentInput): Promis
     returning *`,
     [
       createId("doc"),
-      defaultTenantId,
-      defaultCompanyId,
+      scope.tenantId,
+      scope.companyId,
       input.vehicleId,
       input.type,
       input.title,
@@ -565,24 +634,24 @@ export async function createVehicleDocument(input: VehicleDocumentInput): Promis
   return mapVehicleDocument(result.rows[0]);
 }
 
-export async function customerExists(customerId: string) {
+export async function customerExists(scope: TenantScope, customerId: string) {
   const result = await pool.query(
-    "select 1 from customers where tenant_id = $1 and id = $2",
-    [defaultTenantId, customerId],
+    "select 1 from customers where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, customerId],
   );
   return Boolean(result.rowCount);
 }
 
-export async function calculateDashboardMetrics(): Promise<DashboardMetrics> {
+export async function calculateDashboardMetrics(scope: TenantScope): Promise<DashboardMetrics> {
   const result = await pool.query(
     `select
-      (select count(*)::int from rentals where tenant_id = $1 and status = 'active') as active_rentals,
-      (select count(*)::int from vehicles where tenant_id = $1 and status = 'available') as available_vehicles,
-      (select count(*)::int from vehicles where tenant_id = $1 and status = 'rented') as rented_vehicles,
-      (select greatest(count(*), 1)::int from vehicles where tenant_id = $1) as total_vehicles,
-      (select coalesce(sum(total), 0)::float from invoices where tenant_id = $1) as monthly_revenue,
-      (select count(*)::int from invoices where tenant_id = $1 and status = 'overdue') as overdue_invoices`,
-    [defaultTenantId],
+      (select count(*)::int from rentals where tenant_id = $1 and company_id = $2 and status = 'active') as active_rentals,
+      (select count(*)::int from vehicles where tenant_id = $1 and company_id = $2 and status = 'available') as available_vehicles,
+      (select count(*)::int from vehicles where tenant_id = $1 and company_id = $2 and status = 'rented') as rented_vehicles,
+      (select greatest(count(*), 1)::int from vehicles where tenant_id = $1 and company_id = $2) as total_vehicles,
+      (select coalesce(sum(total), 0)::float from invoices where tenant_id = $1 and company_id = $2) as monthly_revenue,
+      (select count(*)::int from invoices where tenant_id = $1 and company_id = $2 and status = 'overdue') as overdue_invoices`,
+    [scope.tenantId, scope.companyId],
   );
   const row = result.rows[0];
 
@@ -593,4 +662,140 @@ export async function calculateDashboardMetrics(): Promise<DashboardMetrics> {
     monthlyRevenue: Number(row.monthly_revenue),
     overdueInvoices: Number(row.overdue_invoices),
   };
+}
+
+export async function listExpenses(scope: TenantScope): Promise<Expense[]> {
+  const result = await pool.query(
+    "select * from expenses where tenant_id = $1 and company_id = $2 order by spent_at desc, created_at desc",
+    [scope.tenantId, scope.companyId],
+  );
+  return result.rows.map(mapExpense);
+}
+
+export async function createExpense(scope: TenantScope, input: ExpenseInput): Promise<Expense | undefined> {
+  if (input.vehicleId && !(await getVehicle(scope, input.vehicleId))) return undefined;
+
+  const result = await pool.query(
+    `insert into expenses (
+      id, tenant_id, company_id, vehicle_id, category, amount, currency, spent_at, note
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    returning *`,
+    [
+      createId("exp"),
+      scope.tenantId,
+      scope.companyId,
+      input.vehicleId ?? null,
+      input.category,
+      input.amount,
+      input.currency,
+      input.spentAt,
+      input.note,
+    ],
+  );
+  return mapExpense(result.rows[0]);
+}
+
+export async function listServiceRecords(scope: TenantScope, vehicleId?: string): Promise<ServiceRecord[]> {
+  const result = await pool.query(
+    `select * from service_records
+     where tenant_id = $1 and company_id = $2 and ($3::text is null or vehicle_id = $3)
+     order by service_at desc, created_at desc`,
+    [scope.tenantId, scope.companyId, vehicleId ?? null],
+  );
+  return result.rows.map(mapServiceRecord);
+}
+
+export async function createServiceRecord(scope: TenantScope, input: ServiceRecordInput): Promise<ServiceRecord | undefined> {
+  if (!(await getVehicle(scope, input.vehicleId))) return undefined;
+
+  const result = await pool.query(
+    `insert into service_records (
+      id, tenant_id, company_id, vehicle_id, type, odometer_km, status, service_at, cost, note
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    returning *`,
+    [
+      createId("svc"),
+      scope.tenantId,
+      scope.companyId,
+      input.vehicleId,
+      input.type,
+      input.odometerKm,
+      input.status,
+      input.serviceAt,
+      input.cost,
+      input.note,
+    ],
+  );
+  return mapServiceRecord(result.rows[0]);
+}
+
+export async function listCustomerDocuments(scope: TenantScope, customerId?: string): Promise<CustomerDocument[]> {
+  const result = await pool.query(
+    `select * from customer_documents
+     where tenant_id = $1 and company_id = $2 and ($3::text is null or customer_id = $3)
+     order by created_at desc`,
+    [scope.tenantId, scope.companyId, customerId ?? null],
+  );
+  return result.rows.map(mapCustomerDocument);
+}
+
+export async function createCustomerDocument(scope: TenantScope, input: CustomerDocumentInput): Promise<CustomerDocument | undefined> {
+  if (!(await customerExists(scope, input.customerId))) return undefined;
+
+  const result = await pool.query(
+    `insert into customer_documents (
+      id, tenant_id, company_id, customer_id, type, title, file_url, verified
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+    returning *`,
+    [
+      createId("cdoc"),
+      scope.tenantId,
+      scope.companyId,
+      input.customerId,
+      input.type,
+      input.title,
+      input.fileUrl,
+      input.verified,
+    ],
+  );
+  return mapCustomerDocument(result.rows[0]);
+}
+
+export async function listRentalContracts(scope: TenantScope): Promise<RentalContract[]> {
+  const result = await pool.query(
+    "select * from rental_contracts where tenant_id = $1 and company_id = $2 order by created_at desc",
+    [scope.tenantId, scope.companyId],
+  );
+  return result.rows.map(mapRentalContract);
+}
+
+export async function createRentalContract(scope: TenantScope, input: RentalContractInput): Promise<RentalContract | undefined> {
+  const rental = await getRental(scope, input.rentalId);
+  if (!rental) return undefined;
+
+  const result = await pool.query(
+    `insert into rental_contracts (
+      id, tenant_id, company_id, rental_id, customer_id, status, document_url, sent_via, signed_at
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    on conflict (tenant_id, company_id, rental_id)
+    do update set
+      status = excluded.status,
+      document_url = excluded.document_url,
+      sent_via = excluded.sent_via,
+      signed_at = excluded.signed_at,
+      updated_at = now()
+    returning *`,
+    [
+      createId("ctr"),
+      scope.tenantId,
+      scope.companyId,
+      input.rentalId,
+      rental.customerId,
+      input.status,
+      input.documentUrl,
+      input.sentVia,
+      input.signedAt ?? null,
+    ],
+  );
+  return mapRentalContract(result.rows[0]);
 }

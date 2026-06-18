@@ -3,7 +3,7 @@ import { defaultCompanyId, defaultTenantId } from "../db/constants.js";
 import { setRequestUser } from "../lib/access-control.js";
 import { verifyAccessToken } from "../lib/auth.js";
 
-const publicRoutes = new Set(["/health", "/auth/login"]);
+const publicRoutes = new Set(["/health", "/auth/login", "/auth/register-company"]);
 
 export function installTenantContext(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
@@ -18,7 +18,7 @@ export function installTenantContext(app: FastifyInstance) {
     const authorization = request.headers.authorization;
     const token = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : undefined;
     const claims = token ? verifyAccessToken(token) : undefined;
-    if (claims?.tenantId === defaultTenantId) {
+    if (claims?.tenantId && claims.companyId) {
       setRequestUser(request, {
         companyId: claims.companyId,
         email: claims.email,

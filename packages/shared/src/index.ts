@@ -129,6 +129,48 @@ export interface VehicleDocument extends TenantScopedEntity {
   expiresAt?: string;
 }
 
+export type ExpenseCategory = "maintenance" | "insurance" | "fuel" | "cleaning" | "parking" | "other";
+
+export interface Expense extends TenantScopedEntity {
+  companyId: string;
+  vehicleId?: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: string;
+  spentAt: string;
+  note: string;
+}
+
+export interface ServiceRecord extends TenantScopedEntity {
+  companyId: string;
+  vehicleId: string;
+  type: "inspection" | "oil" | "repair" | "tires" | "other";
+  odometerKm: number;
+  status: "planned" | "completed";
+  serviceAt: string;
+  cost: number;
+  note: string;
+}
+
+export interface CustomerDocument extends TenantScopedEntity {
+  companyId: string;
+  customerId: string;
+  type: "passport" | "id_card" | "driver_license" | "other";
+  title: string;
+  fileUrl: string;
+  verified: boolean;
+}
+
+export interface RentalContract extends TenantScopedEntity {
+  companyId: string;
+  rentalId: string;
+  customerId: string;
+  status: "draft" | "sent" | "signed";
+  documentUrl: string;
+  sentVia: "email" | "whatsapp" | "manual";
+  signedAt?: string;
+}
+
 export interface DashboardMetrics {
   activeRentals: number;
   availableVehicles: number;

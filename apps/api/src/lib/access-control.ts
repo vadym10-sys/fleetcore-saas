@@ -9,12 +9,29 @@ export interface RequestUser {
   tenantId: string;
 }
 
+export interface TenantScope {
+  companyId: string;
+  tenantId: string;
+}
+
 export function setRequestUser(request: FastifyRequest, user: RequestUser) {
   (request as FastifyRequest & { user: RequestUser }).user = user;
 }
 
 export function getRequestUser(request: FastifyRequest) {
   return (request as FastifyRequest & { user?: RequestUser }).user;
+}
+
+export function getTenantScope(request: FastifyRequest): TenantScope {
+  const user = getRequestUser(request);
+  if (!user) {
+    throw new Error("Tenant context is missing");
+  }
+
+  return {
+    companyId: user.companyId,
+    tenantId: user.tenantId,
+  };
 }
 
 export function requireRoles(request: FastifyRequest, reply: FastifyReply, allowedRoles: UserRole[]) {

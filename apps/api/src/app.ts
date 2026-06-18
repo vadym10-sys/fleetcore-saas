@@ -9,16 +9,30 @@ import { documentRoutes } from "./routes/documents.js";
 import { financeRoutes } from "./routes/finance.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { gpsRoutes } from "./routes/gps.js";
+import { operationRoutes } from "./routes/operations.js";
 import { rentalRoutes } from "./routes/rentals.js";
 import { envelope } from "./lib/http.js";
 import { runMigrations } from "./db/migrate.js";
 import { seedDatabase } from "./db/seed.js";
 
+function resolveCorsOrigin(origin: string | undefined) {
+  const configuredOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
+  if (!origin) return configuredOrigin;
+  if (origin === configuredOrigin) return origin;
+
+  const isLocalDevOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+  if (process.env.NODE_ENV !== "production" && isLocalDevOrigin) {
+    return origin;
+  }
+
+  return configuredOrigin;
+}
+
 export async function buildServer() {
   const app = Fastify({ logger: true });
 
-  app.addHook("onRequest", async (_request, reply) => {
-    reply.header("access-control-allow-origin", process.env.WEB_ORIGIN ?? "http://localhost:3000");
+  app.addHook("onRequest", async (request, reply) => {
+    reply.header("access-control-allow-origin", resolveCorsOrigin(request.headers.origin));
     reply.header("access-control-allow-methods", "GET,POST,PATCH,DELETE,OPTIONS");
     reply.header("access-control-allow-headers", "content-type,authorization,x-tenant-id");
   });
@@ -46,6 +60,7 @@ export async function buildServer() {
   await app.register(financeRoutes);
   await app.register(gpsRoutes);
   await app.register(documentRoutes);
+  await app.register(operationRoutes);
 
   return app;
 }

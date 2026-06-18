@@ -1,30 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import type { Customer, DashboardMetrics, GpsDevice, Invoice, Payment, Rental, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const TENANT_ID = "tenant_atlas";
 
-const navItems = [
-  ["⌂", "Главная"],
-  ["▣", "Автомобили"],
-  ["♙", "Клиенты"],
-  ["⌖", "Карта GPS"],
-  ["◴", "Уведомления"],
-  ["▤", "Отчеты"],
-  ["□", "Документы"],
-  ["⚙", "Настройки"],
-] as const;
-
-const notifications = [
-  ["Просроченный возврат", "Toyota Camry · KA 5678 AC", "12:30", "red"],
-  ["Возврат через 2 часа", "BMW X5 · AA 1234 BB", "10:00", "orange"],
-  ["Оплата не внесена", "Audi A6 · CA 3456 KA", "09:15", "blue"],
-  ["Депозит получен", "Mercedes C200 · AB 9876 CD", "08:30", "green"],
-] as const;
-
 type ApiEnvelope<T> = { data: T };
+type Section = "Dashboard" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
 
 type AppData = {
   customers: Customer[];
@@ -34,8 +17,22 @@ type AppData = {
   metrics: DashboardMetrics;
   payments: Payment[];
   rentals: Rental[];
+  customerDocuments: CustomerDocument[];
+  expenses: Expense[];
+  rentalContracts: RentalContract[];
+  serviceRecords: ServiceRecord[];
   vehicles: Vehicle[];
 };
+
+type UiNotification = {
+  id: string;
+  tone: "green" | "blue" | "orange" | "red" | "black";
+  title: string;
+  meta: string;
+  time: string;
+};
+
+const sections: Section[] = ["Dashboard", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
 
 const emptyMetrics: DashboardMetrics = {
   activeRentals: 0,
@@ -46,13 +43,14 @@ const emptyMetrics: DashboardMetrics = {
 };
 
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+const dateFmt = new Intl.DateTimeFormat("ru", { day: "2-digit", month: "short" });
 
-async function api<T>(path: string, options: RequestInit = {}) {
+async function api<T>(path: string, options: RequestInit = {}, token?: string) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "content-type": "application/json",
-      "x-tenant-id": TENANT_ID,
+      ...(token ? { authorization: `Bearer ${token}` } : { "x-tenant-id": TENANT_ID }),
       ...options.headers,
     },
   });
@@ -80,7 +78,7 @@ function VehicleArt({ tone = "light" }: { tone?: "light" | "dark" }) {
   );
 }
 
-function CarPin({ className, color, label }: { className: string; color: string; label: string }) {
+function CarPin({ className, color, label }: { className: string; color: UiNotification["tone"]; label: string }) {
   return (
     <div className={`map-pin ${className} ${color}`}>
       <span>▣</span>
@@ -89,21 +87,132 @@ function CarPin({ className, color, label }: { className: string; color: string;
   );
 }
 
-function MobileNav({ active, dark = false }: { active: string; dark?: boolean }) {
-  const items = ["Главная", "Авто", "Клиенты", "Карта", "Уведомления"];
+function vehicleStatusLabel(vehicle: Vehicle, rental?: Rental) {
+  if (vehicle.status === "maintenance") return "На ремонте";
+  if (rental?.status === "reserved") return "Забронирован";
+  if (rental?.status === "return_due") return "Скоро возврат";
+  if (vehicle.status === "rented") return "В аренде";
+  if (vehicle.status === "offline") return "Оффлайн";
+  return "Свободен";
+}
+
+function statusTone(vehicle: Vehicle, rental?: Rental): UiNotification["tone"] {
+  if (vehicle.status === "maintenance") return "black";
+  if (rental?.status === "reserved") return "blue";
+  if (rental?.status === "return_due") return "orange";
+  if (vehicle.status === "rented") return "blue";
+  if (vehicle.status === "offline") return "red";
+  return "green";
+}
+
+function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("Войдите как владелец компании или создайте B2B-аккаунт.");
+  const [login, setLogin] = useState({ email: "founder@atlas.example", password: "development-only" });
+  const [register, setRegister] = useState({
+    country: "PL",
+    currency: "EUR",
+    email: `owner-${Date.now().toString().slice(-5)}@rent.example`,
+    fleetSizeLimit: "25",
+    fullName: "Иван Петров",
+    legalName: "Best Rent Cars Sp. z o.o.",
+    password: "secure-pass-123",
+    plan: "starter",
+    tradingName: "Best Rent Cars",
+  });
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setMessage(mode === "login" ? "Проверяем доступ..." : "Создаем компанию...");
+    try {
+      const response = mode === "login"
+        ? await api<AuthSession>("/auth/login", { body: JSON.stringify(login), method: "POST" })
+        : await api<AuthSession>("/auth/register-company", {
+            body: JSON.stringify({
+              company: {
+                country: register.country,
+                currency: register.currency,
+                fleetSizeLimit: Number(register.fleetSizeLimit),
+                legalName: register.legalName,
+                plan: register.plan,
+                tradingName: register.tradingName,
+              },
+              owner: {
+                email: register.email,
+                fullName: register.fullName,
+                password: register.password,
+              },
+            }),
+            method: "POST",
+          });
+      localStorage.setItem("fleetcore-session", JSON.stringify(response.data));
+      onSession(response.data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Не удалось войти");
+      setLoading(false);
+    }
+  }
+
   return (
-    <nav className={`mobile-nav ${dark ? "dark" : ""}`}>
-      {items.map((item) => (
-        <span className={item === active ? "active" : ""} key={item}>
-          {item === "Главная" ? "⌂" : item === "Авто" ? "▣" : item === "Клиенты" ? "♙" : item === "Карта" ? "⌖" : "◴"}
-          <small>{item}</small>
-        </span>
-      ))}
-    </nav>
+    <main className="auth-shell">
+      <section className="auth-panel">
+        <div>
+          <span className="auth-kicker">FleetCore SaaS</span>
+          <h1>{mode === "login" ? "Вход в аккаунт компании" : "Регистрация B2B-компании"}</h1>
+          <p>{message}</p>
+        </div>
+        <div className="auth-tabs">
+          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")} type="button">Вход</button>
+          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")} type="button">Новая компания</button>
+        </div>
+        <form className="auth-form" onSubmit={(event) => void submit(event)}>
+          {mode === "login" ? (
+            <>
+              <label>Email<input value={login.email} onChange={(event) => setLogin({ ...login, email: event.target.value })} /></label>
+              <label>Пароль<input type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} /></label>
+            </>
+          ) : (
+            <>
+              <label>Название бизнеса<input value={register.tradingName} onChange={(event) => setRegister({ ...register, tradingName: event.target.value })} /></label>
+              <label>Юридическое имя<input value={register.legalName} onChange={(event) => setRegister({ ...register, legalName: event.target.value })} /></label>
+              <div className="auth-two">
+                <label>Страна<input value={register.country} onChange={(event) => setRegister({ ...register, country: event.target.value.toUpperCase().slice(0, 2) })} /></label>
+                <label>Валюта<input value={register.currency} onChange={(event) => setRegister({ ...register, currency: event.target.value.toUpperCase().slice(0, 3) })} /></label>
+              </div>
+              <label>Лимит автопарка<input type="number" value={register.fleetSizeLimit} onChange={(event) => setRegister({ ...register, fleetSizeLimit: event.target.value })} /></label>
+              <label>Имя владельца<input value={register.fullName} onChange={(event) => setRegister({ ...register, fullName: event.target.value })} /></label>
+              <label>Email владельца<input value={register.email} onChange={(event) => setRegister({ ...register, email: event.target.value })} /></label>
+              <label>Пароль<input type="password" value={register.password} onChange={(event) => setRegister({ ...register, password: event.target.value })} /></label>
+            </>
+          )}
+          <button className="primary-button full" disabled={loading}>{loading ? "Подождите..." : mode === "login" ? "Войти" : "Создать аккаунт"}</button>
+        </form>
+      </section>
+      <section className="auth-preview">
+        <div className="preview-map">
+          <CarPin className="pin-one" color="green" label="BMW X5" />
+          <CarPin className="pin-two" color="blue" label="Audi A6" />
+          <CarPin className="pin-four" color="orange" label="Camry" />
+        </div>
+        <div className="preview-card">
+          <strong>B2B изоляция данных</strong>
+          <span>Каждая компания получает свой tenant, owner-аккаунт, автопарк, клиентов, аренды и финансы.</span>
+        </div>
+      </section>
+    </main>
   );
 }
 
 export default function DashboardClient() {
+  const [session, setSession] = useState<AuthSession | undefined>();
+  const [activeSection, setActiveSection] = useState<Section>("Dashboard");
+  const [search, setSearch] = useState("");
+  const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("Подключаемся к backend API...");
   const [data, setData] = useState<AppData>({
     customers: [],
     documents: [],
@@ -112,37 +221,52 @@ export default function DashboardClient() {
     metrics: emptyMetrics,
     payments: [],
     rentals: [],
+    customerDocuments: [],
+    expenses: [],
+    rentalContracts: [],
+    serviceRecords: [],
     vehicles: [],
   });
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("Подключаемся к backend API...");
   const [vehicleForm, setVehicleForm] = useState({
-    dailyRate: "95",
-    location: "Barcelona",
+    dailyRate: "90",
+    location: "Warsaw",
     make: "BMW",
     model: "X5",
     odometerKm: "1000",
-    plateNumber: `WEB-${Date.now().toString().slice(-5)}`,
-    vin: `WEBVIN${Date.now().toString().slice(-8)}`,
-    year: "2026",
+    plateNumber: `WA-${Date.now().toString().slice(-5)}`,
+    vin: `VIN${Date.now().toString().slice(-10)}`,
+    year: "2024",
   });
   const [customerForm, setCustomerForm] = useState({
     displayName: "Новый клиент",
-    email: `client-${Date.now()}@example.com`,
-    phone: "+34 600 111 222",
+    email: `client-${Date.now().toString().slice(-5)}@example.com`,
+    phone: "+48 600 111 222",
   });
 
-  async function loadData() {
+  const token = session?.accessToken;
+
+  useEffect(() => {
+    const stored = localStorage.getItem("fleetcore-session");
+    if (stored) {
+      setSession(JSON.parse(stored) as AuthSession);
+    }
+  }, []);
+
+  async function loadData(currentToken = token) {
     setLoading(true);
-    const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents] = await Promise.all([
-      api<DashboardMetrics>("/dashboard"),
-      api<Vehicle[]>("/fleet/vehicles"),
-      api<Customer[]>("/customers"),
-      api<Rental[]>("/rentals"),
-      api<Invoice[]>("/finance/invoices"),
-      api<Payment[]>("/finance/payments"),
-      api<GpsDevice[]>("/gps/devices"),
-      api<VehicleDocument[]>("/documents/vehicles"),
+    const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, expenses, serviceRecords, customerDocuments, rentalContracts] = await Promise.all([
+      api<DashboardMetrics>("/dashboard", {}, currentToken),
+      api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
+      api<Customer[]>("/customers", {}, currentToken),
+      api<Rental[]>("/rentals", {}, currentToken),
+      api<Invoice[]>("/finance/invoices", {}, currentToken),
+      api<Payment[]>("/finance/payments", {}, currentToken),
+      api<GpsDevice[]>("/gps/devices", {}, currentToken),
+      api<VehicleDocument[]>("/documents/vehicles", {}, currentToken),
+      api<Expense[]>("/operations/expenses", {}, currentToken),
+      api<ServiceRecord[]>("/operations/service-records", {}, currentToken),
+      api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
+      api<RentalContract[]>("/operations/rental-contracts", {}, currentToken),
     ]);
 
     setData({
@@ -153,8 +277,13 @@ export default function DashboardClient() {
       metrics: metrics.data,
       payments: payments.data,
       rentals: rentals.data,
+      customerDocuments: customerDocuments.data,
+      expenses: expenses.data,
+      rentalContracts: rentalContracts.data,
+      serviceRecords: serviceRecords.data,
       vehicles: vehicles.data,
     });
+    setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
     setLoading(false);
     setMessage("Данные загружены из PostgreSQL через backend API");
   }
@@ -164,46 +293,75 @@ export default function DashboardClient() {
       setLoading(false);
       setMessage(error instanceof Error ? error.message : "Не удалось загрузить данные");
     });
-  }, []);
+  }, [session?.accessToken]);
 
-  const activeVehicle = data.vehicles[0];
-  const activeCustomer = data.customers[0];
-  const activeRental = data.rentals[0];
+  const selectedVehicle = data.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? data.vehicles[0];
+  const activeRental = data.rentals.find((rental) => rental.vehicleId === selectedVehicle?.id && rental.status !== "closed");
+  const activeCustomer = data.customers.find((customer) => customer.id === activeRental?.customerId) ?? data.customers[0];
   const activeInvoice = data.invoices.find((invoice) => invoice.status !== "paid") ?? data.invoices[0];
 
-  const gpsStats = useMemo(
-    () => [
-      ["Всего автомобилей", String(data.vehicles.length), "100%", "blue"],
-      ["В движении", String(data.vehicles.filter((vehicle) => vehicle.status === "rented").length), `${data.metrics.fleetUtilization}%`, "green"],
-      ["Свободно", String(data.metrics.availableVehicles), "готовы", "blue"],
-      ["Просрочено счетов", String(data.metrics.overdueInvoices), "важно", "red"],
-    ] as const,
-    [data.metrics, data.vehicles],
-  );
+  const filteredVehicles = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return data.vehicles.filter((vehicle) => {
+      const rental = data.rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+      const customer = data.customers.find((item) => item.id === rental?.customerId);
+      const matchesFilter = mapFilter === "all" || vehicle.status === mapFilter;
+      const matchesSearch = !query || [
+        vehicle.plateNumber,
+        vehicle.vin,
+        vehicle.make,
+        vehicle.model,
+        customer?.displayName,
+        customer?.phone,
+      ].filter(Boolean).some((value) => value!.toLowerCase().includes(query));
+      return matchesFilter && matchesSearch;
+    });
+  }, [data.customers, data.rentals, data.vehicles, mapFilter, search]);
 
-  async function submitCustomer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    try {
-      setMessage("Создаем клиента...");
-      await api<Customer>("/customers", {
-        body: JSON.stringify({
-          ...customerForm,
-          riskLevel: "low",
-          type: "business",
-        }),
-        method: "POST",
+  const incomeToday = useMemo(() => data.payments
+    .filter((payment) => new Date(payment.paidAt).toDateString() === new Date().toDateString())
+    .reduce((sum, payment) => sum + payment.amount, 0), [data.payments]);
+
+  const finance = useMemo(() => {
+    const incomeByVehicle = data.vehicles.map((vehicle) => {
+      const rentalIds = data.rentals.filter((rental) => rental.vehicleId === vehicle.id).map((rental) => rental.id);
+      const income = data.invoices.filter((invoice) => invoice.rentalId && rentalIds.includes(invoice.rentalId)).reduce((sum, invoice) => sum + invoice.total, 0);
+      const expenses = data.expenses.filter((expense) => expense.vehicleId === vehicle.id).reduce((sum, expense) => sum + expense.amount, 0);
+      return { expenses, income, roi: expenses ? Math.round(((income - expenses) / expenses) * 100) : 0, vehicle };
+    });
+    const totalIncome = incomeByVehicle.reduce((sum, item) => sum + item.income, 0);
+    const expenses = incomeByVehicle.reduce((sum, item) => sum + item.expenses, 0);
+    return { expenses, incomeByVehicle, netProfit: totalIncome - expenses, totalIncome };
+  }, [data.expenses, data.invoices, data.rentals, data.vehicles]);
+
+  const notifications = useMemo<UiNotification[]>(() => {
+    const now = Date.now();
+    const dueRentals = data.rentals
+      .filter((rental) => rental.status !== "closed" && new Date(rental.returnAt).getTime() < now)
+      .map((rental) => {
+        const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+        return { id: `rental-${rental.id}`, meta: vehicle?.plateNumber ?? "Авто", time: "сейчас", title: "Клиент не вернул авто", tone: "red" as const };
       });
-      setCustomerForm((current) => ({
-        ...current,
-        displayName: "Новый клиент",
-        email: `client-${Date.now()}@example.com`,
-      }));
-      await loadData();
-      setMessage("Клиент сохранен в PostgreSQL");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось сохранить клиента");
-    }
-  }
+    const paymentAlerts = data.invoices
+      .filter((invoice) => invoice.status === "overdue")
+      .map((invoice) => ({ id: `invoice-${invoice.id}`, meta: invoice.invoiceNumber, time: dateFmt.format(new Date(invoice.dueAt)), title: "Просрочен платеж", tone: "red" as const }));
+    const docAlerts = data.documents
+      .filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * 24 * 60 * 60 * 1000)
+      .map((doc) => ({ id: `doc-${doc.id}`, meta: doc.title, time: doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "-", title: doc.type === "insurance" ? "Заканчивается страховка" : "Заканчивается техосмотр", tone: "orange" as const }));
+    const serviceAlerts = data.vehicles
+      .filter((vehicle) => vehicle.odometerKm > 40_000)
+      .map((vehicle) => ({ id: `service-${vehicle.id}`, meta: vehicle.plateNumber, time: `${vehicle.odometerKm.toLocaleString()} км`, title: "Необходимо ТО через X км", tone: "blue" as const }));
+    return [...dueRentals, ...paymentAlerts, ...docAlerts, ...serviceAlerts].slice(0, 8);
+  }, [data.documents, data.invoices, data.rentals, data.vehicles]);
+
+  const dashboardCards = [
+    ["Всего автомобилей", data.vehicles.length, "blue"],
+    ["Свободно сейчас", data.vehicles.filter((vehicle) => vehicle.status === "available").length, "green"],
+    ["В аренде", data.vehicles.filter((vehicle) => vehicle.status === "rented").length, "blue"],
+    ["На сервисе", data.vehicles.filter((vehicle) => vehicle.status === "maintenance").length, "black"],
+    ["Доход за месяц", money.format(data.metrics.monthlyRevenue), "green"],
+    ["Доход сегодня", money.format(incomeToday), "green"],
+  ] as const;
 
   async function submitVehicle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -222,372 +380,531 @@ export default function DashboardClient() {
           year: Number(vehicleForm.year),
         }),
         method: "POST",
-      });
-      setVehicleForm((current) => ({
-        ...current,
-        plateNumber: `WEB-${Date.now().toString().slice(-5)}`,
-        vin: `WEBVIN${Date.now().toString().slice(-8)}`,
-      }));
+      }, token);
+      setVehicleForm((current) => ({ ...current, plateNumber: `WA-${Date.now().toString().slice(-5)}`, vin: `VIN${Date.now().toString().slice(-10)}` }));
       await loadData();
-      setMessage("Автомобиль сохранен в PostgreSQL");
+      setMessage("Автомобиль сохранен");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось сохранить автомобиль");
     }
   }
 
-  async function returnActiveRental() {
-    if (!activeRental || !activeVehicle) return;
-
+  async function submitCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     try {
-      setMessage("Закрываем аренду...");
-      await api<Rental>(`/rentals/${activeRental.id}/return`, {
-        body: JSON.stringify({
-          finalAmount: activeRental.totalAmount,
-          odometerKm: activeVehicle.odometerKm + 25,
-        }),
+      setMessage("Создаем клиента...");
+      await api<Customer>("/customers", {
+        body: JSON.stringify({ ...customerForm, riskLevel: "low", type: "individual" }),
         method: "POST",
-      });
+      }, token);
+      setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com` }));
       await loadData();
-      setMessage("Аренда закрыта, автомобиль снова доступен");
+      setMessage("Клиент сохранен");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось закрыть аренду");
-    }
-  }
-
-  async function payActiveInvoice() {
-    if (!activeInvoice) return;
-
-    try {
-      setMessage("Проводим оплату...");
-      await api<Payment>(`/finance/invoices/${activeInvoice.id}/payments`, {
-        body: JSON.stringify({
-          amount: activeInvoice.total,
-          currency: activeInvoice.currency,
-          method: "manual",
-          reference: `UI-${Date.now()}`,
-        }),
-        method: "POST",
-      });
-      await loadData();
-      setMessage("Платеж сохранен, счет обновлен");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось провести оплату");
+      setMessage(error instanceof Error ? error.message : "Не удалось сохранить клиента");
     }
   }
 
   async function connectGps() {
-    if (!activeVehicle) return;
-
-    try {
-      setMessage("Подключаем GPS...");
-      await api<GpsDevice>("/gps/devices", {
-        body: JSON.stringify({
-          externalDeviceId: `device-${activeVehicle.id}`,
-          latitude: 41.3874,
-          longitude: 2.1686,
-          provider: "traccar",
-          speedKph: activeVehicle.status === "rented" ? 72 : 0,
-          status: activeVehicle.status === "rented" ? "online" : "idle",
-          vehicleId: activeVehicle.id,
-        }),
-        method: "POST",
-      });
-      await loadData();
-      setMessage("GPS-устройство подключено");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось подключить GPS");
-    }
+    if (!selectedVehicle) return;
+    await api<GpsDevice>("/gps/devices", {
+      body: JSON.stringify({
+        externalDeviceId: `device-${selectedVehicle.id}`,
+        latitude: 52.2297,
+        longitude: 21.0122,
+        provider: "traccar",
+        speedKph: selectedVehicle.status === "rented" ? 87 : 0,
+        status: selectedVehicle.status === "rented" ? "online" : "idle",
+        vehicleId: selectedVehicle.id,
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("GPS подключен");
   }
 
   async function addVehicleDocument() {
-    if (!activeVehicle) return;
+    if (!selectedVehicle) return;
+    await api<VehicleDocument>("/documents/vehicles", {
+      body: JSON.stringify({
+        expiresAt: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+        fileUrl: "https://example.com/fleetcore/document.pdf",
+        title: `Страховка ${selectedVehicle.plateNumber}`,
+        type: "insurance",
+        vehicleId: selectedVehicle.id,
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("PDF-документ сохранен");
+  }
 
-    try {
-      setMessage("Добавляем документ...");
-      await api<VehicleDocument>("/documents/vehicles", {
-        body: JSON.stringify({
-          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          fileUrl: "https://example.com/fleetcore/demo-insurance.pdf",
-          title: `Страховка ${activeVehicle.plateNumber}`,
-          type: "insurance",
-          vehicleId: activeVehicle.id,
-        }),
-        method: "POST",
-      });
-      await loadData();
-      setMessage("Документ автомобиля сохранен");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось добавить документ");
-    }
+  async function payActiveInvoice() {
+    if (!activeInvoice) return;
+    await api<Payment>(`/finance/invoices/${activeInvoice.id}/payments`, {
+      body: JSON.stringify({ amount: activeInvoice.total, currency: activeInvoice.currency, method: "manual", reference: `UI-${Date.now()}` }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Платеж внесен");
+  }
+
+  async function returnActiveRental() {
+    if (!activeRental || !selectedVehicle) return;
+    await api<Rental>(`/rentals/${activeRental.id}/return`, {
+      body: JSON.stringify({ finalAmount: activeRental.totalAmount, odometerKm: selectedVehicle.odometerKm + 25 }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Возврат автомобиля закрыт");
+  }
+
+  async function createQuickBooking() {
+    const vehicle = data.vehicles.find((item) => item.status === "available") ?? selectedVehicle;
+    const customer = activeCustomer ?? data.customers[0];
+    if (!vehicle || !customer) return;
+    const pickupAt = new Date();
+    const returnAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    await api<Rental>("/rentals", {
+      body: JSON.stringify({
+        customerId: customer.id,
+        depositAmount: 500,
+        pickupAt: pickupAt.toISOString(),
+        returnAt: returnAt.toISOString(),
+        status: "reserved",
+        totalAmount: vehicle.dailyRate * 2,
+        vehicleId: vehicle.id,
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Бронь создана");
+  }
+
+  async function createExpenseForVehicle() {
+    if (!selectedVehicle) return;
+    await api<Expense>("/operations/expenses", {
+      body: JSON.stringify({
+        amount: Math.max(50, Math.round(selectedVehicle.dailyRate * 1.4)),
+        category: "maintenance",
+        currency: "EUR",
+        note: `Расход по ${selectedVehicle.plateNumber}`,
+        vehicleId: selectedVehicle.id,
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Расход сохранен");
+  }
+
+  async function createServiceForVehicle() {
+    if (!selectedVehicle) return;
+    await api<ServiceRecord>("/operations/service-records", {
+      body: JSON.stringify({
+        cost: Math.max(80, Math.round(selectedVehicle.dailyRate * 2)),
+        note: `Плановое ТО ${selectedVehicle.plateNumber}`,
+        odometerKm: selectedVehicle.odometerKm,
+        serviceAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        status: "planned",
+        type: "inspection",
+        vehicleId: selectedVehicle.id,
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Сервисная запись создана");
+  }
+
+  async function uploadCustomerId() {
+    const customer = activeCustomer ?? data.customers[0];
+    if (!customer) return;
+    await api<CustomerDocument>("/operations/customer-documents", {
+      body: JSON.stringify({
+        customerId: customer.id,
+        fileUrl: "https://example.com/fleetcore/passport-id.pdf",
+        title: `ID ${customer.displayName}`,
+        type: "passport",
+        verified: true,
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Паспорт/ID клиента сохранен");
+  }
+
+  async function sendRentalContract() {
+    const rental = activeRental ?? data.rentals[0];
+    if (!rental) return;
+    await api<RentalContract>("/operations/rental-contracts", {
+      body: JSON.stringify({
+        documentUrl: "https://example.com/fleetcore/rental-contract.pdf",
+        rentalId: rental.id,
+        sentVia: "whatsapp",
+        status: "sent",
+      }),
+      method: "POST",
+    }, token);
+    await loadData();
+    setMessage("Договор отправлен через WhatsApp");
+  }
+
+  function logout() {
+    localStorage.removeItem("fleetcore-session");
+    setSession(undefined);
+  }
+
+  if (!session) {
+    return <AuthScreen onSession={setSession} />;
   }
 
   return (
-    <main className="product-shell">
+    <main className="product-shell fleet-app">
       <aside className="desktop-sidebar">
         <div className="profile">
-          <div className="avatar">И</div>
+          <div className="avatar">{session.user.fullName.slice(0, 1)}</div>
           <div>
-            <strong>Иван Петров</strong>
-            <span>Best Rent Cars</span>
+            <strong>{session.user.fullName}</strong>
+            <span>{session.user.role} · {session.companyId.slice(0, 12)}</span>
           </div>
-          <button title="Workspace">⌄</button>
+          <button onClick={logout} title="Выйти">×</button>
         </div>
-
         <nav className="side-nav">
-          {navItems.map(([icon, label]) => (
-            <a className={label === "Карта GPS" ? "active" : ""} href={`#${label}`} key={label}>
-              <span>{icon}</span>
-              {label}
-              {label === "Уведомления" ? <em>3</em> : null}
-            </a>
+          {sections.map((item) => (
+            <button className={activeSection === item ? "active" : ""} key={item} onClick={() => setActiveSection(item)} type="button">
+              <span>{item === "Dashboard" ? "⌂" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
+              {item}
+              {item === "Service" && notifications.length ? <em>{notifications.length}</em> : null}
+            </button>
           ))}
         </nav>
-
         <div className="plan-card">
-          <span>Тариф Business</span>
+          <span>Тариф {session.user.role === "owner" ? "Business" : "Team"}</span>
           <strong>€499 <small>/ месяц</small></strong>
           <div className="usage"><i /></div>
-          <button>Управление подпиской</button>
+          <button type="button">Управление подпиской</button>
         </div>
       </aside>
 
       <section className="desktop-workspace">
         <header className="desktop-header">
           <div>
-            <h1>Карта GPS</h1>
+            <h1>{activeSection}</h1>
             <p className="api-status">{loading ? "Загрузка..." : message}</p>
           </div>
           <div className="header-actions">
-            <button className="ghost-button" onClick={() => void loadData()}>↻ Обновить</button>
-            <button className="primary-button">⊕ Подключить GPS</button>
-            <button className="icon-button">◴<span /></button>
+            <label className="global-search">
+              <span>⌕</span>
+              <input placeholder="Номер, VIN, клиент, телефон" value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
+            <button className="ghost-button" onClick={() => void loadData()} type="button">↻</button>
+            <button className="primary-button" onClick={() => void connectGps()} type="button">⊕ GPS</button>
           </div>
         </header>
 
-        <section className="gps-layout">
-          <div className="gps-main">
-            <div className="gps-stat-grid">
-              {gpsStats.map(([label, value, percent, tone]) => (
-                <article className="stat-card" key={label}>
-                  <span>{label}</span>
-                  <strong className={tone}>{value}</strong>
-                  <small>{percent}</small>
+        {activeSection === "Dashboard" ? (
+          <section className="workspace-grid">
+            <div className="main-column">
+              <div className="dashboard-grid">
+                {dashboardCards.map(([label, value, tone]) => (
+                  <article className="metric-card" key={label}>
+                    <span>{label}</span>
+                    <strong className={tone}>{value}</strong>
+                  </article>
+                ))}
+              </div>
+              <MapPanel vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
+              <section className="split-panels">
+                <UpcomingReturns rentals={data.rentals} vehicles={data.vehicles} customers={data.customers} />
+                <LatestRequests customers={data.customers} invoices={data.invoices} />
+              </section>
+            </div>
+            <aside className="side-column">
+              <NotificationsPanel notifications={notifications} />
+              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={() => void addVehicleDocument()} onExpense={() => void createExpenseForVehicle()} onService={() => void createServiceForVehicle()} />
+            </aside>
+          </section>
+        ) : null}
+
+        {activeSection === "Vehicles" ? (
+          <section className="workspace-grid">
+            <div className="main-column">
+              <div className="filter-row">
+                {(["all", "available", "rented", "maintenance", "offline"] as const).map((filter) => (
+                  <button className={mapFilter === filter ? "active" : ""} key={filter} onClick={() => setMapFilter(filter)} type="button">{filter}</button>
+                ))}
+              </div>
+              <div className="table-panel reduced-list">
+                {filteredVehicles.map((vehicle) => {
+                  const rental = data.rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+                  const customer = data.customers.find((item) => item.id === rental?.customerId);
+                  return (
+                    <button className="vehicle-row clickable" key={vehicle.id} onClick={() => setSelectedVehicleId(vehicle.id)} type="button">
+                      <VehicleArt />
+                      <div>
+                        <strong>{vehicle.make} {vehicle.model}</strong>
+                        <span>{vehicle.plateNumber}</span>
+                        <small>{customer?.displayName ?? "Без клиента"}</small>
+                      </div>
+                      <Badge value={vehicleStatusLabel(vehicle, rental)} />
+                      <time>{rental ? dateFmt.format(new Date(rental.returnAt)) : "Нет возврата"}</time>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <aside className="side-column">
+              <VehicleForm form={vehicleForm} setForm={setVehicleForm} onSubmit={submitVehicle} />
+              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={() => void addVehicleDocument()} onExpense={() => void createExpenseForVehicle()} onService={() => void createServiceForVehicle()} />
+            </aside>
+          </section>
+        ) : null}
+
+        {activeSection === "Drivers/Clients" ? (
+          <section className="workspace-grid">
+            <div className="main-column table-panel">
+              {data.customers.filter((customer) => !search || `${customer.displayName} ${customer.phone} ${customer.email}`.toLowerCase().includes(search.toLowerCase())).map((customer) => (
+                <article className="customer-line" key={customer.id}>
+                  <div className="avatar small">{customer.displayName.slice(0, 1)}</div>
+                  <div><strong>{customer.displayName}</strong><span>{customer.phone} · {customer.email}</span></div>
+                  <Badge value={customer.riskLevel === "low" ? "Активен" : customer.riskLevel} />
                 </article>
               ))}
             </div>
-
-            <div className="map-card large-map">
-              <CarPin className="pin-one" color="green" label={data.vehicles[0]?.model ?? "Vehicle"} />
-              <CarPin className="pin-two" color="blue" label={data.vehicles[1]?.model ?? "Vehicle"} />
-              <CarPin className="pin-three" color="red" label={data.vehicles[2]?.model ?? "Vehicle"} />
-              <CarPin className="pin-four" color="orange" label={data.vehicles[3]?.model ?? "Vehicle"} />
-              <div className="map-controls">
-                <button>⌖</button>
-                <button>＋</button>
-                <button>−</button>
+            <aside className="side-column">
+              <CustomerForm form={customerForm} setForm={setCustomerForm} onSubmit={submitCustomer} />
+              <div className="table-panel">
+                <h2>CRM история</h2>
+                <button className="ghost-button full-button" onClick={() => void uploadCustomerId()} type="button">Загрузить паспорт/ID</button>
+                <p className="history-row">Документы клиентов: {data.customerDocuments.length}</p>
+                {data.rentals.slice(-5).map((rental) => {
+                  const customer = data.customers.find((item) => item.id === rental.customerId);
+                  const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+                  return <p className="history-row" key={rental.id}>{customer?.displayName} · {vehicle?.plateNumber} · {money.format(rental.totalAmount)}</p>;
+                })}
               </div>
-              <div className="map-label">Барселона</div>
-            </div>
-          </div>
+            </aside>
+          </section>
+        ) : null}
 
-          <aside className="gps-connect-panel">
-            <div className="panel-title">
-              <h2>Подключение GPS</h2>
-              <button>×</button>
-            </div>
-            <div className="step">
-              <strong>1. Выберите способ подключения</strong>
-              <div className="choice-grid">
-                <article className="choice-card selected">
-                  <span>●</span>
-                  <strong>У меня уже есть GPS-платформа</strong>
-                  <small>Подключите через API за 2 минуты</small>
-                </article>
-                <article className="choice-card">
-                  <span>○</span>
-                  <strong>У меня есть GPS-трекер</strong>
-                  <small>Подключите трекер напрямую к системе</small>
-                </article>
-              </div>
-            </div>
-            <div className="step">
-              <strong>2. Выберите платформу</strong>
-              <div className="platform-grid">
-                <button>Wialon</button>
-                <button className="selected">Traccar</button>
-                <button>Navixy</button>
-              </div>
-            </div>
-            <button className="primary-button full">Далее</button>
-          </aside>
-        </section>
-
-        <section className="live-forms" id="Главная">
-          <form className="live-form" onSubmit={(event) => void submitVehicle(event)}>
-            <div className="section-title compact-title">
-              <h2>Добавить автомобиль</h2>
-              <Badge value="PostgreSQL" />
-            </div>
-            <div className="form-grid">
-              <label>Марка<input value={vehicleForm.make} onChange={(event) => setVehicleForm({ ...vehicleForm, make: event.target.value })} /></label>
-              <label>Модель<input value={vehicleForm.model} onChange={(event) => setVehicleForm({ ...vehicleForm, model: event.target.value })} /></label>
-              <label>Год<input type="number" value={vehicleForm.year} onChange={(event) => setVehicleForm({ ...vehicleForm, year: event.target.value })} /></label>
-              <label>Номер<input value={vehicleForm.plateNumber} onChange={(event) => setVehicleForm({ ...vehicleForm, plateNumber: event.target.value })} /></label>
-              <label>VIN<input value={vehicleForm.vin} onChange={(event) => setVehicleForm({ ...vehicleForm, vin: event.target.value })} /></label>
-              <label>Локация<input value={vehicleForm.location} onChange={(event) => setVehicleForm({ ...vehicleForm, location: event.target.value })} /></label>
-              <label>Пробег<input type="number" value={vehicleForm.odometerKm} onChange={(event) => setVehicleForm({ ...vehicleForm, odometerKm: event.target.value })} /></label>
-              <label>Цена/день<input type="number" value={vehicleForm.dailyRate} onChange={(event) => setVehicleForm({ ...vehicleForm, dailyRate: event.target.value })} /></label>
-            </div>
-            <button className="primary-button full">Сохранить авто</button>
-          </form>
-
-          <form className="live-form" onSubmit={(event) => void submitCustomer(event)}>
-            <div className="section-title compact-title">
-              <h2>Добавить клиента</h2>
-              <Badge value="API" />
-            </div>
-            <div className="form-grid single">
-              <label>Имя<input value={customerForm.displayName} onChange={(event) => setCustomerForm({ ...customerForm, displayName: event.target.value })} /></label>
-              <label>Email<input value={customerForm.email} onChange={(event) => setCustomerForm({ ...customerForm, email: event.target.value })} /></label>
-              <label>Телефон<input value={customerForm.phone} onChange={(event) => setCustomerForm({ ...customerForm, phone: event.target.value })} /></label>
-            </div>
-            <button className="primary-button full">Сохранить клиента</button>
-          </form>
-
-          <div className="live-form">
-            <div className="section-title compact-title">
-              <h2>Операции MVP</h2>
-              <Badge value="JWT roles" />
-            </div>
-            <div className="ops-grid">
-              <button className="ghost-button" onClick={() => void returnActiveRental()} type="button">Закрыть аренду</button>
-              <button className="ghost-button" onClick={() => void payActiveInvoice()} type="button">Оплатить счет</button>
-              <button className="ghost-button" onClick={() => void connectGps()} type="button">Подключить GPS</button>
-              <button className="ghost-button" onClick={() => void addVehicleDocument()} type="button">Добавить документ</button>
-            </div>
-            <div className="ops-summary">
-              <span>Платежи: <strong>{data.payments.length}</strong></span>
-              <span>GPS: <strong>{data.gpsDevices.length}</strong></span>
-              <span>Документы: <strong>{data.documents.length}</strong></span>
-            </div>
-          </div>
-        </section>
-      </section>
-
-      <section className="mobile-showcase">
-        <article className="phone-screen">
-          <div className="phone-status"><span>9:41</span><span>▰ ▱</span></div>
-          <div className="mobile-header">
-            <div className="profile compact">
-              <div className="avatar small">И</div>
-              <div><strong>Иван Петров</strong><span>Best Rent Cars</span></div>
-            </div>
-            <button className="bell">◴<i /></button>
-          </div>
-          <h2>Сегодня</h2>
-          <div className="mini-grid">
-            <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "rented").length}</strong><span>В аренде</span></article>
-            <article><strong>{data.metrics.availableVehicles}</strong><span>Свободно</span></article>
-            <article><strong>{data.rentals.length}</strong><span>Брони</span></article>
-            <article><strong>{money.format(data.metrics.monthlyRevenue)}</strong><span>Доход</span></article>
-          </div>
-          <div className="mobile-list">
-            <h3>Ближайшие события <a>Все</a></h3>
-            {notifications.slice(0, 3).map(([title, meta, time, tone]) => (
-              <div className="event-row" key={title}>
-                <i className={tone} />
-                <div><strong>{title}</strong><span>{meta}</span></div>
-                <time>{time}</time>
-              </div>
-            ))}
-          </div>
-          <MobileNav active="Главная" />
-        </article>
-
-        <article className="phone-screen dark-map">
-          <div className="phone-status"><span>9:41</span><span>▰ ▱</span></div>
-          <div className="map-top"><button>☰</button><strong>Карта и авто</strong><button>⌁</button></div>
-          <div className="chip-row"><span>Все авто {data.vehicles.length}</span><span>В аренде {data.vehicles.filter((vehicle) => vehicle.status === "rented").length}</span></div>
-          <div className="night-map">
-            <CarPin className="pin-one" color="green" label={data.vehicles[0]?.model ?? "Auto"} />
-            <CarPin className="pin-two" color="blue" label={data.vehicles[1]?.model ?? "Auto"} />
-            <CarPin className="pin-four" color="orange" label={data.vehicles[2]?.model ?? "Auto"} />
-          </div>
-          <div className="vehicle-feed">
-            {data.vehicles.slice(0, 4).map((vehicle) => (
-              <div className="feed-row" key={vehicle.id}>
-                <VehicleArt tone="dark" />
-                <div><strong>{vehicle.make} {vehicle.model}</strong><span>{vehicle.plateNumber}</span></div>
-                <small>{vehicle.status === "rented" ? "В движении" : "На месте"}</small>
-              </div>
-            ))}
-          </div>
-          <MobileNav active="Карта" dark />
-        </article>
-
-        <article className="phone-screen">
-          <div className="phone-status"><span>9:41</span><span>▰ ▱</span></div>
-          <div className="mobile-title"><button>‹</button><h2>{activeVehicle ? `${activeVehicle.make} ${activeVehicle.model}` : "Авто"}</h2><button>⋯</button></div>
-          <VehicleArt />
-          {activeVehicle ? <Badge value={activeVehicle.status === "available" ? "Свободно" : "В аренде"} /> : null}
-          <h3>{activeVehicle?.plateNumber ?? "Нет авто"} · {activeVehicle?.year ?? ""}</h3>
-          <div className="detail-grid">
-            <article><span>Год</span><strong>{activeVehicle?.year ?? "-"}</strong></article>
-            <article><span>Пробег</span><strong>{activeVehicle?.odometerKm.toLocaleString() ?? "-"} км</strong></article>
-            <article><span>Цена</span><strong>{money.format(activeVehicle?.dailyRate ?? 0)}</strong></article>
-            <article><span>Клиент</span><strong>{activeCustomer?.displayName ?? "-"}</strong></article>
-            <article><span>Депозит</span><strong>{money.format(activeRental?.depositAmount ?? 0)}</strong></article>
-            <article><span>Бронь</span><strong>{activeRental?.status ?? "-"}</strong></article>
-          </div>
-          <button className="success-button">Вернуть авто</button>
-        </article>
-      </section>
-
-      <section className="data-section">
-        <div className="section-title">
-          <h2>Автомобили</h2>
-          <button>＋</button>
-        </div>
-        <div className="data-grid">
-          <div className="table-panel">
-            {data.vehicles.map((vehicle) => {
-              const rental = data.rentals.find((item) => item.vehicleId === vehicle.id);
-              const customer = data.customers.find((item) => item.id === rental?.customerId);
+        {activeSection === "Bookings" ? (
+          <section className="table-panel bookings-board">
+            <button className="primary-button" onClick={() => void createQuickBooking()} type="button">Создать быструю бронь</button>
+            <button className="ghost-button" onClick={() => void sendRentalContract()} type="button">Отправить договор WhatsApp</button>
+            {data.rentals.map((rental) => {
+              const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+              const customer = data.customers.find((item) => item.id === rental.customerId);
               return (
-                <article className="vehicle-row" key={vehicle.id}>
-                  <VehicleArt />
-                  <div>
-                    <strong>{vehicle.make} {vehicle.model}</strong>
-                    <span>{vehicle.plateNumber}</span>
-                    <small>{customer?.displayName ?? "Без клиента"}</small>
-                  </div>
-                  <Badge value={vehicle.status === "maintenance" ? "На ТО" : vehicle.status === "available" ? "Свободно" : "В аренде"} />
+                <article className="booking-card" key={rental.id}>
+                  <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
+                  <Badge value={rental.status} />
+                  <span>Депозит {money.format(rental.depositAmount)}</span>
+                  <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
                 </article>
               );
             })}
-          </div>
+          </section>
+        ) : null}
 
-          <div className="table-panel">
-            <div className="section-title compact-title"><h2>Клиенты и финансы</h2></div>
-            {data.customers.slice(-5).map((customer) => (
-              <article className="finance-row" key={customer.id}>
-                <div><strong>{customer.displayName}</strong><span>{customer.email}</span></div>
-                <Badge value={customer.riskLevel} />
-              </article>
-            ))}
-            {data.invoices.map((invoice) => {
-              const customer = data.customers.find((item) => item.id === invoice.customerId);
-              return (
-                <article className="finance-row" key={invoice.id}>
-                  <div><strong>{invoice.invoiceNumber}</strong><span>{customer?.displayName}</span></div>
-                  <Badge value={invoice.status} />
-                  <strong>{money.format(invoice.total)}</strong>
+        {activeSection === "Finance" ? (
+          <section className="finance-layout">
+            <article className="metric-card"><span>Доход</span><strong className="green">{money.format(finance.totalIncome)}</strong></article>
+            <article className="metric-card"><span>Расходы</span><strong className="red">{money.format(finance.expenses)}</strong></article>
+            <article className="metric-card"><span>Чистая прибыль</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
+            <button className="primary-button" onClick={() => void payActiveInvoice()} type="button">Провести оплату</button>
+            <button className="ghost-button" onClick={() => void createExpenseForVehicle()} type="button">Добавить расход</button>
+            <div className="table-panel finance-wide">
+              <h2>ROI по каждому авто</h2>
+              {finance.incomeByVehicle.map((item) => (
+                <article className="finance-row" key={item.vehicle.id}>
+                  <div><strong>{item.vehicle.make} {item.vehicle.model}</strong><span>{item.vehicle.plateNumber}</span></div>
+                  <span>Доход {money.format(item.income)}</span>
+                  <span>Расход {money.format(item.expenses)}</span>
+                  <Badge value={`ROI ${item.roi}%`} />
                 </article>
-              );
-            })}
-          </div>
-        </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activeSection === "Service" ? (
+          <section className="workspace-grid">
+            <NotificationsPanel notifications={notifications} />
+            <div className="table-panel">
+              <h2>Документы и ТО</h2>
+              {data.documents.map((doc) => <p className="history-row" key={doc.id}>{doc.title} · {doc.type} · {doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}</p>)}
+              {data.serviceRecords.map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
+              <button className="primary-button full" onClick={() => void addVehicleDocument()} type="button">Загрузить PDF документ</button>
+              <button className="ghost-button full-button" onClick={() => void createServiceForVehicle()} type="button">Создать ТО</button>
+            </div>
+          </section>
+        ) : null}
+
+        {activeSection === "Settings" ? (
+          <section className="settings-grid">
+            <ActionCard title="Электронный договор аренды" text={`${data.rentalContracts.length} договоров`} onClick={() => void sendRentalContract()} />
+            <ActionCard title="Загрузка паспорта/ID клиента" text={`${data.customerDocuments.length} документов`} onClick={() => void uploadCustomerId()} />
+            <ActionCard title="Депозит и возврат депозита" text="Депозит хранится в бронировании" onClick={() => void returnActiveRental()} />
+            <ActionCard title="WhatsApp-интеграция" text="Отправка договора через API" onClick={() => void sendRentalContract()} />
+            <ActionCard title="Автоотправка договора" text="Создает запись договора" onClick={() => void sendRentalContract()} />
+            <ActionCard title="Электронная подпись" text="Статус signed готов в модели" onClick={() => void sendRentalContract()} />
+          </section>
+        ) : null}
       </section>
+
+      <MobileExperience data={data} notifications={notifications} />
     </main>
+  );
+}
+
+function MapPanel({ onSelect, selectedVehicleId, vehicles, rentals }: { onSelect: (id: string) => void; selectedVehicleId: string | undefined; vehicles: Vehicle[]; rentals: Rental[] }) {
+  return (
+    <section className="map-card large-map business-map">
+      {vehicles.slice(0, 8).map((vehicle, index) => {
+        const rental = rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+        return (
+          <button className={`map-pin pin-${(index % 5) + 1} ${statusTone(vehicle, rental)} ${selectedVehicleId === vehicle.id ? "selected" : ""}`} key={vehicle.id} onClick={() => onSelect(vehicle.id)} type="button">
+            <span>▣</span>
+            <strong>{vehicle.plateNumber}</strong>
+          </button>
+        );
+      })}
+      <div className="map-controls"><button>⌖</button><button>＋</button><button>−</button></div>
+      <div className="map-legend">
+        <span><i className="green" /> Свободен</span>
+        <span><i className="blue" /> Забронирован</span>
+        <span><i className="orange" /> Скоро возврат</span>
+        <span><i className="red" /> Просрочен</span>
+        <span><i className="black" /> На ремонте</span>
+      </div>
+    </section>
+  );
+}
+
+function NotificationsPanel({ notifications }: { notifications: UiNotification[] }) {
+  return (
+    <section className="table-panel">
+      <div className="section-title compact-title"><h2>Уведомления</h2><Badge value={String(notifications.length)} /></div>
+      <div className="notification-list">
+        {(notifications.length ? notifications : [{ id: "ok", meta: "Система", time: "сейчас", title: "Критических событий нет", tone: "green" as const }]).map((item) => (
+          <article className="notification-row" key={item.id}>
+            <i className={item.tone}>{item.tone === "green" ? "✓" : "!"}</i>
+            <div><strong>{item.title}</strong><span>{item.meta}</span></div>
+            <time>{item.time}</time>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function VehicleCard({ customer, documents, finance, onDocument, onExpense, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; onDocument: () => void; onExpense: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
+  if (!vehicle) return <section className="table-panel"><h2>Карточка автомобиля</h2><p>Добавьте первый автомобиль.</p></section>;
+  const vehicleDocuments = documents.filter((doc) => doc.vehicleId === vehicle.id);
+  const vehicleServiceRecords = serviceRecords.filter((record) => record.vehicleId === vehicle.id);
+  return (
+    <section className="table-panel vehicle-card-panel">
+      <VehicleArt />
+      <Badge value={vehicleStatusLabel(vehicle, rental)} />
+      <h2>{vehicle.make} {vehicle.model}</h2>
+      <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
+      <div className="detail-grid">
+        <article><span>Пробег</span><strong>{vehicle.odometerKm.toLocaleString()} км</strong></article>
+        <article><span>Клиент</span><strong>{customer?.displayName ?? "Нет"}</strong></article>
+        <article><span>Возврат</span><strong>{rental ? dateFmt.format(new Date(rental.returnAt)) : "-"}</strong></article>
+        <article><span>Документы PDF</span><strong>{vehicleDocuments.length}</strong></article>
+        <article><span>Сервис</span><strong>{vehicleServiceRecords.length}</strong></article>
+        <article><span>Расходы</span><strong>{money.format(finance?.expenses ?? 0)}</strong></article>
+        <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
+      </div>
+      <button className="ghost-button full-button" onClick={onDocument} type="button">Загрузить документ</button>
+      <button className="ghost-button full-button" onClick={onExpense} type="button">Добавить расход</button>
+      <button className="ghost-button full-button" onClick={onService} type="button">Создать ТО</button>
+    </section>
+  );
+}
+
+function ActionCard({ onClick, text, title }: { onClick: () => void; text: string; title: string }) {
+  return (
+    <button className="integration-card action-card" onClick={onClick} type="button">
+      <strong>{title}</strong>
+      <span>{text}</span>
+    </button>
+  );
+}
+
+function VehicleForm({ form, onSubmit, setForm }: { form: Record<string, string>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
+  return (
+    <form className="live-form" onSubmit={onSubmit}>
+      <h2>Добавить автомобиль</h2>
+      <div className="form-grid single">
+        {(["make", "model", "year", "plateNumber", "vin", "location", "odometerKm", "dailyRate"] as const).map((key) => (
+          <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
+        ))}
+      </div>
+      <button className="primary-button full">Сохранить авто</button>
+    </form>
+  );
+}
+
+function CustomerForm({ form, onSubmit, setForm }: { form: Record<string, string>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
+  return (
+    <form className="live-form" onSubmit={onSubmit}>
+      <h2>Добавить клиента</h2>
+      <div className="form-grid single">
+        {(["displayName", "email", "phone"] as const).map((key) => (
+          <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
+        ))}
+      </div>
+      <button className="primary-button full">Сохранить клиента</button>
+    </form>
+  );
+}
+
+function UpcomingReturns({ customers, rentals, vehicles }: { customers: Customer[]; rentals: Rental[]; vehicles: Vehicle[] }) {
+  return (
+    <section className="table-panel">
+      <h2>Ближайшие возвраты</h2>
+      {rentals.slice(0, 4).map((rental) => {
+        const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+        const customer = customers.find((item) => item.id === rental.customerId);
+        return <p className="history-row" key={rental.id}>{vehicle?.plateNumber} · {customer?.displayName} · {dateFmt.format(new Date(rental.returnAt))}</p>;
+      })}
+    </section>
+  );
+}
+
+function LatestRequests({ customers, invoices }: { customers: Customer[]; invoices: Invoice[] }) {
+  return (
+    <section className="table-panel">
+      <h2>Последние заявки</h2>
+      {invoices.slice(-4).map((invoice) => {
+        const customer = customers.find((item) => item.id === invoice.customerId);
+        return <p className="history-row" key={invoice.id}>{invoice.invoiceNumber} · {customer?.displayName} · {money.format(invoice.total)}</p>;
+      })}
+    </section>
+  );
+}
+
+function MobileExperience({ data, notifications }: { data: AppData; notifications: UiNotification[] }) {
+  return (
+    <section className="mobile-showcase mobile-live">
+      <article className="phone-screen">
+        <div className="phone-status"><span>9:41</span><span>5G</span></div>
+        <h2>Сегодня</h2>
+        <div className="mini-grid">
+          <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "rented").length}</strong><span>В аренде</span></article>
+          <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "available").length}</strong><span>Свободно</span></article>
+          <article><strong>{data.vehicles.filter((vehicle) => vehicle.status === "maintenance").length}</strong><span>На сервисе</span></article>
+          <article><strong>{money.format(data.metrics.monthlyRevenue)}</strong><span>Доход</span></article>
+        </div>
+        <div className="mobile-list">
+          <h3>Ближайшие события <a>Все</a></h3>
+          {notifications.slice(0, 4).map((item) => (
+            <div className="event-row" key={item.id}><i className={item.tone} /> <div><strong>{item.title}</strong><span>{item.meta}</span></div><time>{item.time}</time></div>
+          ))}
+        </div>
+        <nav className="mobile-nav"><span className="active">⌂<small>Главная</small></span><span>▣<small>Авто</small></span><span>♙<small>Клиенты</small></span><span>⌖<small>Карта</small></span><span>◴<small>Уведомления</small></span></nav>
+      </article>
+    </section>
   );
 }

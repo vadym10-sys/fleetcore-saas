@@ -1,13 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 import { createVehicleDocument, listVehicleDocuments } from "../db/repositories.js";
-import { requireRoles } from "../lib/access-control.js";
+import { getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
 import { vehicleDocumentInput } from "../schemas.js";
 
 export const documentRoutes: FastifyPluginAsync = async (app) => {
   app.get("/documents/vehicles", async (request) => {
     const { vehicleId } = request.query as { vehicleId?: string };
-    return envelope(await listVehicleDocuments(vehicleId));
+    return envelope(await listVehicleDocuments(getTenantScope(request), vehicleId));
   });
 
   app.post("/documents/vehicles", async (request, reply) => {
@@ -18,7 +18,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: "Invalid document payload", issues: parsed.error.flatten() });
     }
 
-    const document = await createVehicleDocument(parsed.data);
+    const document = await createVehicleDocument(getTenantScope(request), parsed.data);
     if (!document) {
       return reply.code(422).send({ error: "Vehicle does not exist" });
     }
