@@ -551,31 +551,6 @@ h3 {
 .pin-4 { left: 72%; top: 30%; }
 .pin-5 { left: 32%; top: 75%; }
 
-.map-controls {
-  position: absolute;
-  left: 28px;
-  bottom: 42px;
-  z-index: 4;
-  display: grid;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: white;
-}
-
-.map-controls button {
-  width: 42px;
-  height: 42px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: white;
-  color: var(--muted);
-}
-
-.map-controls button:last-child {
-  border-bottom: 0;
-}
-
 .map-label {
   position: absolute;
   left: 50%;
@@ -1358,11 +1333,6 @@ h3 {
     min-height: 320px;
   }
 
-  .map-controls {
-    left: 12px;
-    bottom: 76px;
-  }
-
   .map-legend {
     left: 10px;
     right: 10px;
@@ -1499,8 +1469,7 @@ h3 {
 
 .auth-panel,
 .auth-preview,
-.metric-card,
-.integration-card {
+.metric-card {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
@@ -1774,8 +1743,7 @@ h3 {
 }
 
 .customer-line span,
-.history-row,
-.integration-card span {
+.history-row {
   color: var(--muted);
   font-size: 13px;
 }
@@ -1924,22 +1892,13 @@ h3 {
   grid-template-columns: repeat(3, minmax(220px, 1fr));
 }
 
-.integration-card {
-  display: grid;
-  gap: 8px;
-  padding: 18px;
+.settings-panel {
+  align-content: start;
+  min-height: 280px;
 }
 
-.action-card {
-  width: 100%;
-  border: 1px solid var(--line);
-  color: var(--ink);
-  text-align: left;
-}
-
-.action-card:hover {
-  border-color: var(--primary);
-  background: var(--primary-soft);
+.settings-panel h2 {
+  margin: 0 0 8px;
 }
 
 .badge-Активен,

@@ -1277,7 +1277,7 @@ export default function DashboardClient() {
           <span>Тариф {session.user.role === "owner" ? "Business" : "Team"}</span>
           <strong>€499 <small>/ месяц</small></strong>
           <div className="usage"><i /></div>
-          <button type="button">Управление подпиской</button>
+          <button onClick={() => setActiveSection("Settings")} type="button">Управление подпиской</button>
         </div>
       </aside>
 
@@ -1470,14 +1470,29 @@ export default function DashboardClient() {
 
         {activeSection === "Settings" ? (
           <section className="settings-grid">
-            <ActionCard title="Электронный договор аренды" text={`${data.rentalContracts.length} договоров`} onClick={requestContractUpload} />
-            <ActionCard title="Загрузить договор аренды" text="PDF, DOCX, HTML или фото договора" onClick={requestContractUpload} />
-            <ActionCard title="Загрузка паспорта/ID клиента" text={`${data.customerDocuments.length} документов`} onClick={requestCustomerDocumentUpload} />
-            <ActionCard title="Загрузка папки клиента" text="Папка на desktop, несколько файлов на телефоне" onClick={requestCustomerFolderUpload} />
-            <ActionCard title="Депозит и возврат депозита" text="Загрузка чека и запись возврата" onClick={() => openOperation("depositReturn")} />
-            <ActionCard title="WhatsApp-интеграция" text="Открывает WhatsApp с ссылкой договора" onClick={() => void sendRentalContract()} />
-            <ActionCard title="Автоотправка договора" text="Создает договор и готовит сообщение клиенту" onClick={() => void sendRentalContract()} />
-            <ActionCard title="Электронная подпись" text="Загрузить подписанный файл или фото" onClick={requestSignatureUpload} />
+            <section className="table-panel settings-panel">
+              <h2>Аккаунт компании</h2>
+              <p className="history-row">{session.user.fullName} · {session.user.email}</p>
+              <p className="history-row">Роль: {session.user.role}</p>
+              <p className="history-row">Company ID: {session.companyId}</p>
+              <button className="ghost-button full-button" onClick={logout} type="button">Выйти из аккаунта</button>
+            </section>
+
+            <section className="table-panel settings-panel">
+              <h2>Интеграции</h2>
+              <p className="history-row">Google Maps: {GOOGLE_MAPS_API_KEY ? "API key подключен" : "работает preview без API key"}</p>
+              <p className="history-row">Backend API: {API_URL}</p>
+              <button className="primary-button full" onClick={() => openOperation("gps")} type="button">Подключить GPS</button>
+            </section>
+
+            <section className="table-panel settings-panel">
+              <h2>Данные SaaS</h2>
+              <p className="history-row">Авто: {data.vehicles.length}</p>
+              <p className="history-row">Клиенты: {data.customers.length}</p>
+              <p className="history-row">Документы: {data.documents.length + data.customerDocuments.length}</p>
+              <p className="history-row">Договоры: {data.rentalContracts.length}</p>
+              <button className="ghost-button full-button" onClick={() => void loadData()} type="button">Обновить данные</button>
+            </section>
           </section>
         ) : null}
       </section>
@@ -1586,7 +1601,6 @@ function MapPanel({ gpsDevices, onSelect, selectedVehicleId, vehicles, rentals }
           </button>
         );
       })}
-      <div className="map-controls"><button type="button">⌖</button><button type="button">＋</button><button type="button">−</button></div>
       <div className="map-legend">
         <span><i className="green" /> Свободен</span>
         <span><i className="blue" /> Забронирован</span>
@@ -1638,15 +1652,6 @@ function VehicleCard({ customer, documents, finance, onDocument, onExpense, onSe
       <button className="ghost-button full-button" onClick={onExpense} type="button">Добавить расход</button>
       <button className="ghost-button full-button" onClick={onService} type="button">Создать ТО</button>
     </section>
-  );
-}
-
-function ActionCard({ onClick, text, title }: { onClick: () => void; text: string; title: string }) {
-  return (
-    <button className="integration-card action-card" onClick={onClick} type="button">
-      <strong>{title}</strong>
-      <span>{text}</span>
-    </button>
   );
 }
 
@@ -1822,8 +1827,8 @@ function OperationDialog({
 
           {kind === "depositReturn" ? (
             <>
-              <label>Финальная сумма<input type="number" min="0" value={form.finalAmount} onChange={(event) => patch("finalAmount", event.target.value)} /></label>
-              <label>Сумма депозита<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
+              <label>Итоговая сумма аренды<input type="number" min="0" value={form.finalAmount} onChange={(event) => patch("finalAmount", event.target.value)} /></label>
+              <label>Сумма возврата депозита<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
               <label>Пробег при возврате<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
               <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
             </>
