@@ -42,6 +42,15 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
 .product-shell {
   min-height: 100vh;
   display: grid;
