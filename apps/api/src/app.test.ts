@@ -122,6 +122,35 @@ test("authenticated API can upsert GPS state", async () => {
   assert.equal(response.json().data.vehicleId, vehicle.id);
 });
 
+test("authenticated API stores and serves uploaded files", async () => {
+  const content = "FleetCore upload smoke test";
+  const upload = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      base64: Buffer.from(content).toString("base64"),
+      mimeType: "text/plain",
+      originalName: "smoke-document.txt",
+    },
+    url: "/uploads",
+  });
+
+  assert.equal(upload.statusCode, 201);
+  const file = upload.json().data;
+  assert.equal(file.originalName, "smoke-document.txt");
+  assert.equal(file.mimeType, "text/plain");
+  assert.equal(file.sizeBytes, Buffer.byteLength(content));
+
+  const download = await app.inject({
+    method: "GET",
+    url: new URL(file.publicUrl).pathname,
+  });
+
+  assert.equal(download.statusCode, 200);
+  assert.equal(download.headers["content-type"], "text/plain");
+  assert.equal(download.body, content);
+});
+
 test("authenticated API can manage business operations", async () => {
   const vehicles = await app.inject({
     headers: { authorization: `Bearer ${token}` },

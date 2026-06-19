@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, Expense, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 type DbRow = Record<string, unknown>;
 
@@ -223,5 +223,19 @@ export function mapRentalContract(row: DbRow): RentalContract {
     documentUrl: String(row.document_url),
     sentVia: row.sent_via as RentalContract["sentVia"],
     ...(row.signed_at ? { signedAt: iso(row.signed_at) } : {}),
+  };
+}
+
+export function mapFileObject(row: DbRow, publicUrl: string): FileObject {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    originalName: String(row.original_name),
+    mimeType: String(row.mime_type),
+    sizeBytes: number(row.size_bytes),
+    publicUrl,
   };
 }

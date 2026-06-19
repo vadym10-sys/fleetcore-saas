@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const TENANT_ID = "tenant_atlas";
@@ -106,10 +106,6 @@ function statusTone(vehicle: Vehicle, rental?: Rental): UiNotification["tone"] {
   return "green";
 }
 
-function documentUrlForFile(file: File) {
-  return `https://fleetcore.local/uploads/${encodeURIComponent(`${Date.now()}-${file.name}`)}`;
-}
-
 function documentTypeFromName(name: string): "insurance" | "registration" | "inspection" | "rental_contract" | "other" {
   const normalized = name.toLowerCase();
   if (normalized.includes("insurance") || normalized.includes("страх")) return "insurance";
@@ -117,6 +113,18 @@ function documentTypeFromName(name: string): "insurance" | "registration" | "ins
   if (normalized.includes("inspection") || normalized.includes("то") || normalized.includes("tech")) return "inspection";
   if (normalized.includes("contract") || normalized.includes("договор")) return "rental_contract";
   return "other";
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Не удалось прочитать файл ${file.name}`));
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",")[1] ?? "" : result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }) {
@@ -530,16 +538,19 @@ export default function DashboardClient() {
     if (!files?.length) return;
     await runAction(`Загружаем документы авто: ${files.length}`, async () => {
       const vehicle = await ensureVehicle();
-      await Promise.all(Array.from(files).map((file) => api<VehicleDocument>("/documents/vehicles", {
-        body: JSON.stringify({
-          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          fileUrl: documentUrlForFile(file),
-          title: file.name,
-          type: documentTypeFromName(file.name),
-          vehicleId: vehicle.id,
-        }),
-        method: "POST",
-      }, token)));
+      await Promise.all(Array.from(files).map(async (file) => {
+        const storedFile = await uploadFile(file);
+        return api<VehicleDocument>("/documents/vehicles", {
+          body: JSON.stringify({
+            expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            fileUrl: storedFile.publicUrl,
+            title: file.name,
+            type: documentTypeFromName(file.name),
+            vehicleId: vehicle.id,
+          }),
+          method: "POST",
+        }, token);
+      }));
       await loadData();
       setMessage(`Загружено документов авто: ${files.length}`);
     });
@@ -549,19 +560,34 @@ export default function DashboardClient() {
     if (!files?.length) return;
     await runAction(`Загружаем документы клиента: ${files.length}`, async () => {
       const customer = await ensureCustomer();
-      await Promise.all(Array.from(files).map((file) => api<CustomerDocument>("/operations/customer-documents", {
-        body: JSON.stringify({
-          customerId: customer.id,
-          fileUrl: documentUrlForFile(file),
-          title: file.name,
-          type: file.name.toLowerCase().includes("license") ? "driver_license" : "passport",
-          verified: false,
-        }),
-        method: "POST",
-      }, token)));
+      await Promise.all(Array.from(files).map(async (file) => {
+        const storedFile = await uploadFile(file);
+        return api<CustomerDocument>("/operations/customer-documents", {
+          body: JSON.stringify({
+            customerId: customer.id,
+            fileUrl: storedFile.publicUrl,
+            title: file.name,
+            type: file.name.toLowerCase().includes("license") ? "driver_license" : "passport",
+            verified: false,
+          }),
+          method: "POST",
+        }, token);
+      }));
       await loadData();
       setMessage(`Загружено документов клиента: ${files.length}`);
     });
+  }
+
+  async function uploadFile(file: File) {
+    const response = await api<FileObject>("/uploads", {
+      body: JSON.stringify({
+        base64: await fileToBase64(file),
+        mimeType: file.type || "application/octet-stream",
+        originalName: file.name,
+      }),
+      method: "POST",
+    }, token);
+    return response.data;
   }
 
   function requestVehicleDocumentUpload() {

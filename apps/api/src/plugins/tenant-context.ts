@@ -4,6 +4,7 @@ import { setRequestUser } from "../lib/access-control.js";
 import { verifyAccessToken } from "../lib/auth.js";
 
 const publicRoutes = new Set(["/health", "/auth/login", "/auth/register-company"]);
+const publicPrefixes = ["/uploads/"];
 
 export function installTenantContext(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
@@ -11,7 +12,7 @@ export function installTenantContext(app: FastifyInstance) {
       return;
     }
 
-    if (publicRoutes.has(request.url)) {
+    if (publicRoutes.has(request.url) || publicPrefixes.some((prefix) => request.url.startsWith(prefix))) {
       return;
     }
 

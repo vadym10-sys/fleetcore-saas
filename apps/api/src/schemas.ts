@@ -136,3 +136,9 @@ export const rentalContractInput = z.object({
   status: z.enum(["draft", "sent", "signed"]).default("sent"),
   signedAt: z.string().datetime().optional(),
 });
+
+export const fileUploadInput = z.object({
+  base64: z.string().min(1),
+  mimeType: z.string().min(1).max(120).default("application/octet-stream"),
+  originalName: z.string().min(1).max(255),
+});

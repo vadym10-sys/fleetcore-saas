@@ -11,6 +11,7 @@ import { fleetRoutes } from "./routes/fleet.js";
 import { gpsRoutes } from "./routes/gps.js";
 import { operationRoutes } from "./routes/operations.js";
 import { rentalRoutes } from "./routes/rentals.js";
+import { uploadRoutes } from "./routes/uploads.js";
 import { envelope } from "./lib/http.js";
 import { runMigrations } from "./db/migrate.js";
 import { seedDatabase } from "./db/seed.js";
@@ -29,7 +30,7 @@ function resolveCorsOrigin(origin: string | undefined) {
 }
 
 export async function buildServer() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ bodyLimit: Number(process.env.MAX_UPLOAD_BODY_BYTES ?? 12 * 1024 * 1024), logger: true });
 
   app.addHook("onRequest", async (request, reply) => {
     reply.header("access-control-allow-origin", resolveCorsOrigin(request.headers.origin));
@@ -59,6 +60,7 @@ export async function buildServer() {
   await app.register(rentalRoutes);
   await app.register(financeRoutes);
   await app.register(gpsRoutes);
+  await app.register(uploadRoutes);
   await app.register(documentRoutes);
   await app.register(operationRoutes);
 

@@ -171,6 +171,14 @@ export interface RentalContract extends TenantScopedEntity {
   signedAt?: string;
 }
 
+export interface FileObject extends TenantScopedEntity {
+  companyId: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  publicUrl: string;
+}
+
 export interface DashboardMetrics {
   activeRentals: number;
   availableVehicles: number;

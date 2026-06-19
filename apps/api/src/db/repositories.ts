@@ -1,13 +1,14 @@
-import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
 import { createId } from "../lib/http.js";
-import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalContract, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
+import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalContract, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
 import type {
   customerInput,
   customerPatchInput,
   customerDocumentInput,
   expenseInput,
+  fileUploadInput,
   gpsDeviceInput,
   invoiceInput,
   invoicePatchInput,
@@ -41,6 +42,7 @@ type ExpenseInput = z.infer<typeof expenseInput>;
 type ServiceRecordInput = z.infer<typeof serviceRecordInput>;
 type CustomerDocumentInput = z.infer<typeof customerDocumentInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
+type FileUploadInput = z.infer<typeof fileUploadInput>;
 
 type PatchValue = string | number | undefined;
 
@@ -112,6 +114,40 @@ export async function createCompanyAccount(input: RegisterCompanyInput, password
   } finally {
     client.release();
   }
+}
+
+export async function createFileObject(scope: TenantScope, input: FileUploadInput, publicUrlForId: (id: string, originalName: string) => string): Promise<FileObject> {
+  const fileId = createId("file");
+  const data = Buffer.from(input.base64, "base64");
+  const result = await pool.query(
+    `insert into file_objects (
+      id, tenant_id, company_id, original_name, mime_type, size_bytes, data
+    ) values ($1, $2, $3, $4, $5, $6, $7)
+    returning id, tenant_id, company_id, original_name, mime_type, size_bytes, created_at, updated_at`,
+    [
+      fileId,
+      scope.tenantId,
+      scope.companyId,
+      input.originalName,
+      input.mimeType,
+      data.byteLength,
+      data,
+    ],
+  );
+  return mapFileObject(result.rows[0], publicUrlForId(fileId, input.originalName));
+}
+
+export async function getFileObject(fileId: string): Promise<{ data: Buffer; mimeType: string; originalName: string } | undefined> {
+  const result = await pool.query(
+    "select original_name, mime_type, data from file_objects where id = $1",
+    [fileId],
+  );
+  if (!result.rows[0]) return undefined;
+  return {
+    data: result.rows[0].data as Buffer,
+    mimeType: String(result.rows[0].mime_type),
+    originalName: String(result.rows[0].original_name),
+  };
 }
 
 export async function listCompanies(scope: TenantScope) {
