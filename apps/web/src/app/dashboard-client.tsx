@@ -115,6 +115,24 @@ function documentTypeFromName(name: string): "insurance" | "registration" | "ins
   return "other";
 }
 
+function customerDocumentTypeFromName(name: string): CustomerDocument["type"] {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("passport") || normalized.includes("паспорт")) return "passport";
+  if (normalized.includes("id") || normalized.includes("карта") || normalized.includes("dowod")) return "id_card";
+  if (normalized.includes("license") || normalized.includes("driver") || normalized.includes("вод")) return "driver_license";
+  return "other";
+}
+
+function normalizePhoneForWhatsApp(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length ? digits : "48600111222";
+}
+
+function openWhatsApp(phone: string, text: string) {
+  const url = `https://wa.me/${normalizePhoneForWhatsApp(phone)}?text=${encodeURIComponent(text)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 function fileToBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -240,6 +258,9 @@ export default function DashboardClient() {
   const vehicleFolderInputRef = useRef<HTMLInputElement>(null);
   const customerDocumentInputRef = useRef<HTMLInputElement>(null);
   const customerFolderInputRef = useRef<HTMLInputElement>(null);
+  const contractInputRef = useRef<HTMLInputElement>(null);
+  const depositInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<AppData>({
     customers: [],
     documents: [],
@@ -567,7 +588,7 @@ export default function DashboardClient() {
             customerId: customer.id,
             fileUrl: storedFile.publicUrl,
             title: file.name,
-            type: file.name.toLowerCase().includes("license") ? "driver_license" : "passport",
+            type: customerDocumentTypeFromName(file.name),
             verified: false,
           }),
           method: "POST",
@@ -575,6 +596,51 @@ export default function DashboardClient() {
       }));
       await loadData();
       setMessage(`Загружено документов клиента: ${files.length}`);
+    });
+  }
+
+  async function saveDepositFiles(files: FileList | null) {
+    if (!files?.length) return;
+    await runAction(`Загружаем документы депозита: ${files.length}`, async () => {
+      const rental = await ensureRental();
+      const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
+      await Promise.all(Array.from(files).map(async (file) => {
+        const storedFile = await uploadFile(file);
+        return api<CustomerDocument>("/operations/customer-documents", {
+          body: JSON.stringify({
+            customerId: customer.id,
+            fileUrl: storedFile.publicUrl,
+            title: `Депозит / возврат: ${file.name}`,
+            type: "other",
+            verified: true,
+          }),
+          method: "POST",
+        }, token);
+      }));
+      await loadData();
+      setMessage(`Документы депозита сохранены: ${files.length}`);
+    });
+  }
+
+  async function saveRentalContractFiles(files: FileList | null, status: RentalContract["status"]) {
+    if (!files?.length) return;
+    await runAction(`Загружаем договоры: ${files.length}`, async () => {
+      const rental = await ensureRental();
+      await Promise.all(Array.from(files).map(async (file) => {
+        const storedFile = await uploadFile(file);
+        return api<RentalContract>("/operations/rental-contracts", {
+          body: JSON.stringify({
+            documentUrl: storedFile.publicUrl,
+            rentalId: rental.id,
+            sentVia: "manual",
+            signedAt: status === "signed" ? new Date().toISOString() : undefined,
+            status,
+          }),
+          method: "POST",
+        }, token);
+      }));
+      await loadData();
+      setMessage(status === "signed" ? "Подписанный договор сохранен" : `Договоры сохранены: ${files.length}`);
     });
   }
 
@@ -604,6 +670,18 @@ export default function DashboardClient() {
 
   function requestCustomerFolderUpload() {
     customerFolderInputRef.current?.click();
+  }
+
+  function requestContractUpload() {
+    contractInputRef.current?.click();
+  }
+
+  function requestDepositUpload() {
+    depositInputRef.current?.click();
+  }
+
+  function requestSignatureUpload() {
+    signatureInputRef.current?.click();
   }
 
   async function payActiveInvoice() {
@@ -677,20 +755,93 @@ export default function DashboardClient() {
     });
   }
 
+  async function createContractFile(rental: Rental) {
+    const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+    const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
+    const contractHtml = `<!doctype html>
+<html lang="ru">
+<meta charset="utf-8" />
+<title>Договор аренды ${rental.id}</title>
+<body style="font-family:Arial,sans-serif;line-height:1.5;color:#111827;padding:32px">
+  <h1>Договор аренды автомобиля</h1>
+  <p><strong>Договор:</strong> ${rental.id}</p>
+  <p><strong>Клиент:</strong> ${customer.displayName} · ${customer.phone} · ${customer.email}</p>
+  <p><strong>Автомобиль:</strong> ${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber} · VIN ${vehicle.vin}</p>
+  <p><strong>Период:</strong> ${new Date(rental.pickupAt).toLocaleString()} - ${new Date(rental.returnAt).toLocaleString()}</p>
+  <p><strong>Сумма аренды:</strong> ${money.format(rental.totalAmount)}</p>
+  <p><strong>Депозит:</strong> ${money.format(rental.depositAmount)}</p>
+  <hr />
+  <p>Клиент принимает автомобиль в исправном состоянии и обязуется вернуть его в согласованный срок.</p>
+  <p>Подпись клиента: ____________________</p>
+  <p>Подпись компании: ____________________</p>
+</body>
+</html>`;
+    return new File([contractHtml], `rental-contract-${rental.id}.html`, { type: "text/html" });
+  }
+
+  async function createContractRecord(status: RentalContract["status"], sentVia: RentalContract["sentVia"]) {
+    const rental = await ensureRental();
+    const storedFile = await uploadFile(await createContractFile(rental));
+    const response = await api<RentalContract>("/operations/rental-contracts", {
+      body: JSON.stringify({
+        documentUrl: storedFile.publicUrl,
+        rentalId: rental.id,
+        sentVia,
+        signedAt: status === "signed" ? new Date().toISOString() : undefined,
+        status,
+      }),
+      method: "POST",
+    }, token);
+    return response.data;
+  }
+
   async function sendRentalContract() {
-    await runAction("Отправляем договор...", async () => {
+    await runAction("Формируем и отправляем договор...", async () => {
       const rental = await ensureRental();
-      await api<RentalContract>("/operations/rental-contracts", {
+      const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
+      const contract = await createContractRecord("sent", "whatsapp");
+      await loadData();
+      openWhatsApp(customer.phone, `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore: ${contract.documentUrl}`);
+      setMessage("Договор создан и ссылка открыта для отправки в WhatsApp");
+    });
+  }
+
+  async function createDraftContract() {
+    await runAction("Создаем электронный договор...", async () => {
+      await createContractRecord("draft", "manual");
+      await loadData();
+      setMessage("Электронный договор создан");
+    });
+  }
+
+  async function signContract() {
+    await runAction("Подписываем договор...", async () => {
+      await createContractRecord("signed", "manual");
+      await loadData();
+      setMessage("Электронная подпись сохранена");
+    });
+  }
+
+  async function returnDeposit() {
+    await runAction("Оформляем возврат депозита...", async () => {
+      const rental = await ensureRental();
+      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+      await api<Rental>(`/rentals/${rental.id}/return`, {
+        body: JSON.stringify({ finalAmount: rental.totalAmount, odometerKm: vehicle.odometerKm + 25 }),
+        method: "POST",
+      }, token);
+      await api<Expense>("/operations/expenses", {
         body: JSON.stringify({
-          documentUrl: `https://fleetcore.local/contracts/${rental.id}.pdf`,
-          rentalId: rental.id,
-          sentVia: "whatsapp",
-          status: "sent",
+          amount: rental.depositAmount,
+          category: "other",
+          currency: "EUR",
+          note: `Возврат депозита по аренде ${rental.id}`,
+          vehicleId: rental.vehicleId,
         }),
         method: "POST",
       }, token);
       await loadData();
-      setMessage("Договор отправлен через WhatsApp");
+      setMessage("Возврат депозита записан в финансах");
     });
   }
 
@@ -748,6 +899,39 @@ export default function DashboardClient() {
         ref={customerFolderInputRef}
         type="file"
         {...folderPickerProps}
+      />
+      <input
+        accept=".pdf,.doc,.docx,.html,.jpg,.jpeg,.png,.webp"
+        className="hidden-file-input"
+        multiple
+        onChange={(event) => {
+          void saveRentalContractFiles(event.currentTarget.files, "draft");
+          event.currentTarget.value = "";
+        }}
+        ref={contractInputRef}
+        type="file"
+      />
+      <input
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        className="hidden-file-input"
+        multiple
+        onChange={(event) => {
+          void saveDepositFiles(event.currentTarget.files);
+          event.currentTarget.value = "";
+        }}
+        ref={depositInputRef}
+        type="file"
+      />
+      <input
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        className="hidden-file-input"
+        multiple
+        onChange={(event) => {
+          void saveRentalContractFiles(event.currentTarget.files, "signed");
+          event.currentTarget.value = "";
+        }}
+        ref={signatureInputRef}
+        type="file"
       />
       <aside className="desktop-sidebar">
         <div className="profile">
@@ -880,16 +1064,23 @@ export default function DashboardClient() {
         {activeSection === "Bookings" ? (
           <section className="table-panel bookings-board">
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => void createQuickBooking()} type="button">Создать быструю бронь</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">Отправить договор WhatsApp</button>
+            <div className="quick-actions-grid">
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать электронный договор</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор аренды</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">Отправить ссылку WhatsApp</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Загрузить подпись</button>
+            </div>
             {data.rentals.map((rental) => {
               const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
               const customer = data.customers.find((item) => item.id === rental.customerId);
+              const contract = data.rentalContracts.find((item) => item.rentalId === rental.id);
               return (
                 <article className="booking-card" key={rental.id}>
                   <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
                   <Badge value={rental.status} />
                   <span>Депозит {money.format(rental.depositAmount)}</span>
                   <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
+                  {contract ? <a className="document-link" href={contract.documentUrl} rel="noreferrer" target="_blank">{contract.status === "signed" ? "Подписан" : "Открыть договор"}</a> : null}
                 </article>
               );
             })}
@@ -903,6 +1094,8 @@ export default function DashboardClient() {
             <article className="metric-card"><span>Чистая прибыль</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => void payActiveInvoice()} type="button">Провести оплату</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createExpenseForVehicle()} type="button">Добавить расход</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestDepositUpload} type="button">Загрузить депозит/возврат</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void returnDeposit()} type="button">Оформить возврат депозита</button>
             <div className="table-panel finance-wide">
               <h2>ROI по каждому авто</h2>
               {finance.incomeByVehicle.map((item) => (
@@ -933,13 +1126,14 @@ export default function DashboardClient() {
 
         {activeSection === "Settings" ? (
           <section className="settings-grid">
-            <ActionCard title="Электронный договор аренды" text={`${data.rentalContracts.length} договоров`} onClick={() => void sendRentalContract()} />
+            <ActionCard title="Электронный договор аренды" text={`${data.rentalContracts.length} договоров`} onClick={() => void createDraftContract()} />
+            <ActionCard title="Загрузить договор аренды" text="PDF, DOCX, HTML или фото договора" onClick={requestContractUpload} />
             <ActionCard title="Загрузка паспорта/ID клиента" text={`${data.customerDocuments.length} документов`} onClick={requestCustomerDocumentUpload} />
-            <ActionCard title="Загрузка папки клиента" text="Можно выбрать всю папку с документами" onClick={requestCustomerFolderUpload} />
-            <ActionCard title="Депозит и возврат депозита" text="Депозит хранится в бронировании" onClick={() => void returnActiveRental()} />
-            <ActionCard title="WhatsApp-интеграция" text="Отправка договора через API" onClick={() => void sendRentalContract()} />
-            <ActionCard title="Автоотправка договора" text="Создает запись договора" onClick={() => void sendRentalContract()} />
-            <ActionCard title="Электронная подпись" text="Статус signed готов в модели" onClick={() => void sendRentalContract()} />
+            <ActionCard title="Загрузка папки клиента" text="Папка на desktop, несколько файлов на телефоне" onClick={requestCustomerFolderUpload} />
+            <ActionCard title="Депозит и возврат депозита" text="Загрузка чека и запись возврата" onClick={requestDepositUpload} />
+            <ActionCard title="WhatsApp-интеграция" text="Открывает WhatsApp с ссылкой договора" onClick={() => void sendRentalContract()} />
+            <ActionCard title="Автоотправка договора" text="Создает договор и готовит сообщение клиенту" onClick={() => void sendRentalContract()} />
+            <ActionCard title="Электронная подпись" text="Загрузить подписанный файл или фото" onClick={requestSignatureUpload} />
           </section>
         ) : null}
       </section>
