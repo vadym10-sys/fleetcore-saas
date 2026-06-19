@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { createVehicle, getVehicle, listVehicles, updateVehicle } from "../db/repositories.js";
+import { createVehicle, deleteVehicle, getVehicle, listVehicles, updateVehicle } from "../db/repositories.js";
 import { getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
 import { vehicleInput, vehiclePatchInput } from "../schemas.js";
@@ -45,5 +45,20 @@ export const fleetRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return envelope(vehicle);
+  });
+
+  app.delete("/fleet/vehicles/:vehicleId", async (request, reply) => {
+    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+
+    const { vehicleId } = request.params as { vehicleId: string };
+    const result = await deleteVehicle(getTenantScope(request), vehicleId);
+    if (result.reason === "vehicle_has_rentals") {
+      return reply.code(409).send({ error: "Vehicle has rental history and cannot be deleted" });
+    }
+    if (!result.deleted) {
+      return reply.code(404).send({ error: "Vehicle not found" });
+    }
+
+    return envelope({ id: vehicleId, deleted: true });
   });
 };

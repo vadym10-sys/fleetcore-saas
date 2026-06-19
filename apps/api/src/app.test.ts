@@ -132,6 +132,60 @@ test("authenticated API can upsert GPS state", async () => {
   assert.equal(response.json().data.vehicleId, vehicle.id);
 });
 
+test("authenticated API can delete a vehicle without rental history", async () => {
+  const plateNumber = `DEL-${Date.now()}`;
+  const create = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      dailyRate: 88,
+      location: "Warsaw",
+      make: "Audi",
+      model: "A6",
+      odometerKm: 1200,
+      plateNumber,
+      status: "available",
+      vin: `VINDEL${Date.now()}`,
+      year: 2024,
+    },
+    url: "/fleet/vehicles",
+  });
+  assert.equal(create.statusCode, 201);
+  const vehicle = create.json().data;
+
+  const gps = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      externalDeviceId: `geotab-${vehicle.id}`,
+      latitude: 52.2297,
+      longitude: 21.0122,
+      provider: "geotab",
+      speedKph: 0,
+      status: "idle",
+      vehicleId: vehicle.id,
+    },
+    url: "/gps/devices",
+  });
+  assert.equal(gps.statusCode, 201);
+  assert.equal(gps.json().data.provider, "geotab");
+
+  const deleted = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "DELETE",
+    url: `/fleet/vehicles/${vehicle.id}`,
+  });
+  assert.equal(deleted.statusCode, 200);
+  assert.equal(deleted.json().data.deleted, true);
+
+  const readDeleted = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: `/fleet/vehicles/${vehicle.id}`,
+  });
+  assert.equal(readDeleted.statusCode, 404);
+});
+
 test("authenticated API stores and serves uploaded files", async () => {
   const content = "FleetCore upload smoke test";
   const upload = await app.inject({

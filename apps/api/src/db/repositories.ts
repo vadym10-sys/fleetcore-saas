@@ -258,6 +258,20 @@ export async function updateVehicle(scope: TenantScope, vehicleId: string, input
   return result.rows[0] ? mapVehicle(result.rows[0]) : undefined;
 }
 
+export async function deleteVehicle(scope: TenantScope, vehicleId: string) {
+  const rentalReferences = await pool.query(
+    "select 1 from rentals where tenant_id = $1 and company_id = $2 and vehicle_id = $3 limit 1",
+    [scope.tenantId, scope.companyId, vehicleId],
+  );
+  if (rentalReferences.rowCount) return { deleted: false, reason: "vehicle_has_rentals" as const };
+
+  const result = await pool.query(
+    "delete from vehicles where tenant_id = $1 and company_id = $2 and id = $3 returning id",
+    [scope.tenantId, scope.companyId, vehicleId],
+  );
+  return { deleted: Boolean(result.rowCount), reason: result.rowCount ? undefined : "not_found" as const };
+}
+
 export async function listCustomers(scope: TenantScope): Promise<Customer[]> {
   const result = await pool.query(
     "select * from customers where tenant_id = $1 and company_id = $2 order by created_at asc",

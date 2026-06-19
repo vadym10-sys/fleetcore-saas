@@ -165,6 +165,10 @@ const uiCopy = {
     "time.now": "now",
     "vehicle.add": "Add vehicle",
     "vehicle.client": "Client",
+    "vehicle.delete": "Remove vehicle",
+    "vehicle.deleteBlocked": "Vehicle has rental history. Close or archive rentals before removing it.",
+    "vehicle.deleted": "Vehicle removed",
+    "vehicle.deleting": "Removing vehicle...",
     "vehicle.documents": "PDF documents",
     "vehicle.expense": "Add expense",
     "vehicle.mileage": "Mileage",
@@ -270,6 +274,10 @@ const uiCopy = {
     "time.now": "сейчас",
     "vehicle.add": "Добавить автомобиль",
     "vehicle.client": "Клиент",
+    "vehicle.delete": "Убрать автомобиль",
+    "vehicle.deleteBlocked": "У автомобиля есть история аренды. Сначала закройте или архивируйте аренды.",
+    "vehicle.deleted": "Автомобиль удален",
+    "vehicle.deleting": "Удаляем автомобиль...",
     "vehicle.documents": "Документы PDF",
     "vehicle.expense": "Добавить расход",
     "vehicle.mileage": "Пробег",
@@ -375,6 +383,10 @@ const uiCopy = {
     "time.now": "ahora",
     "vehicle.add": "Añadir vehículo",
     "vehicle.client": "Cliente",
+    "vehicle.delete": "Eliminar vehículo",
+    "vehicle.deleteBlocked": "El vehículo tiene historial de alquiler. Cierra o archiva los alquileres antes de eliminarlo.",
+    "vehicle.deleted": "Vehículo eliminado",
+    "vehicle.deleting": "Eliminando vehículo...",
     "vehicle.documents": "Documentos PDF",
     "vehicle.expense": "Añadir gasto",
     "vehicle.mileage": "Kilometraje",
@@ -480,6 +492,10 @@ const uiCopy = {
     "time.now": "maintenant",
     "vehicle.add": "Ajouter un véhicule",
     "vehicle.client": "Client",
+    "vehicle.delete": "Supprimer le véhicule",
+    "vehicle.deleteBlocked": "Ce véhicule a un historique de location. Fermez ou archivez les locations avant suppression.",
+    "vehicle.deleted": "Véhicule supprimé",
+    "vehicle.deleting": "Suppression du véhicule...",
     "vehicle.documents": "Documents PDF",
     "vehicle.expense": "Ajouter une dépense",
     "vehicle.mileage": "Kilométrage",
@@ -585,6 +601,10 @@ const uiCopy = {
     "time.now": "jetzt",
     "vehicle.add": "Fahrzeug hinzufügen",
     "vehicle.client": "Kunde",
+    "vehicle.delete": "Fahrzeug entfernen",
+    "vehicle.deleteBlocked": "Dieses Fahrzeug hat Mietverlauf. Schließen oder archivieren Sie die Mieten vor dem Entfernen.",
+    "vehicle.deleted": "Fahrzeug entfernt",
+    "vehicle.deleting": "Fahrzeug wird entfernt...",
     "vehicle.documents": "PDF-Dokumente",
     "vehicle.expense": "Kosten hinzufügen",
     "vehicle.mileage": "Kilometerstand",
@@ -706,8 +726,13 @@ function Badge({ value }: { value: string }) {
 function VehicleArt({ tone = "light" }: { tone?: "light" | "dark" }) {
   return (
     <div className={`vehicle-art ${tone}`}>
+      <span className="car-shadow" />
       <span className="car-roof" />
+      <span className="car-window front" />
+      <span className="car-window rear" />
       <span className="car-body" />
+      <span className="car-light front" />
+      <span className="car-light rear" />
       <span className="wheel left" />
       <span className="wheel right" />
     </div>
@@ -1283,6 +1308,23 @@ export default function DashboardClient() {
       setSelectedVehicleId(created.id);
       await loadData();
       setMessage("Автомобиль сохранен");
+    });
+  }
+
+  async function removeVehicle(vehicle: Vehicle) {
+    const hasRentalHistory = data.rentals.some((rental) => rental.vehicleId === vehicle.id);
+    setSelectedVehicleId(vehicle.id);
+    if (hasRentalHistory) {
+      setMessage(t("vehicle.deleteBlocked"));
+      return;
+    }
+
+    await runAction(t("vehicle.deleting"), async () => {
+      await api<{ deleted: boolean; id: string }>(`/fleet/vehicles/${vehicle.id}`, { method: "DELETE" }, token);
+      const nextVehicle = data.vehicles.find((item) => item.id !== vehicle.id);
+      setSelectedVehicleId(nextVehicle?.id);
+      await loadData();
+      setMessage(t("vehicle.deleted"));
     });
   }
 
@@ -2029,7 +2071,7 @@ export default function DashboardClient() {
                   const customer = data.customers.find((item) => item.id === rental?.customerId);
                   const gps = data.gpsDevices.find((item) => item.vehicleId === vehicle.id);
                   const vehicleFinance = finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id);
-                  return <VehicleGridCard customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
+                  return <VehicleGridCard customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onDelete={() => void removeVehicle(vehicle)} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
                 })}
               </div>
             </div>
@@ -2384,6 +2426,7 @@ function VehicleGridCard({
   gps,
   isSelected,
   locale,
+  onDelete,
   onSelect,
   rental,
   vehicle,
@@ -2393,12 +2436,19 @@ function VehicleGridCard({
   gps: GpsDevice | undefined;
   isSelected: boolean;
   locale: Locale;
+  onDelete: () => void;
   onSelect: () => void;
   rental: Rental | undefined;
   vehicle: Vehicle;
 }) {
   return (
-    <button className={`fleet-vehicle-card ${isSelected ? "selected" : ""}`} onClick={onSelect} type="button">
+    <article className={`fleet-vehicle-card ${isSelected ? "selected" : ""}`} onClick={onSelect} onKeyDown={(event) => {
+      if (event.key === "Enter" || event.key === " ") onSelect();
+    }} role="button" tabIndex={0}>
+      <button aria-label={translate(locale, "vehicle.delete")} className="vehicle-remove-button" onClick={(event) => {
+        event.stopPropagation();
+        onDelete();
+      }} title={translate(locale, "vehicle.delete")} type="button">×</button>
       <div className="fleet-vehicle-top">
         <VehicleArt />
         <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
@@ -2416,7 +2466,7 @@ function VehicleGridCard({
         <article><span>GPS</span><strong>{gps ? gps.status : "off"}</strong></article>
         <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
       </div>
-    </button>
+    </article>
   );
 }
 

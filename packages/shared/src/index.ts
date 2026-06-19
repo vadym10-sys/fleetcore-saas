@@ -103,7 +103,23 @@ export interface Payment extends TenantScopedEntity {
   paidAt: string;
 }
 
-export type GpsProvider = "traccar" | "wialon" | "navixy" | "gpswox" | "manual";
+export type GpsProvider =
+  | "traccar"
+  | "wialon"
+  | "navixy"
+  | "gpswox"
+  | "samsara"
+  | "geotab"
+  | "teltonika"
+  | "ruptela"
+  | "queclink"
+  | "concox"
+  | "motive"
+  | "fleet_complete"
+  | "webfleet"
+  | "verizon_connect"
+  | "api_webhook"
+  | "manual";
 export type GpsDeviceStatus = "online" | "offline" | "idle";
 
 export interface GpsDevice extends TenantScopedEntity {
