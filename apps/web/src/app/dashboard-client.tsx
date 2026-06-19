@@ -229,18 +229,19 @@ function fileToBase64(file: File) {
 function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Войдите как владелец компании или создайте B2B-аккаунт.");
-  const [login, setLogin] = useState({ email: "founder@atlas.example", password: "development-only" });
+  const [message, setMessage] = useState("Войдите через email компании или создайте новый B2B-аккаунт.");
+  const [login, setLogin] = useState({ email: "", password: "" });
   const [register, setRegister] = useState({
     country: "PL",
     currency: "EUR",
-    email: `owner-${Date.now().toString().slice(-5)}@rent.example`,
+    email: "",
     fleetSizeLimit: "25",
-    fullName: "Иван Петров",
-    legalName: "Best Rent Cars Sp. z o.o.",
-    password: "secure-pass-123",
+    fullName: "",
+    legalName: "",
+    password: "",
+    passwordConfirm: "",
     plan: "starter",
-    tradingName: "Best Rent Cars",
+    tradingName: "",
   });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -248,21 +249,31 @@ function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }
     setLoading(true);
     setMessage(mode === "login" ? "Проверяем доступ..." : "Создаем компанию...");
     try {
+      if (mode === "register" && register.password !== register.passwordConfirm) {
+        throw new Error("Пароли не совпадают");
+      }
+
       const response = mode === "login"
-        ? await api<AuthSession>("/auth/login", { body: JSON.stringify(login), method: "POST" })
+        ? await api<AuthSession>("/auth/login", {
+            body: JSON.stringify({
+              email: login.email.trim().toLowerCase(),
+              password: login.password,
+            }),
+            method: "POST",
+          })
         : await api<AuthSession>("/auth/register-company", {
             body: JSON.stringify({
               company: {
-                country: register.country,
-                currency: register.currency,
+                country: register.country.trim().toUpperCase(),
+                currency: register.currency.trim().toUpperCase(),
                 fleetSizeLimit: Number(register.fleetSizeLimit),
-                legalName: register.legalName,
+                legalName: register.legalName.trim(),
                 plan: register.plan,
-                tradingName: register.tradingName,
+                tradingName: register.tradingName.trim(),
               },
               owner: {
-                email: register.email,
-                fullName: register.fullName,
+                email: register.email.trim().toLowerCase(),
+                fullName: register.fullName.trim(),
                 password: register.password,
               },
             }),
@@ -272,6 +283,22 @@ function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось войти");
+      setLoading(false);
+    }
+  }
+
+  async function loginDemo() {
+    setLoading(true);
+    setMessage("Открываем демо-аккаунт...");
+    try {
+      const response = await api<AuthSession>("/auth/login", {
+        body: JSON.stringify({ email: "founder@atlas.example", password: "development-only" }),
+        method: "POST",
+      });
+      localStorage.setItem("fleetcore-session", JSON.stringify(response.data));
+      onSession(response.data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Не удалось открыть демо");
       setLoading(false);
     }
   }
@@ -291,24 +318,28 @@ function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }
         <form className="auth-form" onSubmit={(event) => void submit(event)}>
           {mode === "login" ? (
             <>
-              <label>Email<input value={login.email} onChange={(event) => setLogin({ ...login, email: event.target.value })} /></label>
-              <label>Пароль<input type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} /></label>
+              <label>Email компании<input autoComplete="email" inputMode="email" required type="email" value={login.email} onChange={(event) => setLogin({ ...login, email: event.target.value })} /></label>
+              <label>Пароль<input autoComplete="current-password" required type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} /></label>
             </>
           ) : (
             <>
-              <label>Название бизнеса<input value={register.tradingName} onChange={(event) => setRegister({ ...register, tradingName: event.target.value })} /></label>
-              <label>Юридическое имя<input value={register.legalName} onChange={(event) => setRegister({ ...register, legalName: event.target.value })} /></label>
+              <label>Название бизнеса<input autoComplete="organization" required value={register.tradingName} onChange={(event) => setRegister({ ...register, tradingName: event.target.value })} /></label>
+              <label>Юридическое имя<input autoComplete="organization" required value={register.legalName} onChange={(event) => setRegister({ ...register, legalName: event.target.value })} /></label>
               <div className="auth-two">
-                <label>Страна<input value={register.country} onChange={(event) => setRegister({ ...register, country: event.target.value.toUpperCase().slice(0, 2) })} /></label>
-                <label>Валюта<input value={register.currency} onChange={(event) => setRegister({ ...register, currency: event.target.value.toUpperCase().slice(0, 3) })} /></label>
+                <label>Страна<input maxLength={2} required value={register.country} onChange={(event) => setRegister({ ...register, country: event.target.value.toUpperCase().slice(0, 2) })} /></label>
+                <label>Валюта<input maxLength={3} required value={register.currency} onChange={(event) => setRegister({ ...register, currency: event.target.value.toUpperCase().slice(0, 3) })} /></label>
               </div>
-              <label>Лимит автопарка<input type="number" value={register.fleetSizeLimit} onChange={(event) => setRegister({ ...register, fleetSizeLimit: event.target.value })} /></label>
-              <label>Имя владельца<input value={register.fullName} onChange={(event) => setRegister({ ...register, fullName: event.target.value })} /></label>
-              <label>Email владельца<input value={register.email} onChange={(event) => setRegister({ ...register, email: event.target.value })} /></label>
-              <label>Пароль<input type="password" value={register.password} onChange={(event) => setRegister({ ...register, password: event.target.value })} /></label>
+              <label>Лимит автопарка<input min="1" required type="number" value={register.fleetSizeLimit} onChange={(event) => setRegister({ ...register, fleetSizeLimit: event.target.value })} /></label>
+              <label>Имя владельца<input autoComplete="name" required value={register.fullName} onChange={(event) => setRegister({ ...register, fullName: event.target.value })} /></label>
+              <label>Email владельца<input autoComplete="email" inputMode="email" required type="email" value={register.email} onChange={(event) => setRegister({ ...register, email: event.target.value })} /></label>
+              <label>Пароль<input autoComplete="new-password" minLength={8} required type="password" value={register.password} onChange={(event) => setRegister({ ...register, password: event.target.value })} /></label>
+              <label>Повторите пароль<input autoComplete="new-password" minLength={8} required type="password" value={register.passwordConfirm} onChange={(event) => setRegister({ ...register, passwordConfirm: event.target.value })} /></label>
             </>
           )}
           <button className="primary-button full" disabled={loading}>{loading ? "Подождите..." : mode === "login" ? "Войти" : "Создать аккаунт"}</button>
+          {mode === "login" ? (
+            <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">Войти в демо-аккаунт</button>
+          ) : null}
         </form>
       </section>
       <section className="auth-preview">
@@ -380,7 +411,11 @@ export default function DashboardClient() {
   useEffect(() => {
     const stored = localStorage.getItem("fleetcore-session");
     if (stored) {
-      setSession(JSON.parse(stored) as AuthSession);
+      try {
+        setSession(JSON.parse(stored) as AuthSession);
+      } catch {
+        localStorage.removeItem("fleetcore-session");
+      }
     }
   }, []);
 

@@ -33,6 +33,16 @@ test("login returns a signed access token", async () => {
   assert.equal(token.split(".").length, 3);
 });
 
+test("login rejects empty credentials", async () => {
+  const response = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {},
+  });
+
+  assert.equal(response.statusCode, 400);
+});
+
 test("B2B company registration creates an isolated tenant account", async () => {
   const email = `owner-${Date.now()}@rental.example`;
   const response = await app.inject({

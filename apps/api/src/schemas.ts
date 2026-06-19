@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const loginInput = z.object({
-  email: z.string().email().default("founder@atlas.example"),
-  password: z.string().min(8).default("development-only"),
+  email: z.string().trim().toLowerCase().email(),
+  password: z.string().min(8),
 });
 
 export const registerCompanyInput = z.object({
@@ -15,8 +15,8 @@ export const registerCompanyInput = z.object({
     tradingName: z.string().min(2),
   }),
   owner: z.object({
-    email: z.string().email(),
-    fullName: z.string().min(2),
+    email: z.string().trim().toLowerCase().email(),
+    fullName: z.string().trim().min(2),
     password: z.string().min(8),
   }),
 });
