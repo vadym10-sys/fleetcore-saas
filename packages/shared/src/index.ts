@@ -205,8 +205,11 @@ export interface DashboardMetrics {
 
 export interface AuthSession {
   accessToken: string;
+  accessTokenExpiresAt: string;
   tenantId: TenantId;
   companyId: string;
+  refreshToken: string;
+  refreshTokenExpiresAt: string;
   user: User;
 }
 

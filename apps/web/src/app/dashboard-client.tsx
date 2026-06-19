@@ -105,6 +105,7 @@ const uiCopy = {
     "auth.ownerName": "Owner name",
     "auth.password": "Password",
     "auth.passwordConfirm": "Repeat password",
+    "auth.resetPassword": "Reset password",
     "auth.register": "Create account",
     "auth.registerTitle": "Register B2B company",
     "auth.businessName": "Business name",
@@ -214,6 +215,7 @@ const uiCopy = {
     "auth.ownerName": "Имя владельца",
     "auth.password": "Пароль",
     "auth.passwordConfirm": "Повторите пароль",
+    "auth.resetPassword": "Восстановить пароль",
     "auth.register": "Создать аккаунт",
     "auth.registerTitle": "Регистрация B2B-компании",
     "auth.businessName": "Название бизнеса",
@@ -323,6 +325,7 @@ const uiCopy = {
     "auth.ownerName": "Nombre del propietario",
     "auth.password": "Contraseña",
     "auth.passwordConfirm": "Repetir contraseña",
+    "auth.resetPassword": "Restablecer contraseña",
     "auth.register": "Crear cuenta",
     "auth.registerTitle": "Registrar empresa B2B",
     "auth.businessName": "Nombre comercial",
@@ -432,6 +435,7 @@ const uiCopy = {
     "auth.ownerName": "Nom du propriétaire",
     "auth.password": "Mot de passe",
     "auth.passwordConfirm": "Répéter le mot de passe",
+    "auth.resetPassword": "Réinitialiser le mot de passe",
     "auth.register": "Créer un compte",
     "auth.registerTitle": "Inscription société B2B",
     "auth.businessName": "Nom commercial",
@@ -541,6 +545,7 @@ const uiCopy = {
     "auth.ownerName": "Name des Inhabers",
     "auth.password": "Passwort",
     "auth.passwordConfirm": "Passwort wiederholen",
+    "auth.resetPassword": "Passwort zurücksetzen",
     "auth.register": "Konto erstellen",
     "auth.registerTitle": "B2B-Firma registrieren",
     "auth.businessName": "Firmenname",
@@ -704,7 +709,51 @@ const defaultOperationForm = {
   vehicleId: "",
 };
 
-async function api<T>(path: string, options: RequestInit = {}, token?: string) {
+function readStoredSession() {
+  if (typeof window === "undefined") return undefined;
+  const stored = localStorage.getItem("fleetcore-session");
+  if (!stored) return undefined;
+  try {
+    return JSON.parse(stored) as AuthSession;
+  } catch {
+    localStorage.removeItem("fleetcore-session");
+    return undefined;
+  }
+}
+
+function saveStoredSession(session: AuthSession) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("fleetcore-session", JSON.stringify(session));
+  }
+}
+
+async function parseApiError(response: Response) {
+  const body = await response.text();
+  let message = body || `Request failed: ${response.status}`;
+  try {
+    const parsed = JSON.parse(body) as { error?: string };
+    message = parsed.error ?? message;
+  } catch {
+    // Keep raw response text when the API did not return JSON.
+  }
+  return message;
+}
+
+async function refreshStoredSession() {
+  const stored = readStoredSession();
+  if (!stored?.refreshToken) return undefined;
+  const response = await fetch(`${API_URL}/auth/refresh`, {
+    body: JSON.stringify({ refreshToken: stored.refreshToken }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  if (!response.ok) return undefined;
+  const refreshed = (await response.json()) as ApiEnvelope<AuthSession>;
+  saveStoredSession(refreshed.data);
+  return refreshed.data;
+}
+
+async function api<T>(path: string, options: RequestInit = {}, token?: string, retry = true) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
@@ -715,14 +764,13 @@ async function api<T>(path: string, options: RequestInit = {}, token?: string) {
   });
 
   if (!response.ok) {
-    const body = await response.text();
-    let message = body || `Request failed: ${response.status}`;
-    try {
-      const parsed = JSON.parse(body) as { error?: string };
-      message = parsed.error ?? message;
-    } catch {
-      // Keep raw response text when the API did not return JSON.
+    if (response.status === 401 && retry && token && path !== "/auth/refresh") {
+      const refreshed = await refreshStoredSession();
+      if (refreshed?.accessToken) {
+        return api<T>(path, options, refreshed.accessToken, false);
+      }
     }
+    const message = await parseApiError(response);
     throw new ApiRequestError(message, response.status);
   }
 
@@ -911,7 +959,7 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
             }),
             method: "POST",
           });
-      localStorage.setItem("fleetcore-session", JSON.stringify(response.data));
+      saveStoredSession(response.data);
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось войти");
@@ -927,10 +975,32 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
         body: JSON.stringify({ email: "founder@atlas.example", password: "development-only" }),
         method: "POST",
       });
-      localStorage.setItem("fleetcore-session", JSON.stringify(response.data));
+      saveStoredSession(response.data);
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось открыть демо");
+      setLoading(false);
+    }
+  }
+
+  async function requestPasswordReset() {
+    const email = login.email.trim().toLowerCase();
+    if (!email) {
+      setMessage(t("auth.email"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await api<{ delivery: "development" | "email"; resetToken?: string }>("/auth/request-password-reset", {
+        body: JSON.stringify({ email }),
+        method: "POST",
+      });
+      setMessage(response.data.resetToken
+        ? `Reset token: ${response.data.resetToken}`
+        : "Password reset instructions were sent if the account exists.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Password reset failed");
+    } finally {
       setLoading(false);
     }
   }
@@ -971,7 +1041,10 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
           )}
           <button className="primary-button full" disabled={loading}>{loading ? t("common.loading") : mode === "login" ? t("auth.login") : t("auth.register")}</button>
           {mode === "login" ? (
-            <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">{t("auth.demo")}</button>
+            <>
+              <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">{t("auth.demo")}</button>
+              <button className="ghost-button full-button" disabled={loading} onClick={() => void requestPasswordReset()} type="button">{t("auth.resetPassword")}</button>
+            </>
           ) : null}
         </form>
       </section>
@@ -1099,7 +1172,7 @@ export default function DashboardClient() {
       setMessage("");
     } catch (error) {
       if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
-        logout();
+        void logout();
         return;
       }
       setMessage(error instanceof Error ? error.message : "Не удалось загрузить данные");
@@ -1872,7 +1945,30 @@ export default function DashboardClient() {
     });
   }
 
-  function logout() {
+  async function requestEmailVerification() {
+    await runAction("Отправляем подтверждение email...", async () => {
+      const response = await api<{ delivery: "development" | "email"; verificationToken?: string }>("/auth/request-email-verification", {
+        body: JSON.stringify({ email: session?.user.email }),
+        method: "POST",
+      }, token);
+      setMessage(response.data.verificationToken
+        ? `Verification token: ${response.data.verificationToken}`
+        : "Email verification instructions sent.");
+    });
+  }
+
+  async function logout() {
+    const stored = readStoredSession();
+    if (stored?.refreshToken) {
+      try {
+        await api<{ ok: boolean }>("/auth/logout", {
+          body: JSON.stringify({ refreshToken: stored.refreshToken }),
+          method: "POST",
+        }, stored.accessToken, false);
+      } catch {
+        // Local logout must still work if the network is unavailable.
+      }
+    }
     localStorage.removeItem("fleetcore-session");
     setSession(undefined);
   }
@@ -1967,7 +2063,7 @@ export default function DashboardClient() {
             <strong>{session.user.fullName}</strong>
             <span>{session.user.role} · {session.companyId.slice(0, 12)}</span>
           </div>
-          <button onClick={logout} title="Выйти">×</button>
+          <button onClick={() => void logout()} title="Выйти">×</button>
         </div>
         <nav className="side-nav">
           {sections.map((item) => (
@@ -2195,7 +2291,8 @@ export default function DashboardClient() {
               <p className="history-row">{session.user.fullName} · {session.user.email}</p>
               <p className="history-row">{t("settings.role")}: {session.user.role}</p>
               <p className="history-row">{t("settings.companyId")}: {session.companyId}</p>
-              <button className="ghost-button full-button" onClick={logout} type="button">{t("common.signOut")}</button>
+              <button className="ghost-button full-button" onClick={() => void requestEmailVerification()} type="button">Verify email</button>
+              <button className="ghost-button full-button" onClick={() => void logout()} type="button">{t("common.signOut")}</button>
             </section>
 
             <section className="table-panel settings-panel">

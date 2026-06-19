@@ -30,7 +30,119 @@ test("login returns a signed access token", async () => {
   assert.equal(response.statusCode, 200);
   token = response.json().data.accessToken;
   assert.equal(typeof token, "string");
+  assert.equal(typeof response.json().data.refreshToken, "string");
+  assert.equal(typeof response.json().data.accessTokenExpiresAt, "string");
   assert.equal(token.split(".").length, 3);
+});
+
+test("refresh and logout manage SaaS sessions", async () => {
+  const login = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: { email: "founder@atlas.example", password: "development-only" },
+  });
+  assert.equal(login.statusCode, 200);
+  const refreshToken = login.json().data.refreshToken;
+
+  const refreshed = await app.inject({
+    method: "POST",
+    payload: { refreshToken },
+    url: "/auth/refresh",
+  });
+  assert.equal(refreshed.statusCode, 200);
+  assert.equal(typeof refreshed.json().data.accessToken, "string");
+  assert.notEqual(refreshed.json().data.refreshToken, refreshToken);
+
+  const reused = await app.inject({
+    method: "POST",
+    payload: { refreshToken },
+    url: "/auth/refresh",
+  });
+  assert.equal(reused.statusCode, 401);
+
+  const logout = await app.inject({
+    method: "POST",
+    payload: { refreshToken: refreshed.json().data.refreshToken },
+    url: "/auth/logout",
+  });
+  assert.equal(logout.statusCode, 200);
+
+  const afterLogout = await app.inject({
+    method: "POST",
+    payload: { refreshToken: refreshed.json().data.refreshToken },
+    url: "/auth/refresh",
+  });
+  assert.equal(afterLogout.statusCode, 401);
+});
+
+test("password reset and email verification tokens work", async () => {
+  const email = `security-${Date.now()}@rental.example`;
+  const register = await app.inject({
+    method: "POST",
+    url: "/auth/register-company",
+    payload: {
+      company: {
+        country: "PL",
+        currency: "EUR",
+        fleetSizeLimit: 8,
+        legalName: "Security Rental Sp. z o.o.",
+        plan: "starter",
+        tradingName: "Security Rental",
+      },
+      owner: {
+        email,
+        fullName: "Security Owner",
+        password: "secure-pass-123",
+      },
+    },
+  });
+  assert.equal(register.statusCode, 201);
+  const session = register.json().data;
+
+  const verification = await app.inject({
+    headers: { authorization: `Bearer ${session.accessToken}` },
+    method: "POST",
+    payload: { email },
+    url: "/auth/request-email-verification",
+  });
+  assert.equal(verification.statusCode, 200);
+  assert.equal(typeof verification.json().data.verificationToken, "string");
+
+  const verified = await app.inject({
+    method: "POST",
+    payload: { token: verification.json().data.verificationToken },
+    url: "/auth/verify-email",
+  });
+  assert.equal(verified.statusCode, 200);
+
+  const resetRequest = await app.inject({
+    method: "POST",
+    payload: { email },
+    url: "/auth/request-password-reset",
+  });
+  assert.equal(resetRequest.statusCode, 200);
+  assert.equal(typeof resetRequest.json().data.resetToken, "string");
+
+  const reset = await app.inject({
+    method: "POST",
+    payload: { password: "new-secure-pass-456", token: resetRequest.json().data.resetToken },
+    url: "/auth/reset-password",
+  });
+  assert.equal(reset.statusCode, 200);
+
+  const oldLogin = await app.inject({
+    method: "POST",
+    payload: { email, password: "secure-pass-123" },
+    url: "/auth/login",
+  });
+  assert.equal(oldLogin.statusCode, 401);
+
+  const newLogin = await app.inject({
+    method: "POST",
+    payload: { email, password: "new-secure-pass-456" },
+    url: "/auth/login",
+  });
+  assert.equal(newLogin.statusCode, 200);
 });
 
 test("login rejects empty credentials", async () => {
@@ -296,4 +408,16 @@ test("authenticated API can manage business operations", async () => {
   });
   assert.equal(contract.statusCode, 201);
   assert.equal(contract.json().data.rentalId, rental.id);
+});
+
+test("owners can read company audit log", async () => {
+  const response = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/auth/audit-log",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.ok(Array.isArray(response.json().data));
+  assert.ok(response.json().data.some((entry: { action: string }) => entry.action.startsWith("auth.")));
 });

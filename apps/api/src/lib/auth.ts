@@ -1,4 +1,4 @@
-import { createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import type { User, UserRole } from "@fleetcore/shared";
 
 export interface AuthClaims {
@@ -21,12 +21,20 @@ function signPayload(data: string) {
   return createHmac("sha256", secret()).update(data).digest("base64url");
 }
 
-export function signAccessToken(user: User) {
+export function accessTokenExpiresAt() {
+  return new Date(Date.now() + 1000 * 60 * 15);
+}
+
+export function refreshTokenExpiresAt() {
+  return new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
+}
+
+export function signAccessToken(user: User, expiresAt = accessTokenExpiresAt()) {
   const header = encode({ alg: "HS256", typ: "JWT" });
   const payload = encode({
     companyId: user.companyId,
     email: user.email,
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12,
+    exp: Math.floor(expiresAt.getTime() / 1000),
     role: user.role,
     sub: user.id,
     tenantId: user.tenantId,
@@ -59,6 +67,14 @@ export function hashPassword(password: string) {
   const salt = randomBytes(16).toString("base64url");
   const hash = pbkdf2Sync(password, salt, 120_000, 32, "sha256").toString("base64url");
   return `pbkdf2_sha256$120000$${salt}$${hash}`;
+}
+
+export function createOpaqueToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+export function hashOpaqueToken(token: string) {
+  return createHash("sha256").update(token).digest("base64url");
 }
 
 export function verifyPassword(password: string, storedHash: string) {

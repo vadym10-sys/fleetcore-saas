@@ -3,7 +3,17 @@ import { defaultCompanyId, defaultTenantId } from "../db/constants.js";
 import { setRequestUser } from "../lib/access-control.js";
 import { verifyAccessToken } from "../lib/auth.js";
 
-const publicRoutes = new Set(["/health", "/auth/login", "/auth/register-company"]);
+const publicRoutes = new Set([
+  "/health",
+  "/auth/login",
+  "/auth/logout",
+  "/auth/refresh",
+  "/auth/register-company",
+  "/auth/request-email-verification",
+  "/auth/request-password-reset",
+  "/auth/reset-password",
+  "/auth/verify-email",
+]);
 const publicPrefixes = ["/uploads/"];
 
 export function installTenantContext(app: FastifyInstance) {

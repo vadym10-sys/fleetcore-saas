@@ -21,6 +21,31 @@ export const registerCompanyInput = z.object({
   }),
 });
 
+export const refreshTokenInput = z.object({
+  refreshToken: z.string().min(32),
+});
+
+export const logoutInput = z.object({
+  refreshToken: z.string().min(32).optional(),
+});
+
+export const passwordResetRequestInput = z.object({
+  email: z.string().trim().toLowerCase().email(),
+});
+
+export const passwordResetInput = z.object({
+  password: z.string().min(8),
+  token: z.string().min(32),
+});
+
+export const emailVerificationRequestInput = z.object({
+  email: z.string().trim().toLowerCase().email().optional(),
+});
+
+export const emailVerificationInput = z.object({
+  token: z.string().min(32),
+});
+
 export const vehicleInput = z.object({
   vin: z.string().min(6),
   plateNumber: z.string().min(2),

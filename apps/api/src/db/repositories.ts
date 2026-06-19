@@ -43,6 +43,19 @@ type ServiceRecordInput = z.infer<typeof serviceRecordInput>;
 type CustomerDocumentInput = z.infer<typeof customerDocumentInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
 type FileUploadInput = z.infer<typeof fileUploadInput>;
+export type AuthTokenType = "refresh" | "password_reset" | "email_verification";
+export type AuditLogInput = {
+  action: string;
+  actorEmail?: string | undefined;
+  companyId?: string | undefined;
+  entityId?: string | undefined;
+  entityType?: string | undefined;
+  ipAddress?: string | undefined;
+  metadata?: Record<string, unknown>;
+  tenantId?: string | undefined;
+  userAgent?: string | undefined;
+  userId?: string | undefined;
+};
 
 type PatchValue = string | number | undefined;
 
@@ -114,6 +127,135 @@ export async function createCompanyAccount(input: RegisterCompanyInput, password
   } finally {
     client.release();
   }
+}
+
+export async function touchUserLogin(userId: string) {
+  await pool.query("update users set last_login_at = now(), updated_at = now() where id = $1", [userId]);
+}
+
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  await pool.query("update users set password_hash = $2, updated_at = now() where id = $1", [userId, passwordHash]);
+}
+
+export async function markUserEmailVerified(userId: string) {
+  const result = await pool.query(
+    "update users set email_verified_at = coalesce(email_verified_at, now()), updated_at = now() where id = $1 returning *",
+    [userId],
+  );
+  return result.rows[0] ? mapUser(result.rows[0]) : undefined;
+}
+
+export async function createAuthToken(input: {
+  companyId?: string | undefined;
+  expiresAt: Date;
+  ipAddress?: string | undefined;
+  tenantId?: string | undefined;
+  tokenHash: string;
+  type: AuthTokenType;
+  userAgent?: string | undefined;
+  userId?: string | undefined;
+}) {
+  const id = createId("auth");
+  await pool.query(
+    `insert into auth_tokens (
+      id, tenant_id, company_id, user_id, type, token_hash, expires_at, user_agent, ip_address
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      id,
+      input.tenantId,
+      input.companyId,
+      input.userId,
+      input.type,
+      input.tokenHash,
+      input.expiresAt.toISOString(),
+      input.userAgent,
+      input.ipAddress,
+    ],
+  );
+  return { id, expiresAt: input.expiresAt };
+}
+
+export async function getActiveAuthToken(tokenHash: string, type: AuthTokenType): Promise<{ expiresAt: Date; id: string; user: User } | undefined> {
+  const result = await pool.query(
+    `select auth_tokens.id as auth_token_id, auth_tokens.expires_at, users.*
+     from auth_tokens
+     join users on users.id = auth_tokens.user_id
+     where auth_tokens.token_hash = $1
+       and auth_tokens.type = $2
+       and auth_tokens.used_at is null
+       and auth_tokens.revoked_at is null
+       and auth_tokens.expires_at > now()
+     limit 1`,
+    [tokenHash, type],
+  );
+  const row = result.rows[0];
+  if (!row) return undefined;
+  return {
+    expiresAt: row.expires_at instanceof Date ? row.expires_at : new Date(String(row.expires_at)),
+    id: String(row.auth_token_id),
+    user: mapUser(row),
+  };
+}
+
+export async function markAuthTokenUsed(tokenId: string) {
+  await pool.query("update auth_tokens set used_at = now() where id = $1", [tokenId]);
+}
+
+export async function revokeAuthToken(tokenHash: string, type: AuthTokenType) {
+  await pool.query(
+    "update auth_tokens set revoked_at = now() where token_hash = $1 and type = $2 and revoked_at is null",
+    [tokenHash, type],
+  );
+}
+
+export async function revokeUserRefreshTokens(userId: string) {
+  await pool.query(
+    "update auth_tokens set revoked_at = now() where user_id = $1 and type = 'refresh' and revoked_at is null",
+    [userId],
+  );
+}
+
+export async function writeAuditLog(input: AuditLogInput) {
+  await pool.query(
+    `insert into audit_log (
+      id, tenant_id, company_id, user_id, actor_email, action, entity_type, entity_id, metadata, ip_address, user_agent
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
+    [
+      createId("audit"),
+      input.tenantId,
+      input.companyId,
+      input.userId,
+      input.actorEmail,
+      input.action,
+      input.entityType,
+      input.entityId,
+      JSON.stringify(input.metadata ?? {}),
+      input.ipAddress,
+      input.userAgent,
+    ],
+  );
+}
+
+export async function listAuditLogs(scope: TenantScope, limit = 100) {
+  const result = await pool.query(
+    `select id, actor_email, action, entity_type, entity_id, metadata, ip_address, user_agent, created_at
+     from audit_log
+     where tenant_id = $1 and company_id = $2
+     order by created_at desc
+     limit $3`,
+    [scope.tenantId, scope.companyId, limit],
+  );
+  return result.rows.map((row) => ({
+    id: String(row.id),
+    action: String(row.action),
+    actorEmail: row.actor_email ? String(row.actor_email) : undefined,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    entityId: row.entity_id ? String(row.entity_id) : undefined,
+    entityType: row.entity_type ? String(row.entity_type) : undefined,
+    ipAddress: row.ip_address ? String(row.ip_address) : undefined,
+    metadata: row.metadata as Record<string, unknown>,
+    userAgent: row.user_agent ? String(row.user_agent) : undefined,
+  }));
 }
 
 export async function createFileObject(scope: TenantScope, input: FileUploadInput, publicUrlForId: (id: string, originalName: string) => string): Promise<FileObject> {
