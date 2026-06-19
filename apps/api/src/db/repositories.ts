@@ -1,4 +1,5 @@
 import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
 import { createId } from "../lib/http.js";
@@ -258,14 +259,16 @@ export async function listAuditLogs(scope: TenantScope, limit = 100) {
   }));
 }
 
-export async function createFileObject(scope: TenantScope, input: FileUploadInput, publicUrlForId: (id: string, originalName: string) => string): Promise<FileObject> {
+export async function createFileObject(scope: TenantScope, input: FileUploadInput, publicUrlForId: (id: string, originalName: string) => string, uploadedByUserId?: string): Promise<FileObject> {
   const fileId = createId("file");
   const data = Buffer.from(input.base64, "base64");
+  const sha256 = createHash("sha256").update(data).digest("hex");
   const result = await pool.query(
     `insert into file_objects (
-      id, tenant_id, company_id, original_name, mime_type, size_bytes, data
-    ) values ($1, $2, $3, $4, $5, $6, $7)
-    returning id, tenant_id, company_id, original_name, mime_type, size_bytes, created_at, updated_at`,
+      id, tenant_id, company_id, original_name, mime_type, size_bytes, data,
+      storage_provider, storage_key, sha256, uploaded_by_user_id
+    ) values ($1, $2, $3, $4, $5, $6, $7, 'database', $8, $9, $10)
+    returning id, tenant_id, company_id, original_name, mime_type, size_bytes, storage_provider, storage_key, sha256, created_at, updated_at`,
     [
       fileId,
       scope.tenantId,
@@ -274,21 +277,49 @@ export async function createFileObject(scope: TenantScope, input: FileUploadInpu
       input.mimeType,
       data.byteLength,
       data,
+      fileId,
+      sha256,
+      uploadedByUserId ?? null,
     ],
   );
   return mapFileObject(result.rows[0], publicUrlForId(fileId, input.originalName));
 }
 
-export async function getFileObject(fileId: string): Promise<{ data: Buffer; mimeType: string; originalName: string } | undefined> {
+export async function listFileObjects(scope: TenantScope, publicUrlForId: (id: string, originalName: string) => string): Promise<FileObject[]> {
   const result = await pool.query(
-    "select original_name, mime_type, data from file_objects where id = $1",
+    `select id, tenant_id, company_id, original_name, mime_type, size_bytes, storage_provider, storage_key, sha256, created_at, updated_at
+     from file_objects
+     where tenant_id = $1 and company_id = $2
+     order by created_at desc`,
+    [scope.tenantId, scope.companyId],
+  );
+  return result.rows.map((row) => mapFileObject(row, publicUrlForId(String(row.id), String(row.original_name))));
+}
+
+export async function getFileObjectMetadata(scope: TenantScope, fileId: string, publicUrlForId: (id: string, originalName: string) => string): Promise<FileObject | undefined> {
+  const result = await pool.query(
+    `select id, tenant_id, company_id, original_name, mime_type, size_bytes, storage_provider, storage_key, sha256, created_at, updated_at
+     from file_objects
+     where tenant_id = $1 and company_id = $2 and id = $3`,
+    [scope.tenantId, scope.companyId, fileId],
+  );
+  if (!result.rows[0]) return undefined;
+  return mapFileObject(result.rows[0], publicUrlForId(fileId, String(result.rows[0].original_name)));
+}
+
+export async function getFileObject(fileId: string): Promise<{ companyId: string; data: Buffer; mimeType: string; originalName: string; sha256?: string; tenantId: string } | undefined> {
+  const result = await pool.query(
+    "select tenant_id, company_id, original_name, mime_type, data, sha256 from file_objects where id = $1",
     [fileId],
   );
   if (!result.rows[0]) return undefined;
   return {
+    tenantId: String(result.rows[0].tenant_id),
+    companyId: String(result.rows[0].company_id),
     data: result.rows[0].data as Buffer,
     mimeType: String(result.rows[0].mime_type),
     originalName: String(result.rows[0].original_name),
+    ...(result.rows[0].sha256 ? { sha256: String(result.rows[0].sha256) } : {}),
   };
 }
 

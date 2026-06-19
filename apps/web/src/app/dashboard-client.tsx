@@ -46,6 +46,7 @@ type OperationKind =
 type AppData = {
   customers: Customer[];
   documents: VehicleDocument[];
+  files: FileObject[];
   gpsDevices: GpsDevice[];
   invoices: Invoice[];
   metrics: DashboardMetrics;
@@ -804,6 +805,29 @@ function VehicleArt({ tone = "light" }: { tone?: "light" | "dark" }) {
   );
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FilePreviewLink({ fileUrl, title }: { fileUrl: string; title: string }) {
+  return <a className="document-link" href={fileUrl} rel="noreferrer" target="_blank">{title}</a>;
+}
+
+function FileObjectRow({ file }: { file: FileObject }) {
+  return (
+    <article className="file-object-row">
+      <div>
+        <strong>{file.originalName}</strong>
+        <span>{file.mimeType} · {formatBytes(file.sizeBytes)} · {file.storageProvider}</span>
+        {file.sha256 ? <small>SHA-256 {file.sha256.slice(0, 16)}...</small> : null}
+      </div>
+      <a className="document-link" href={file.publicUrl} rel="noreferrer" target="_blank">Preview</a>
+    </article>
+  );
+}
+
 function CarPin({ className, color, label }: { className: string; color: UiNotification["tone"]; label: string }) {
   return (
     <div className={`map-pin ${className} ${color}`}>
@@ -1086,6 +1110,7 @@ export default function DashboardClient() {
   const [data, setData] = useState<AppData>({
     customers: [],
     documents: [],
+    files: [],
     gpsDevices: [],
     invoices: [],
     metrics: emptyMetrics,
@@ -1139,7 +1164,7 @@ export default function DashboardClient() {
   async function loadData(currentToken = token) {
     setLoading(true);
     try {
-      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, expenses, serviceRecords, customerDocuments, rentalContracts] = await Promise.all([
+      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts] = await Promise.all([
         api<DashboardMetrics>("/dashboard", {}, currentToken),
         api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
         api<Customer[]>("/customers", {}, currentToken),
@@ -1148,6 +1173,7 @@ export default function DashboardClient() {
         api<Payment[]>("/finance/payments", {}, currentToken),
         api<GpsDevice[]>("/gps/devices", {}, currentToken),
         api<VehicleDocument[]>("/documents/vehicles", {}, currentToken),
+        api<FileObject[]>("/uploads", {}, currentToken),
         api<Expense[]>("/operations/expenses", {}, currentToken),
         api<ServiceRecord[]>("/operations/service-records", {}, currentToken),
         api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
@@ -1157,6 +1183,7 @@ export default function DashboardClient() {
       setData({
         customers: customers.data,
         documents: documents.data,
+        files: files.data,
         gpsDevices: gpsDevices.data,
         invoices: invoices.data,
         metrics: metrics.data,
@@ -2275,7 +2302,7 @@ export default function DashboardClient() {
             <NotificationsPanel locale={locale} notifications={notifications} />
             <div className="table-panel">
               <h2>Документы и ТО</h2>
-              {data.documents.map((doc) => <p className="history-row" key={doc.id}>{doc.title} · {doc.type} · {doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}</p>)}
+              {data.documents.map((doc) => <p className="history-row" key={doc.id}><FilePreviewLink fileUrl={doc.fileUrl} title={`${doc.title} · ${doc.type} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} /></p>)}
               {data.serviceRecords.map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
               <button className="primary-button full" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Загрузить PDF документ</button>
               <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={requestVehicleFolderUpload} type="button">Загрузить папку авто</button>
@@ -2309,6 +2336,15 @@ export default function DashboardClient() {
               <p className="history-row">{t("settings.documents")}: {data.documents.length + data.customerDocuments.length}</p>
               <p className="history-row">{t("settings.contracts")}: {data.rentalContracts.length}</p>
               <button className="ghost-button full-button" onClick={() => void loadData()} type="button">{t("settings.update")}</button>
+            </section>
+
+            <section className="table-panel settings-panel settings-wide">
+              <h2>Document center</h2>
+              <p className="history-row">Storage provider: database now, S3-ready metadata enabled</p>
+              <div className="file-object-list">
+                {data.files.slice(0, 12).map((file) => <FileObjectRow file={file} key={file.id} />)}
+                {!data.files.length ? <p className="history-row">No uploaded files yet</p> : null}
+              </div>
             </section>
           </section>
         ) : null}
@@ -2466,6 +2502,13 @@ function VehicleCard({ customer, documents, finance, locale, onDocument, onExpen
         <article><span>{translate(locale, "finance.expenses")}</span><strong>{money.format(finance?.expenses ?? 0)}</strong></article>
         <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
       </div>
+      {vehicleDocuments.length ? (
+        <div className="document-mini-list">
+          {vehicleDocuments.slice(0, 3).map((doc) => (
+            <FilePreviewLink fileUrl={doc.fileUrl} key={doc.id} title={`${doc.title} · ${doc.type}`} />
+          ))}
+        </div>
+      ) : null}
       <button className="ghost-button full-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
       <button className="ghost-button full-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
       <button className="ghost-button full-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>

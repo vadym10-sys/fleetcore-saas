@@ -2290,6 +2290,57 @@ h3 {
   display: none;
 }
 
+.document-mini-list,
+.file-object-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.document-mini-list .document-link {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-object-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.file-object-row strong,
+.file-object-row span,
+.file-object-row small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-object-row span,
+.file-object-row small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-wide {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1180px) {
   .auth-shell,
   .workspace-grid,

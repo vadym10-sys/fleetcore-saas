@@ -236,6 +236,9 @@ export function mapFileObject(row: DbRow, publicUrl: string): FileObject {
     originalName: String(row.original_name),
     mimeType: String(row.mime_type),
     sizeBytes: number(row.size_bytes),
+    storageProvider: (row.storage_provider ? String(row.storage_provider) : "database") as FileObject["storageProvider"],
+    ...(row.storage_key ? { storageKey: String(row.storage_key) } : {}),
+    ...(row.sha256 ? { sha256: String(row.sha256) } : {}),
     publicUrl,
   };
 }

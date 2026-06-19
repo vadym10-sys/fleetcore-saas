@@ -192,6 +192,9 @@ export interface FileObject extends TenantScopedEntity {
   originalName: string;
   mimeType: string;
   sizeBytes: number;
+  storageProvider: "database" | "s3";
+  storageKey?: string;
+  sha256?: string;
   publicUrl: string;
 }
 

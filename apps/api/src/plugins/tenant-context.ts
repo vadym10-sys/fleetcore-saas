@@ -14,7 +14,9 @@ const publicRoutes = new Set([
   "/auth/reset-password",
   "/auth/verify-email",
 ]);
-const publicPrefixes = ["/uploads/"];
+function isPublicUploadPreview(url: string) {
+  return /^\/uploads\/[^/]+\/.+/.test(url);
+}
 
 export function installTenantContext(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
@@ -22,7 +24,7 @@ export function installTenantContext(app: FastifyInstance) {
       return;
     }
 
-    if (publicRoutes.has(request.url) || publicPrefixes.some((prefix) => request.url.startsWith(prefix))) {
+    if (publicRoutes.has(request.url) || isPublicUploadPreview(request.url)) {
       return;
     }
 

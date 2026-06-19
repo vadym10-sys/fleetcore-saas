@@ -316,7 +316,25 @@ test("authenticated API stores and serves uploaded files", async () => {
   assert.equal(file.originalName, "smoke-document.txt");
   assert.equal(file.mimeType, "text/plain");
   assert.equal(file.sizeBytes, Buffer.byteLength(content));
+  assert.equal(file.storageProvider, "database");
+  assert.equal(typeof file.sha256, "string");
   assert.equal(new URL(file.publicUrl).protocol, "https:");
+
+  const list = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/uploads",
+  });
+  assert.equal(list.statusCode, 200);
+  assert.ok(list.json().data.some((item: { id: string }) => item.id === file.id));
+
+  const metadata = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: `/uploads/${file.id}`,
+  });
+  assert.equal(metadata.statusCode, 200);
+  assert.equal(metadata.json().data.sha256, file.sha256);
 
   const download = await app.inject({
     method: "GET",
@@ -325,6 +343,7 @@ test("authenticated API stores and serves uploaded files", async () => {
 
   assert.equal(download.statusCode, 200);
   assert.equal(download.headers["content-type"], "text/plain");
+  assert.equal(download.headers.etag, `"${file.sha256}"`);
   assert.equal(download.body, content);
 });
 
@@ -420,4 +439,5 @@ test("owners can read company audit log", async () => {
   assert.equal(response.statusCode, 200);
   assert.ok(Array.isArray(response.json().data));
   assert.ok(response.json().data.some((entry: { action: string }) => entry.action.startsWith("auth.")));
+  assert.ok(response.json().data.some((entry: { action: string }) => entry.action === "file.uploaded"));
 });

@@ -8,7 +8,7 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
-    "test": "echo \"No web tests yet\""
+    "test": "node --test src/**/*.test.mjs"
   },
   "dependencies": {
     "@fleetcore/shared": "workspace:*",
