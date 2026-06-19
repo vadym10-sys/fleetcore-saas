@@ -29,6 +29,7 @@ declare global {
 
 type ApiEnvelope<T> = { data: T };
 type Section = "Dashboard" | "GPS" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
+type Locale = "en" | "ru" | "es" | "fr" | "de";
 type OperationKind =
   | "booking"
   | "contract"
@@ -66,6 +67,295 @@ type UiNotification = {
 };
 
 const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
+const locales: Array<{ code: Locale; label: string }> = [
+  { code: "en", label: "EN" },
+  { code: "ru", label: "RU" },
+  { code: "es", label: "ES" },
+  { code: "fr", label: "FR" },
+  { code: "de", label: "DE" },
+];
+
+const uiCopy = {
+  en: {
+    "auth.demo": "Enter demo account",
+    "auth.email": "Company email",
+    "auth.login": "Sign in",
+    "auth.loginTitle": "Sign in to company account",
+    "auth.message": "Sign in with your company email or create a new B2B account.",
+    "auth.newCompany": "New company",
+    "auth.ownerEmail": "Owner email",
+    "auth.ownerName": "Owner name",
+    "auth.password": "Password",
+    "auth.passwordConfirm": "Repeat password",
+    "auth.register": "Create account",
+    "auth.registerTitle": "Register B2B company",
+    "auth.businessName": "Business name",
+    "auth.legalName": "Legal name",
+    "auth.country": "Country",
+    "auth.currency": "Currency",
+    "auth.fleetLimit": "Fleet limit",
+    "common.loading": "Loading...",
+    "common.refresh": "Refresh data",
+    "common.search": "Plate, VIN, client, phone",
+    "common.signOut": "Sign out",
+    "dashboard.apiReady": "Data loaded from PostgreSQL through backend API",
+    "dashboard.activeRentals": "In rental",
+    "dashboard.available": "Available now",
+    "dashboard.monthlyRevenue": "Monthly revenue",
+    "dashboard.overdue": "On service",
+    "dashboard.todayRevenue": "Today revenue",
+    "dashboard.totalVehicles": "Total vehicles",
+    "finance.expenses": "Expenses",
+    "finance.income": "Income",
+    "finance.net": "Net profit",
+    "nav.Bookings": "Bookings",
+    "nav.Dashboard": "Dashboard",
+    "nav.Drivers/Clients": "Clients",
+    "nav.Finance": "Finance",
+    "nav.GPS": "GPS",
+    "nav.Service": "Service",
+    "nav.Settings": "Settings",
+    "nav.Vehicles": "Vehicles",
+    "settings.account": "Company account",
+    "settings.companyId": "Company ID",
+    "settings.data": "SaaS data",
+    "settings.documents": "Documents",
+    "settings.contracts": "Contracts",
+    "settings.integrations": "Integrations",
+    "settings.role": "Role",
+    "settings.update": "Refresh data",
+    "settings.vehicles": "Vehicles",
+    "settings.customers": "Clients",
+    "tariff.manage": "Manage subscription",
+    "tariff.month": "month",
+    "tariff.name": "Business plan",
+  },
+  ru: {
+    "auth.demo": "Войти в демо-аккаунт",
+    "auth.email": "Email компании",
+    "auth.login": "Войти",
+    "auth.loginTitle": "Вход в аккаунт компании",
+    "auth.message": "Войдите через email компании или создайте новый B2B-аккаунт.",
+    "auth.newCompany": "Новая компания",
+    "auth.ownerEmail": "Email владельца",
+    "auth.ownerName": "Имя владельца",
+    "auth.password": "Пароль",
+    "auth.passwordConfirm": "Повторите пароль",
+    "auth.register": "Создать аккаунт",
+    "auth.registerTitle": "Регистрация B2B-компании",
+    "auth.businessName": "Название бизнеса",
+    "auth.legalName": "Юридическое имя",
+    "auth.country": "Страна",
+    "auth.currency": "Валюта",
+    "auth.fleetLimit": "Лимит автопарка",
+    "common.loading": "Загрузка...",
+    "common.refresh": "Обновить данные",
+    "common.search": "Номер, VIN, клиент, телефон",
+    "common.signOut": "Выйти из аккаунта",
+    "dashboard.apiReady": "Данные загружены из PostgreSQL через backend API",
+    "dashboard.activeRentals": "В аренде",
+    "dashboard.available": "Свободно сейчас",
+    "dashboard.monthlyRevenue": "Доход за месяц",
+    "dashboard.overdue": "На сервисе",
+    "dashboard.todayRevenue": "Доход сегодня",
+    "dashboard.totalVehicles": "Всего автомобилей",
+    "finance.expenses": "Расходы",
+    "finance.income": "Доход",
+    "finance.net": "Чистая прибыль",
+    "nav.Bookings": "Брони",
+    "nav.Dashboard": "Главная",
+    "nav.Drivers/Clients": "Клиенты",
+    "nav.Finance": "Финансы",
+    "nav.GPS": "GPS",
+    "nav.Service": "Сервис",
+    "nav.Settings": "Настройки",
+    "nav.Vehicles": "Авто",
+    "settings.account": "Аккаунт компании",
+    "settings.companyId": "Company ID",
+    "settings.data": "Данные SaaS",
+    "settings.documents": "Документы",
+    "settings.contracts": "Договоры",
+    "settings.integrations": "Интеграции",
+    "settings.role": "Роль",
+    "settings.update": "Обновить данные",
+    "settings.vehicles": "Авто",
+    "settings.customers": "Клиенты",
+    "tariff.manage": "Управление подпиской",
+    "tariff.month": "месяц",
+    "tariff.name": "Тариф Business",
+  },
+  es: {
+    "auth.demo": "Entrar en demo",
+    "auth.email": "Email de empresa",
+    "auth.login": "Entrar",
+    "auth.loginTitle": "Acceso a la cuenta de empresa",
+    "auth.message": "Accede con el email de tu empresa o crea una cuenta B2B.",
+    "auth.newCompany": "Nueva empresa",
+    "auth.ownerEmail": "Email del propietario",
+    "auth.ownerName": "Nombre del propietario",
+    "auth.password": "Contraseña",
+    "auth.passwordConfirm": "Repetir contraseña",
+    "auth.register": "Crear cuenta",
+    "auth.registerTitle": "Registrar empresa B2B",
+    "auth.businessName": "Nombre comercial",
+    "auth.legalName": "Razón social",
+    "auth.country": "País",
+    "auth.currency": "Moneda",
+    "auth.fleetLimit": "Límite de flota",
+    "common.loading": "Cargando...",
+    "common.refresh": "Actualizar datos",
+    "common.search": "Matrícula, VIN, cliente, teléfono",
+    "common.signOut": "Cerrar sesión",
+    "dashboard.apiReady": "Datos cargados desde PostgreSQL vía backend API",
+    "dashboard.activeRentals": "En alquiler",
+    "dashboard.available": "Disponible ahora",
+    "dashboard.monthlyRevenue": "Ingresos mensuales",
+    "dashboard.overdue": "En servicio",
+    "dashboard.todayRevenue": "Ingresos hoy",
+    "dashboard.totalVehicles": "Vehículos totales",
+    "finance.expenses": "Gastos",
+    "finance.income": "Ingresos",
+    "finance.net": "Beneficio neto",
+    "nav.Bookings": "Reservas",
+    "nav.Dashboard": "Panel",
+    "nav.Drivers/Clients": "Clientes",
+    "nav.Finance": "Finanzas",
+    "nav.GPS": "GPS",
+    "nav.Service": "Servicio",
+    "nav.Settings": "Ajustes",
+    "nav.Vehicles": "Vehículos",
+    "settings.account": "Cuenta de empresa",
+    "settings.companyId": "ID de empresa",
+    "settings.data": "Datos SaaS",
+    "settings.documents": "Documentos",
+    "settings.contracts": "Contratos",
+    "settings.integrations": "Integraciones",
+    "settings.role": "Rol",
+    "settings.update": "Actualizar datos",
+    "settings.vehicles": "Vehículos",
+    "settings.customers": "Clientes",
+    "tariff.manage": "Gestionar suscripción",
+    "tariff.month": "mes",
+    "tariff.name": "Plan Business",
+  },
+  fr: {
+    "auth.demo": "Entrer en démo",
+    "auth.email": "Email entreprise",
+    "auth.login": "Connexion",
+    "auth.loginTitle": "Connexion au compte entreprise",
+    "auth.message": "Connectez-vous avec l'email de votre entreprise ou créez un compte B2B.",
+    "auth.newCompany": "Nouvelle société",
+    "auth.ownerEmail": "Email du propriétaire",
+    "auth.ownerName": "Nom du propriétaire",
+    "auth.password": "Mot de passe",
+    "auth.passwordConfirm": "Répéter le mot de passe",
+    "auth.register": "Créer un compte",
+    "auth.registerTitle": "Inscription société B2B",
+    "auth.businessName": "Nom commercial",
+    "auth.legalName": "Raison sociale",
+    "auth.country": "Pays",
+    "auth.currency": "Devise",
+    "auth.fleetLimit": "Limite de flotte",
+    "common.loading": "Chargement...",
+    "common.refresh": "Actualiser",
+    "common.search": "Plaque, VIN, client, téléphone",
+    "common.signOut": "Se déconnecter",
+    "dashboard.apiReady": "Données chargées depuis PostgreSQL via backend API",
+    "dashboard.activeRentals": "En location",
+    "dashboard.available": "Disponible",
+    "dashboard.monthlyRevenue": "Revenu mensuel",
+    "dashboard.overdue": "En service",
+    "dashboard.todayRevenue": "Revenu du jour",
+    "dashboard.totalVehicles": "Véhicules",
+    "finance.expenses": "Dépenses",
+    "finance.income": "Revenus",
+    "finance.net": "Profit net",
+    "nav.Bookings": "Réservations",
+    "nav.Dashboard": "Tableau",
+    "nav.Drivers/Clients": "Clients",
+    "nav.Finance": "Finance",
+    "nav.GPS": "GPS",
+    "nav.Service": "Service",
+    "nav.Settings": "Paramètres",
+    "nav.Vehicles": "Véhicules",
+    "settings.account": "Compte entreprise",
+    "settings.companyId": "ID société",
+    "settings.data": "Données SaaS",
+    "settings.documents": "Documents",
+    "settings.contracts": "Contrats",
+    "settings.integrations": "Intégrations",
+    "settings.role": "Rôle",
+    "settings.update": "Actualiser",
+    "settings.vehicles": "Véhicules",
+    "settings.customers": "Clients",
+    "tariff.manage": "Gérer l'abonnement",
+    "tariff.month": "mois",
+    "tariff.name": "Offre Business",
+  },
+  de: {
+    "auth.demo": "Demo öffnen",
+    "auth.email": "Firmen-E-Mail",
+    "auth.login": "Anmelden",
+    "auth.loginTitle": "Beim Firmenkonto anmelden",
+    "auth.message": "Mit Firmen-E-Mail anmelden oder ein neues B2B-Konto erstellen.",
+    "auth.newCompany": "Neue Firma",
+    "auth.ownerEmail": "E-Mail des Inhabers",
+    "auth.ownerName": "Name des Inhabers",
+    "auth.password": "Passwort",
+    "auth.passwordConfirm": "Passwort wiederholen",
+    "auth.register": "Konto erstellen",
+    "auth.registerTitle": "B2B-Firma registrieren",
+    "auth.businessName": "Firmenname",
+    "auth.legalName": "Rechtsname",
+    "auth.country": "Land",
+    "auth.currency": "Währung",
+    "auth.fleetLimit": "Flottenlimit",
+    "common.loading": "Wird geladen...",
+    "common.refresh": "Daten aktualisieren",
+    "common.search": "Kennzeichen, VIN, Kunde, Telefon",
+    "common.signOut": "Abmelden",
+    "dashboard.apiReady": "Daten aus PostgreSQL über Backend API geladen",
+    "dashboard.activeRentals": "Vermietet",
+    "dashboard.available": "Jetzt verfügbar",
+    "dashboard.monthlyRevenue": "Monatsumsatz",
+    "dashboard.overdue": "Im Service",
+    "dashboard.todayRevenue": "Umsatz heute",
+    "dashboard.totalVehicles": "Fahrzeuge gesamt",
+    "finance.expenses": "Kosten",
+    "finance.income": "Umsatz",
+    "finance.net": "Nettogewinn",
+    "nav.Bookings": "Buchungen",
+    "nav.Dashboard": "Dashboard",
+    "nav.Drivers/Clients": "Kunden",
+    "nav.Finance": "Finanzen",
+    "nav.GPS": "GPS",
+    "nav.Service": "Service",
+    "nav.Settings": "Einstellungen",
+    "nav.Vehicles": "Fahrzeuge",
+    "settings.account": "Firmenkonto",
+    "settings.companyId": "Firmen-ID",
+    "settings.data": "SaaS-Daten",
+    "settings.documents": "Dokumente",
+    "settings.contracts": "Verträge",
+    "settings.integrations": "Integrationen",
+    "settings.role": "Rolle",
+    "settings.update": "Daten aktualisieren",
+    "settings.vehicles": "Fahrzeuge",
+    "settings.customers": "Kunden",
+    "tariff.manage": "Abo verwalten",
+    "tariff.month": "Monat",
+    "tariff.name": "Business Tarif",
+  },
+} satisfies Record<Locale, Record<string, string>>;
+
+function translate(locale: Locale, key: string) {
+  const copy = uiCopy as Record<Locale, Record<string, string>>;
+  return copy[locale][key] ?? copy.en[key] ?? key;
+}
+
+function sectionLabel(locale: Locale, section: Section) {
+  return translate(locale, `nav.${section}`);
+}
 
 const emptyMetrics: DashboardMetrics = {
   activeRentals: 0,
@@ -233,10 +523,22 @@ function fileToBase64(file: File) {
   });
 }
 
-function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }) {
+function LanguageSelect({ locale, onChange }: { locale: Locale; onChange: (locale: Locale) => void }) {
+  return (
+    <label className="language-select">
+      <span>Language</span>
+      <select aria-label="Language" value={locale} onChange={(event) => onChange(event.target.value as Locale)}>
+        {locales.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onSession: (session: AuthSession) => void }) {
+  const t = (key: string) => translate(locale, key);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("Войдите через email компании или создайте новый B2B-аккаунт.");
+  const [message, setMessage] = useState(t("auth.message"));
   const [login, setLogin] = useState({ email: "", password: "" });
   const [register, setRegister] = useState({
     country: "PL",
@@ -250,6 +552,10 @@ function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }
     plan: "starter",
     tradingName: "",
   });
+
+  useEffect(() => {
+    if (!loading) setMessage(t("auth.message"));
+  }, [locale, loading]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -315,37 +621,38 @@ function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }
       <section className="auth-panel">
         <div>
           <span className="auth-kicker">FleetCore SaaS</span>
-          <h1>{mode === "login" ? "Вход в аккаунт компании" : "Регистрация B2B-компании"}</h1>
+          <h1>{mode === "login" ? t("auth.loginTitle") : t("auth.registerTitle")}</h1>
           <p>{message}</p>
         </div>
+        <LanguageSelect locale={locale} onChange={onLocaleChange} />
         <div className="auth-tabs">
-          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")} type="button">Вход</button>
-          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")} type="button">Новая компания</button>
+          <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")} type="button">{t("auth.login")}</button>
+          <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")} type="button">{t("auth.newCompany")}</button>
         </div>
         <form className="auth-form" onSubmit={(event) => void submit(event)}>
           {mode === "login" ? (
             <>
-              <label>Email компании<input autoComplete="email" inputMode="email" required type="email" value={login.email} onChange={(event) => setLogin({ ...login, email: event.target.value })} /></label>
-              <label>Пароль<input autoComplete="current-password" required type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} /></label>
+              <label>{t("auth.email")}<input autoComplete="email" inputMode="email" required type="email" value={login.email} onChange={(event) => setLogin({ ...login, email: event.target.value })} /></label>
+              <label>{t("auth.password")}<input autoComplete="current-password" required type="password" value={login.password} onChange={(event) => setLogin({ ...login, password: event.target.value })} /></label>
             </>
           ) : (
             <>
-              <label>Название бизнеса<input autoComplete="organization" required value={register.tradingName} onChange={(event) => setRegister({ ...register, tradingName: event.target.value })} /></label>
-              <label>Юридическое имя<input autoComplete="organization" required value={register.legalName} onChange={(event) => setRegister({ ...register, legalName: event.target.value })} /></label>
+              <label>{t("auth.businessName")}<input autoComplete="organization" required value={register.tradingName} onChange={(event) => setRegister({ ...register, tradingName: event.target.value })} /></label>
+              <label>{t("auth.legalName")}<input autoComplete="organization" required value={register.legalName} onChange={(event) => setRegister({ ...register, legalName: event.target.value })} /></label>
               <div className="auth-two">
-                <label>Страна<input maxLength={2} required value={register.country} onChange={(event) => setRegister({ ...register, country: event.target.value.toUpperCase().slice(0, 2) })} /></label>
-                <label>Валюта<input maxLength={3} required value={register.currency} onChange={(event) => setRegister({ ...register, currency: event.target.value.toUpperCase().slice(0, 3) })} /></label>
+                <label>{t("auth.country")}<input maxLength={2} required value={register.country} onChange={(event) => setRegister({ ...register, country: event.target.value.toUpperCase().slice(0, 2) })} /></label>
+                <label>{t("auth.currency")}<input maxLength={3} required value={register.currency} onChange={(event) => setRegister({ ...register, currency: event.target.value.toUpperCase().slice(0, 3) })} /></label>
               </div>
-              <label>Лимит автопарка<input min="1" required type="number" value={register.fleetSizeLimit} onChange={(event) => setRegister({ ...register, fleetSizeLimit: event.target.value })} /></label>
-              <label>Имя владельца<input autoComplete="name" required value={register.fullName} onChange={(event) => setRegister({ ...register, fullName: event.target.value })} /></label>
-              <label>Email владельца<input autoComplete="email" inputMode="email" required type="email" value={register.email} onChange={(event) => setRegister({ ...register, email: event.target.value })} /></label>
-              <label>Пароль<input autoComplete="new-password" minLength={8} required type="password" value={register.password} onChange={(event) => setRegister({ ...register, password: event.target.value })} /></label>
-              <label>Повторите пароль<input autoComplete="new-password" minLength={8} required type="password" value={register.passwordConfirm} onChange={(event) => setRegister({ ...register, passwordConfirm: event.target.value })} /></label>
+              <label>{t("auth.fleetLimit")}<input min="1" required type="number" value={register.fleetSizeLimit} onChange={(event) => setRegister({ ...register, fleetSizeLimit: event.target.value })} /></label>
+              <label>{t("auth.ownerName")}<input autoComplete="name" required value={register.fullName} onChange={(event) => setRegister({ ...register, fullName: event.target.value })} /></label>
+              <label>{t("auth.ownerEmail")}<input autoComplete="email" inputMode="email" required type="email" value={register.email} onChange={(event) => setRegister({ ...register, email: event.target.value })} /></label>
+              <label>{t("auth.password")}<input autoComplete="new-password" minLength={8} required type="password" value={register.password} onChange={(event) => setRegister({ ...register, password: event.target.value })} /></label>
+              <label>{t("auth.passwordConfirm")}<input autoComplete="new-password" minLength={8} required type="password" value={register.passwordConfirm} onChange={(event) => setRegister({ ...register, passwordConfirm: event.target.value })} /></label>
             </>
           )}
-          <button className="primary-button full" disabled={loading}>{loading ? "Подождите..." : mode === "login" ? "Войти" : "Создать аккаунт"}</button>
+          <button className="primary-button full" disabled={loading}>{loading ? t("common.loading") : mode === "login" ? t("auth.login") : t("auth.register")}</button>
           {mode === "login" ? (
-            <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">Войти в демо-аккаунт</button>
+            <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">{t("auth.demo")}</button>
           ) : null}
         </form>
       </section>
@@ -365,6 +672,7 @@ function AuthScreen({ onSession }: { onSession: (session: AuthSession) => void }
 }
 
 export default function DashboardClient() {
+  const [locale, setLocale] = useState<Locale>("ru");
   const [session, setSession] = useState<AuthSession | undefined>();
   const [activeSection, setActiveSection] = useState<Section>("Dashboard");
   const [search, setSearch] = useState("");
@@ -414,6 +722,7 @@ export default function DashboardClient() {
   });
 
   const token = session?.accessToken;
+  const t = (key: string) => translate(locale, key);
 
   useEffect(() => {
     const stored = localStorage.getItem("fleetcore-session");
@@ -424,7 +733,16 @@ export default function DashboardClient() {
         localStorage.removeItem("fleetcore-session");
       }
     }
+    const storedLocale = localStorage.getItem("fleetcore-locale");
+    if (storedLocale && locales.some((item) => item.code === storedLocale)) {
+      setLocale(storedLocale as Locale);
+    }
   }, []);
+
+  function changeLocale(nextLocale: Locale) {
+    setLocale(nextLocale);
+    localStorage.setItem("fleetcore-locale", nextLocale);
+  }
 
   async function loadData(currentToken = token) {
     setLoading(true);
@@ -459,7 +777,7 @@ export default function DashboardClient() {
         vehicles: vehicles.data,
       });
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
-      setMessage("Данные загружены из PostgreSQL через backend API");
+      setMessage(t("dashboard.apiReady"));
     } catch (error) {
       if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
         logout();
@@ -539,12 +857,12 @@ export default function DashboardClient() {
   }, [data.documents, data.invoices, data.rentals, data.vehicles]);
 
   const dashboardCards = [
-    ["Всего автомобилей", data.vehicles.length, "blue"],
-    ["Свободно сейчас", data.vehicles.filter((vehicle) => vehicle.status === "available").length, "green"],
-    ["В аренде", data.vehicles.filter((vehicle) => vehicle.status === "rented").length, "blue"],
-    ["На сервисе", data.vehicles.filter((vehicle) => vehicle.status === "maintenance").length, "black"],
-    ["Доход за месяц", money.format(data.metrics.monthlyRevenue), "green"],
-    ["Доход сегодня", money.format(incomeToday), "green"],
+    [t("dashboard.totalVehicles"), data.vehicles.length, "blue"],
+    [t("dashboard.available"), data.vehicles.filter((vehicle) => vehicle.status === "available").length, "green"],
+    [t("dashboard.activeRentals"), data.vehicles.filter((vehicle) => vehicle.status === "rented").length, "blue"],
+    [t("dashboard.overdue"), data.vehicles.filter((vehicle) => vehicle.status === "maintenance").length, "black"],
+    [t("dashboard.monthlyRevenue"), money.format(data.metrics.monthlyRevenue), "green"],
+    [t("dashboard.todayRevenue"), money.format(incomeToday), "green"],
   ] as const;
 
   function openOperation(kind: OperationKind) {
@@ -1224,7 +1542,7 @@ export default function DashboardClient() {
   }
 
   if (!session) {
-    return <AuthScreen onSession={setSession} />;
+    return <AuthScreen locale={locale} onLocaleChange={changeLocale} onSession={setSession} />;
   }
 
   return (
@@ -1319,31 +1637,32 @@ export default function DashboardClient() {
           {sections.map((item) => (
             <button className={activeSection === item ? "active" : ""} key={item} onClick={() => setActiveSection(item)} type="button">
               <span>{item === "Dashboard" ? "⌂" : item === "GPS" ? "⌖" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
-              {item}
+              {sectionLabel(locale, item)}
               {item === "Service" && notifications.length ? <em>{notifications.length}</em> : null}
             </button>
           ))}
         </nav>
         <div className="plan-card">
-          <span>Тариф {session.user.role === "owner" ? "Business" : "Team"}</span>
-          <strong>€499 <small>/ месяц</small></strong>
+          <span>{session.user.role === "owner" ? t("tariff.name") : "Team"}</span>
+          <strong>€499 <small>/ {t("tariff.month")}</small></strong>
           <div className="usage"><i /></div>
-          <button onClick={() => setActiveSection("Settings")} type="button">Управление подпиской</button>
+          <button onClick={() => setActiveSection("Settings")} type="button">{t("tariff.manage")}</button>
         </div>
       </aside>
 
       <section className="desktop-workspace">
         <header className="desktop-header">
           <div>
-            <h1>{activeSection}</h1>
-            <p className="api-status">{loading ? "Загрузка..." : message}</p>
+            <h1>{sectionLabel(locale, activeSection)}</h1>
+            <p className="api-status">{loading ? t("common.loading") : message}</p>
           </div>
           <div className="header-actions">
             <label className="global-search">
               <span>⌕</span>
-              <input placeholder="Номер, VIN, клиент, телефон" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <input placeholder={t("common.search")} value={search} onChange={(event) => setSearch(event.target.value)} />
             </label>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void loadData()} type="button">↻</button>
+            <LanguageSelect locale={locale} onChange={changeLocale} />
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void loadData()} title={t("common.refresh")} type="button">↻</button>
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
           </div>
         </header>
@@ -1484,9 +1803,9 @@ export default function DashboardClient() {
 
         {activeSection === "Finance" ? (
           <section className="finance-layout">
-            <article className="metric-card"><span>Доход</span><strong className="green">{money.format(finance.totalIncome)}</strong></article>
-            <article className="metric-card"><span>Расходы</span><strong className="red">{money.format(finance.expenses)}</strong></article>
-            <article className="metric-card"><span>Чистая прибыль</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
+            <article className="metric-card"><span>{t("finance.income")}</span><strong className="green">{money.format(finance.totalIncome)}</strong></article>
+            <article className="metric-card"><span>{t("finance.expenses")}</span><strong className="red">{money.format(finance.expenses)}</strong></article>
+            <article className="metric-card"><span>{t("finance.net")}</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("payment")} type="button">Провести оплату</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Добавить расход</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestDepositUpload} type="button">Загрузить депозит/возврат</button>
@@ -1522,27 +1841,27 @@ export default function DashboardClient() {
         {activeSection === "Settings" ? (
           <section className="settings-grid">
             <section className="table-panel settings-panel">
-              <h2>Аккаунт компании</h2>
+              <h2>{t("settings.account")}</h2>
               <p className="history-row">{session.user.fullName} · {session.user.email}</p>
-              <p className="history-row">Роль: {session.user.role}</p>
-              <p className="history-row">Company ID: {session.companyId}</p>
-              <button className="ghost-button full-button" onClick={logout} type="button">Выйти из аккаунта</button>
+              <p className="history-row">{t("settings.role")}: {session.user.role}</p>
+              <p className="history-row">{t("settings.companyId")}: {session.companyId}</p>
+              <button className="ghost-button full-button" onClick={logout} type="button">{t("common.signOut")}</button>
             </section>
 
             <section className="table-panel settings-panel">
-              <h2>Интеграции</h2>
+              <h2>{t("settings.integrations")}</h2>
               <p className="history-row">Google Maps: {GOOGLE_MAPS_API_KEY ? "API key подключен" : "работает preview без API key"}</p>
               <p className="history-row">Backend API: {API_URL}</p>
               <button className="primary-button full" onClick={() => openOperation("gps")} type="button">Подключить GPS</button>
             </section>
 
             <section className="table-panel settings-panel">
-              <h2>Данные SaaS</h2>
-              <p className="history-row">Авто: {data.vehicles.length}</p>
-              <p className="history-row">Клиенты: {data.customers.length}</p>
-              <p className="history-row">Документы: {data.documents.length + data.customerDocuments.length}</p>
-              <p className="history-row">Договоры: {data.rentalContracts.length}</p>
-              <button className="ghost-button full-button" onClick={() => void loadData()} type="button">Обновить данные</button>
+              <h2>{t("settings.data")}</h2>
+              <p className="history-row">{t("settings.vehicles")}: {data.vehicles.length}</p>
+              <p className="history-row">{t("settings.customers")}: {data.customers.length}</p>
+              <p className="history-row">{t("settings.documents")}: {data.documents.length + data.customerDocuments.length}</p>
+              <p className="history-row">{t("settings.contracts")}: {data.rentalContracts.length}</p>
+              <button className="ghost-button full-button" onClick={() => void loadData()} type="button">{t("settings.update")}</button>
             </section>
           </section>
         ) : null}
@@ -1561,18 +1880,18 @@ export default function DashboardClient() {
         />
       ) : null}
 
-      <MobileAppNav activeSection={activeSection} notificationsCount={notifications.length} onSelect={setActiveSection} />
+      <MobileAppNav activeSection={activeSection} locale={locale} notificationsCount={notifications.length} onSelect={setActiveSection} />
     </main>
   );
 }
 
-function MobileAppNav({ activeSection, notificationsCount, onSelect }: { activeSection: Section; notificationsCount: number; onSelect: (section: Section) => void }) {
+function MobileAppNav({ activeSection, locale, notificationsCount, onSelect }: { activeSection: Section; locale: Locale; notificationsCount: number; onSelect: (section: Section) => void }) {
   return (
     <nav className="mobile-app-nav" aria-label="Mobile app navigation">
       {sections.map((item) => (
         <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
           <span>{item === "Dashboard" ? "⌂" : item === "GPS" ? "⌖" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
-          <small>{item === "Drivers/Clients" ? "Clients" : item}</small>
+          <small>{sectionLabel(locale, item)}</small>
           {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
         </button>
       ))}

@@ -2509,6 +2509,115 @@ h3 {
   color: white;
 }
 
+.language-select {
+  min-width: 92px;
+  height: 46px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  padding: 5px 10px;
+  border: 1px solid rgba(215, 222, 233, 0.95);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.92));
+  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.06);
+}
+
+.language-select span {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.language-select select {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.auth-panel .language-select {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.fleet-app {
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.06) 0 18%, transparent 18% 100%),
+    linear-gradient(22deg, transparent 0 52%, rgba(184, 137, 58, 0.09) 52% 66%, transparent 66%),
+    linear-gradient(155deg, transparent 0 12%, rgba(35, 70, 216, 0.08) 12% 24%, transparent 24%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.desktop-workspace:before {
+  content: "";
+  display: block;
+  height: 118px;
+  margin: -2px 0 -118px;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.92) 58%, rgba(35, 70, 216, 0.9));
+  box-shadow: 0 24px 80px rgba(17, 24, 39, 0.18);
+}
+
+.desktop-header {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.76));
+  box-shadow: 0 18px 50px rgba(17, 24, 39, 0.1);
+}
+
+.desktop-header h1 {
+  background: linear-gradient(135deg, #111827, #2346d8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.side-nav button {
+  border: 1px solid transparent;
+}
+
+.side-nav button.active {
+  border-color: rgba(184, 137, 58, 0.28);
+}
+
+.side-nav button.active:after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gold);
+}
+
+.workspace-grid,
+.settings-grid,
+.finance-layout,
+.bookings-board {
+  position: relative;
+}
+
+.workspace-grid:before,
+.settings-grid:before,
+.finance-layout:before,
+.bookings-board:before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  z-index: -1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.54);
+}
+
 @media (max-width: 1200px) {
   .desktop-sidebar {
     height: auto;
@@ -2534,6 +2643,10 @@ h3 {
     width: 100%;
   }
 
+  .desktop-workspace:before {
+    display: none;
+  }
+
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
@@ -2554,7 +2667,16 @@ h3 {
   }
 
   .header-actions {
-    grid-template-columns: minmax(0, 1fr) 44px 88px;
+    grid-template-columns: minmax(0, 1fr) 76px 44px 88px;
+  }
+
+  .language-select {
+    min-width: 0;
+    padding-inline: 8px;
+  }
+
+  .language-select span {
+    display: none;
   }
 
   .primary-button,
