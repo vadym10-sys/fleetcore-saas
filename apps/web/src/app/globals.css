@@ -446,6 +446,26 @@ h3 {
   filter: saturate(0.95) contrast(0.96);
 }
 
+.google-js-map {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.map-provider-badge {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 5;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .google-map-panel:before,
 .google-map-panel:after {
   display: none;

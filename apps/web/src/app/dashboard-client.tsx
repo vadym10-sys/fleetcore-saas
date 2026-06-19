@@ -4,7 +4,28 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 const TENANT_ID = "tenant_atlas";
+
+type GoogleLatLngLiteral = { lat: number; lng: number };
+type GoogleMapInstance = {
+  setCenter: (position: GoogleLatLngLiteral) => void;
+  setZoom: (zoom: number) => void;
+};
+type GoogleMarkerInstance = {
+  setMap: (map: GoogleMapInstance | null) => void;
+};
+type GoogleMapsNamespace = {
+  Map: new (element: HTMLElement, options: { center: GoogleLatLngLiteral; mapTypeControl?: boolean; streetViewControl?: boolean; styles?: Array<Record<string, unknown>>; zoom: number }) => GoogleMapInstance;
+  Marker: new (options: { label?: string; map: GoogleMapInstance; position: GoogleLatLngLiteral; title?: string }) => GoogleMarkerInstance;
+};
+
+declare global {
+  interface Window {
+    google?: { maps?: GoogleMapsNamespace };
+    fleetcoreGoogleMapsReady?: () => void;
+  }
+}
 
 type ApiEnvelope<T> = { data: T };
 type Section = "Dashboard" | "GPS" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
@@ -171,6 +192,26 @@ function normalizePhoneForWhatsApp(phone: string) {
 function openWhatsApp(phone: string, text: string) {
   const url = `https://wa.me/${normalizePhoneForWhatsApp(phone)}?text=${encodeURIComponent(text)}`;
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+let googleMapsPromise: Promise<GoogleMapsNamespace | undefined> | undefined;
+
+function loadGoogleMaps(apiKey: string) {
+  if (!apiKey || typeof window === "undefined") return Promise.resolve(undefined);
+  if (window.google?.maps) return Promise.resolve(window.google.maps);
+  if (googleMapsPromise) return googleMapsPromise;
+
+  googleMapsPromise = new Promise((resolve, reject) => {
+    window.fleetcoreGoogleMapsReady = () => resolve(window.google?.maps);
+    const script = document.createElement("script");
+    script.async = true;
+    script.defer = true;
+    script.onerror = () => reject(new Error("Google Maps API не загрузился"));
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=fleetcoreGoogleMapsReady`;
+    document.head.appendChild(script);
+  });
+
+  return googleMapsPromise;
 }
 
 function fileToBase64(file: File) {
@@ -1474,16 +1515,66 @@ function MobileAppNav({ activeSection, notificationsCount, onSelect }: { activeS
 }
 
 function MapPanel({ gpsDevices, onSelect, selectedVehicleId, vehicles, rentals }: { gpsDevices: GpsDevice[]; onSelect: (id: string) => void; selectedVehicleId: string | undefined; vehicles: Vehicle[]; rentals: Rental[] }) {
+  const googleMapRef = useRef<HTMLDivElement>(null);
+  const googleMapInstanceRef = useRef<GoogleMapInstance | null>(null);
+  const googleMarkersRef = useRef<GoogleMarkerInstance[]>([]);
+  const [googleMapsReady, setGoogleMapsReady] = useState(false);
   const selectedGps = gpsDevices.find((device) => device.vehicleId === selectedVehicleId) ?? gpsDevices[0];
   const mapQuery = selectedGps ? `${selectedGps.latitude},${selectedGps.longitude}` : "Warsaw, Poland";
+  const center = selectedGps ? { lat: selectedGps.latitude, lng: selectedGps.longitude } : { lat: 52.2297, lng: 21.0122 };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadGoogleMaps(GOOGLE_MAPS_API_KEY)
+      .then((maps) => {
+        if (cancelled || !maps || !googleMapRef.current) return;
+        if (!googleMapInstanceRef.current) {
+          googleMapInstanceRef.current = new maps.Map(googleMapRef.current, {
+            center,
+            mapTypeControl: false,
+            streetViewControl: false,
+            styles: [
+              { featureType: "poi", stylers: [{ visibility: "off" }] },
+              { featureType: "transit", stylers: [{ visibility: "off" }] },
+            ],
+            zoom: 12,
+          });
+        }
+
+        googleMapInstanceRef.current.setCenter(center);
+        googleMapInstanceRef.current.setZoom(12);
+        googleMarkersRef.current.forEach((marker) => marker.setMap(null));
+        googleMarkersRef.current = gpsDevices.map((device) => {
+          const vehicle = vehicles.find((item) => item.id === device.vehicleId);
+          return new maps.Marker({
+            label: vehicle?.plateNumber.slice(0, 2) ?? "FC",
+            map: googleMapInstanceRef.current!,
+            position: { lat: device.latitude, lng: device.longitude },
+            title: `${vehicle?.plateNumber ?? "FleetCore"} · ${device.speedKph} км/ч`,
+          });
+        });
+        setGoogleMapsReady(true);
+      })
+      .catch(() => setGoogleMapsReady(false));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [center.lat, center.lng, gpsDevices, vehicles]);
+
   return (
     <section className="map-card large-map business-map google-map-panel">
-      <iframe
-        loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-        src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=12&output=embed`}
-        title="Google Maps GPS fleet"
-      />
+      {GOOGLE_MAPS_API_KEY ? <div className="google-js-map" ref={googleMapRef} /> : null}
+      {!GOOGLE_MAPS_API_KEY || !googleMapsReady ? (
+        <iframe
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=12&output=embed`}
+          title="Google Maps GPS fleet"
+        />
+      ) : null}
+      <div className="map-provider-badge">{GOOGLE_MAPS_API_KEY && googleMapsReady ? "Google Maps API" : "Google Maps preview"}</div>
       {vehicles.slice(0, 8).map((vehicle, index) => {
         const rental = rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
         const gps = gpsDevices.find((item) => item.vehicleId === vehicle.id);
