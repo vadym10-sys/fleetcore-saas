@@ -1998,36 +1998,42 @@ export default function DashboardClient() {
         ) : null}
 
         {activeSection === "Vehicles" ? (
-          <section className="workspace-grid">
+          <section className="vehicles-workspace">
+            <VehicleHero
+              customer={activeCustomer}
+              documentsCount={data.documents.filter((doc) => doc.vehicleId === selectedVehicle?.id).length}
+              finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)}
+              locale={locale}
+              onDocument={requestVehicleDocumentUpload}
+              onExpense={() => openOperation("expense")}
+              onService={() => openOperation("service")}
+              rental={activeRental}
+              serviceCount={data.serviceRecords.filter((record) => record.vehicleId === selectedVehicle?.id).length}
+              vehicle={selectedVehicle}
+            />
+            <div className="vehicle-kpi-strip">
+              <article><span>{t("dashboard.totalVehicles")}</span><strong>{data.vehicles.length}</strong></article>
+              <article><span>{t("dashboard.available")}</span><strong>{data.vehicles.filter((vehicle) => vehicle.status === "available").length}</strong></article>
+              <article><span>{t("dashboard.activeRentals")}</span><strong>{data.vehicles.filter((vehicle) => vehicle.status === "rented").length}</strong></article>
+              <article><span>{t("vehicle.documents")}</span><strong>{data.documents.length}</strong></article>
+            </div>
             <div className="main-column">
               <div className="filter-row">
                 {(["all", "available", "rented", "maintenance", "offline"] as const).map((filter) => (
                   <button className={mapFilter === filter ? "active" : ""} key={filter} onClick={() => setMapFilter(filter)} type="button">{filter}</button>
                 ))}
               </div>
-              <div className="table-panel reduced-list">
+              <div className="vehicle-card-grid">
                 {filteredVehicles.map((vehicle) => {
                   const rental = data.rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
                   const customer = data.customers.find((item) => item.id === rental?.customerId);
-                  return (
-                    <button className="vehicle-row clickable" key={vehicle.id} onClick={() => setSelectedVehicleId(vehicle.id)} type="button">
-                      <VehicleArt />
-                      <div>
-                        <strong>{vehicle.make} {vehicle.model}</strong>
-                        <span>{vehicle.plateNumber}</span>
-                        <small>{customer?.displayName ?? "Без клиента"}</small>
-                      </div>
-                      <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
-                      <time>{rental ? dateFmt.format(new Date(rental.returnAt)) : t("common.noReturn")}</time>
-                    </button>
-                  );
+                  const gps = data.gpsDevices.find((item) => item.vehicleId === vehicle.id);
+                  const vehicleFinance = finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id);
+                  return <VehicleGridCard customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
                 })}
               </div>
             </div>
-            <aside className="side-column">
-              <VehicleForm form={vehicleForm} setForm={setVehicleForm} onSubmit={submitVehicle} />
-              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
-            </aside>
+            <VehicleForm form={vehicleForm} setForm={setVehicleForm} onSubmit={submitVehicle} />
           </section>
         ) : null}
 
@@ -2307,6 +2313,110 @@ function VehicleCard({ customer, documents, finance, locale, onDocument, onExpen
       <button className="ghost-button full-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
       <button className="ghost-button full-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>
     </section>
+  );
+}
+
+function VehicleHero({
+  customer,
+  documentsCount,
+  finance,
+  locale,
+  onDocument,
+  onExpense,
+  onService,
+  rental,
+  serviceCount,
+  vehicle,
+}: {
+  customer: Customer | undefined;
+  documentsCount: number;
+  finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined;
+  locale: Locale;
+  onDocument: () => void;
+  onExpense: () => void;
+  onService: () => void;
+  rental: Rental | undefined;
+  serviceCount: number;
+  vehicle: Vehicle | undefined;
+}) {
+  if (!vehicle) {
+    return (
+      <section className="vehicle-hero empty">
+        <div>
+          <span className="eyebrow">{translate(locale, "nav.Vehicles")}</span>
+          <h2>{translate(locale, "vehicle.add")}</h2>
+          <p>{translate(locale, "section.subtitle.Vehicles")}</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="vehicle-hero">
+      <div className="vehicle-hero-copy">
+        <span className="eyebrow">{vehicleStatusLabel(locale, vehicle, rental)}</span>
+        <h2>{vehicle.make} {vehicle.model}</h2>
+        <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
+        <div className="vehicle-hero-actions">
+          <button className="primary-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
+          <button className="ghost-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
+          <button className="ghost-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>
+        </div>
+      </div>
+      <div className="vehicle-hero-art">
+        <VehicleArt tone="dark" />
+      </div>
+      <div className="vehicle-hero-stats">
+        <article><span>{translate(locale, "vehicle.mileage")}</span><strong>{vehicle.odometerKm.toLocaleString()} км</strong></article>
+        <article><span>{translate(locale, "vehicle.client")}</span><strong>{customer?.displayName ?? translate(locale, "common.noClient")}</strong></article>
+        <article><span>{translate(locale, "vehicle.return")}</span><strong>{rental ? dateFmt.format(new Date(rental.returnAt)) : translate(locale, "common.noReturn")}</strong></article>
+        <article><span>{translate(locale, "vehicle.documents")}</span><strong>{documentsCount}</strong></article>
+        <article><span>{translate(locale, "vehicle.service")}</span><strong>{serviceCount}</strong></article>
+        <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
+      </div>
+    </section>
+  );
+}
+
+function VehicleGridCard({
+  customer,
+  finance,
+  gps,
+  isSelected,
+  locale,
+  onSelect,
+  rental,
+  vehicle,
+}: {
+  customer: Customer | undefined;
+  finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined;
+  gps: GpsDevice | undefined;
+  isSelected: boolean;
+  locale: Locale;
+  onSelect: () => void;
+  rental: Rental | undefined;
+  vehicle: Vehicle;
+}) {
+  return (
+    <button className={`fleet-vehicle-card ${isSelected ? "selected" : ""}`} onClick={onSelect} type="button">
+      <div className="fleet-vehicle-top">
+        <VehicleArt />
+        <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
+      </div>
+      <div className="fleet-vehicle-title">
+        <strong>{vehicle.make} {vehicle.model}</strong>
+        <span>{vehicle.plateNumber}</span>
+      </div>
+      <div className="fleet-vehicle-meta">
+        <span>{customer?.displayName ?? translate(locale, "common.noClient")}</span>
+        <span>{rental ? dateFmt.format(new Date(rental.returnAt)) : translate(locale, "common.noReturn")}</span>
+      </div>
+      <div className="fleet-vehicle-stats">
+        <article><span>{translate(locale, "vehicle.mileage")}</span><strong>{vehicle.odometerKm.toLocaleString()}</strong></article>
+        <article><span>GPS</span><strong>{gps ? gps.status : "off"}</strong></article>
+        <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
+      </div>
+    </button>
   );
 }
 
