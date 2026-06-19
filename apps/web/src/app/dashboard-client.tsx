@@ -650,6 +650,16 @@ function sectionLabel(locale: Locale, section: Section) {
   return translate(locale, `nav.${section}`);
 }
 
+function sectionIcon(section: Section) {
+  if (section === "Dashboard") return "⌂";
+  if (section === "GPS") return "⌖";
+  if (section === "Vehicles") return "▣";
+  if (section === "Finance") return "€";
+  if (section === "Service") return "◷";
+  if (section === "Settings") return "⚙";
+  return "♙";
+}
+
 function sectionSubtitle(locale: Locale, section: Section) {
   return translate(locale, `section.subtitle.${section}`);
 }
@@ -1962,8 +1972,8 @@ export default function DashboardClient() {
         <nav className="side-nav">
           {sections.map((item) => (
             <button className={activeSection === item ? "active" : ""} key={item} onClick={() => setActiveSection(item)} type="button">
-              <span>{item === "Dashboard" ? "⌂" : item === "GPS" ? "⌖" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
-              {sectionLabel(locale, item)}
+              <span className="nav-icon">{sectionIcon(item)}</span>
+              <span className="nav-label">{sectionLabel(locale, item)}</span>
               {item === "Service" && notifications.length ? <em>{notifications.length}</em> : null}
             </button>
           ))}
@@ -2231,7 +2241,7 @@ function MobileAppNav({ activeSection, locale, notificationsCount, onSelect }: {
     <nav className="mobile-app-nav" aria-label="Mobile app navigation">
       {sections.map((item) => (
         <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
-          <span>{item === "Dashboard" ? "⌂" : item === "GPS" ? "⌖" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
+          <span className="nav-icon">{sectionIcon(item)}</span>
           <small>{sectionLabel(locale, item)}</small>
           {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
         </button>

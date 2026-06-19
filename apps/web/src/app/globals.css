@@ -3101,3 +3101,112 @@ h3 {
     backdrop-filter: blur(18px);
   }
 }
+
+/* Navigation polish: readable premium app chrome on desktop and phone */
+.desktop-sidebar .side-nav {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.desktop-sidebar .side-nav button {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 6px 10px;
+  overflow: hidden;
+}
+
+.desktop-sidebar .side-nav .nav-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 15px;
+}
+
+.desktop-sidebar .side-nav .nav-label {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.15;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-sidebar .side-nav button.active .nav-icon {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.desktop-sidebar .side-nav button.active:after {
+  right: 8px;
+}
+
+@media (max-width: 1200px) and (min-width: 761px) {
+  .desktop-sidebar .side-nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .desktop-sidebar .side-nav button {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+  }
+
+  .desktop-sidebar .side-nav .nav-icon {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 760px) {
+  .mobile-app-nav {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(72px, 1fr);
+    gap: 7px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .mobile-app-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-app-nav button {
+    min-height: 62px;
+    padding: 7px 6px;
+    border: 1px solid transparent;
+  }
+
+  .mobile-app-nav .nav-icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.06);
+    font-size: 14px;
+  }
+
+  .mobile-app-nav small {
+    max-width: 66px;
+    font-size: 9px;
+    line-height: 1.05;
+  }
+
+  .mobile-app-nav button.active {
+    border-color: rgba(184, 137, 58, 0.42);
+    background: #111827;
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
+  }
+
+  .mobile-app-nav button.active .nav-icon {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
