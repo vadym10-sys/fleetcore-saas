@@ -74,6 +74,24 @@ const locales: Array<{ code: Locale; label: string }> = [
   { code: "fr", label: "FR" },
   { code: "de", label: "DE" },
 ];
+const gpsProviderOptions = [
+  { label: "Traccar", value: "traccar" },
+  { label: "Wialon", value: "wialon" },
+  { label: "Navixy", value: "navixy" },
+  { label: "GPSWOX", value: "gpswox" },
+  { label: "Samsara", value: "samsara" },
+  { label: "Geotab", value: "geotab" },
+  { label: "Teltonika", value: "teltonika" },
+  { label: "Ruptela", value: "ruptela" },
+  { label: "Queclink", value: "queclink" },
+  { label: "Concox", value: "concox" },
+  { label: "Motive", value: "motive" },
+  { label: "Fleet Complete", value: "fleet_complete" },
+  { label: "Webfleet", value: "webfleet" },
+  { label: "Verizon Connect", value: "verizon_connect" },
+  { label: "API / Webhook", value: "api_webhook" },
+  { label: "Manual", value: "manual" },
+];
 
 const uiCopy = {
   en: {
@@ -98,16 +116,63 @@ const uiCopy = {
     "common.refresh": "Refresh data",
     "common.search": "Plate, VIN, client, phone",
     "common.signOut": "Sign out",
-    "dashboard.apiReady": "Data loaded from PostgreSQL through backend API",
+    "common.cancel": "Cancel",
+    "common.save": "Save",
+    "common.noClient": "No client",
+    "common.noReturn": "No return",
+    "section.subtitle.Dashboard": "Executive view of fleet, revenue, returns and operational alerts.",
+    "section.subtitle.GPS": "Connect trackers, platforms and live vehicle positions in one control room.",
+    "section.subtitle.Vehicles": "Manage fleet records, documents, service and profitability per vehicle.",
+    "section.subtitle.Drivers/Clients": "Customer CRM, documents, rental history and verification files.",
+    "section.subtitle.Bookings": "Create bookings, contracts, signatures and WhatsApp customer links.",
+    "section.subtitle.Finance": "Payments, expenses, deposits, refunds and ROI by vehicle.",
+    "section.subtitle.Service": "Maintenance, inspections, documents and service workload.",
+    "section.subtitle.Settings": "Company account, subscription, integrations and business data.",
     "dashboard.activeRentals": "In rental",
     "dashboard.available": "Available now",
     "dashboard.monthlyRevenue": "Monthly revenue",
     "dashboard.overdue": "On service",
     "dashboard.todayRevenue": "Today revenue",
     "dashboard.totalVehicles": "Total vehicles",
+    "gps.connect": "Connect GPS",
+    "gps.connectVehicle": "Connect GPS to vehicle",
+    "gps.deviceId": "Tracker ID",
+    "gps.devices": "GPS devices",
+    "gps.empty": "Connect the first GPS tracker.",
+    "gps.fastConnect": "Quick-connect selected vehicle",
+    "gps.notConnected": "GPS not connected",
+    "gps.platform": "Platform",
+    "gps.speed": "Speed, km/h",
+    "gps.supported": "Supported GPS platforms",
+    "gps.supportedHint": "Choose any major telematics provider or connect by API/webhook.",
     "finance.expenses": "Expenses",
     "finance.income": "Income",
     "finance.net": "Net profit",
+    "panel.latestRequests": "Latest requests",
+    "panel.notifications": "Notifications",
+    "panel.returns": "Upcoming returns",
+    "panel.vehicleCard": "Vehicle card",
+    "status.active": "Active",
+    "status.available": "Available",
+    "status.maintenance": "In repair",
+    "status.offline": "Offline",
+    "status.overdue": "Overdue",
+    "status.rented": "In rental",
+    "status.reserved": "Reserved",
+    "status.returnDue": "Return soon",
+    "status.noCritical": "No critical events",
+    "status.system": "System",
+    "time.now": "now",
+    "vehicle.add": "Add vehicle",
+    "vehicle.client": "Client",
+    "vehicle.documents": "PDF documents",
+    "vehicle.expense": "Add expense",
+    "vehicle.mileage": "Mileage",
+    "vehicle.return": "Return",
+    "vehicle.save": "Save vehicle",
+    "vehicle.service": "Service",
+    "vehicle.serviceCreate": "Create service",
+    "vehicle.uploadDocument": "Upload document",
     "nav.Bookings": "Bookings",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Clients",
@@ -122,6 +187,10 @@ const uiCopy = {
     "settings.documents": "Documents",
     "settings.contracts": "Contracts",
     "settings.integrations": "Integrations",
+    "settings.maps": "Google Maps",
+    "settings.mapsActive": "live map connected",
+    "settings.mapsPreview": "preview mode active",
+    "settings.platform": "FleetCore Cloud: online",
     "settings.role": "Role",
     "settings.update": "Refresh data",
     "settings.vehicles": "Vehicles",
@@ -152,16 +221,63 @@ const uiCopy = {
     "common.refresh": "Обновить данные",
     "common.search": "Номер, VIN, клиент, телефон",
     "common.signOut": "Выйти из аккаунта",
-    "dashboard.apiReady": "Данные загружены из PostgreSQL через backend API",
+    "common.cancel": "Отмена",
+    "common.save": "Сохранить",
+    "common.noClient": "Без клиента",
+    "common.noReturn": "Нет возврата",
+    "section.subtitle.Dashboard": "Главный обзор автопарка, доходов, возвратов и операционных событий.",
+    "section.subtitle.GPS": "Подключайте трекеры, платформы и живые позиции автомобилей в одном центре.",
+    "section.subtitle.Vehicles": "Управляйте авто, документами, сервисом и прибыльностью каждой машины.",
+    "section.subtitle.Drivers/Clients": "CRM клиентов, документы, история аренд и проверочные файлы.",
+    "section.subtitle.Bookings": "Брони, договоры, подписи и WhatsApp-ссылки для клиентов.",
+    "section.subtitle.Finance": "Оплаты, расходы, депозиты, возвраты и ROI по автомобилям.",
+    "section.subtitle.Service": "ТО, техосмотры, документы и сервисная нагрузка.",
+    "section.subtitle.Settings": "Аккаунт компании, подписка, интеграции и бизнес-данные.",
     "dashboard.activeRentals": "В аренде",
     "dashboard.available": "Свободно сейчас",
     "dashboard.monthlyRevenue": "Доход за месяц",
     "dashboard.overdue": "На сервисе",
     "dashboard.todayRevenue": "Доход сегодня",
     "dashboard.totalVehicles": "Всего автомобилей",
+    "gps.connect": "Подключить GPS",
+    "gps.connectVehicle": "Подключить GPS к авто",
+    "gps.deviceId": "ID трекера",
+    "gps.devices": "GPS устройства",
+    "gps.empty": "Подключите первый GPS-трекер.",
+    "gps.fastConnect": "Быстро подключить выбранное авто",
+    "gps.notConnected": "GPS не подключен",
+    "gps.platform": "Платформа",
+    "gps.speed": "Скорость, км/ч",
+    "gps.supported": "Поддерживаемые GPS-платформы",
+    "gps.supportedHint": "Выберите популярного телематического провайдера или подключите API/webhook.",
     "finance.expenses": "Расходы",
     "finance.income": "Доход",
     "finance.net": "Чистая прибыль",
+    "panel.latestRequests": "Последние заявки",
+    "panel.notifications": "Уведомления",
+    "panel.returns": "Ближайшие возвраты",
+    "panel.vehicleCard": "Карточка автомобиля",
+    "status.active": "Активен",
+    "status.available": "Свободен",
+    "status.maintenance": "На ремонте",
+    "status.offline": "Оффлайн",
+    "status.overdue": "Просрочен",
+    "status.rented": "В аренде",
+    "status.reserved": "Забронирован",
+    "status.returnDue": "Скоро возврат",
+    "status.noCritical": "Критических событий нет",
+    "status.system": "Система",
+    "time.now": "сейчас",
+    "vehicle.add": "Добавить автомобиль",
+    "vehicle.client": "Клиент",
+    "vehicle.documents": "Документы PDF",
+    "vehicle.expense": "Добавить расход",
+    "vehicle.mileage": "Пробег",
+    "vehicle.return": "Возврат",
+    "vehicle.save": "Сохранить авто",
+    "vehicle.service": "Сервис",
+    "vehicle.serviceCreate": "Создать ТО",
+    "vehicle.uploadDocument": "Загрузить документ",
     "nav.Bookings": "Брони",
     "nav.Dashboard": "Главная",
     "nav.Drivers/Clients": "Клиенты",
@@ -176,6 +292,10 @@ const uiCopy = {
     "settings.documents": "Документы",
     "settings.contracts": "Договоры",
     "settings.integrations": "Интеграции",
+    "settings.maps": "Google Maps",
+    "settings.mapsActive": "живая карта подключена",
+    "settings.mapsPreview": "активен preview-режим",
+    "settings.platform": "FleetCore Cloud: онлайн",
     "settings.role": "Роль",
     "settings.update": "Обновить данные",
     "settings.vehicles": "Авто",
@@ -206,16 +326,63 @@ const uiCopy = {
     "common.refresh": "Actualizar datos",
     "common.search": "Matrícula, VIN, cliente, teléfono",
     "common.signOut": "Cerrar sesión",
-    "dashboard.apiReady": "Datos cargados desde PostgreSQL vía backend API",
+    "common.cancel": "Cancelar",
+    "common.save": "Guardar",
+    "common.noClient": "Sin cliente",
+    "common.noReturn": "Sin devolución",
+    "section.subtitle.Dashboard": "Vista ejecutiva de flota, ingresos, devoluciones y alertas operativas.",
+    "section.subtitle.GPS": "Conecta rastreadores, plataformas y posiciones en vivo en un solo centro.",
+    "section.subtitle.Vehicles": "Gestiona flota, documentos, servicio y rentabilidad por vehículo.",
+    "section.subtitle.Drivers/Clients": "CRM de clientes, documentos, historial de alquileres y verificación.",
+    "section.subtitle.Bookings": "Reservas, contratos, firmas y enlaces WhatsApp para clientes.",
+    "section.subtitle.Finance": "Pagos, gastos, depósitos, reembolsos y ROI por vehículo.",
+    "section.subtitle.Service": "Mantenimiento, inspecciones, documentos y carga de servicio.",
+    "section.subtitle.Settings": "Cuenta, suscripción, integraciones y datos de negocio.",
     "dashboard.activeRentals": "En alquiler",
     "dashboard.available": "Disponible ahora",
     "dashboard.monthlyRevenue": "Ingresos mensuales",
     "dashboard.overdue": "En servicio",
     "dashboard.todayRevenue": "Ingresos hoy",
     "dashboard.totalVehicles": "Vehículos totales",
+    "gps.connect": "Conectar GPS",
+    "gps.connectVehicle": "Conectar GPS al vehículo",
+    "gps.deviceId": "ID del rastreador",
+    "gps.devices": "Dispositivos GPS",
+    "gps.empty": "Conecta el primer rastreador GPS.",
+    "gps.fastConnect": "Conectar vehículo seleccionado",
+    "gps.notConnected": "GPS no conectado",
+    "gps.platform": "Plataforma",
+    "gps.speed": "Velocidad, km/h",
+    "gps.supported": "Plataformas GPS compatibles",
+    "gps.supportedHint": "Elige un proveedor telemático popular o conecta API/webhook.",
     "finance.expenses": "Gastos",
     "finance.income": "Ingresos",
     "finance.net": "Beneficio neto",
+    "panel.latestRequests": "Últimas solicitudes",
+    "panel.notifications": "Notificaciones",
+    "panel.returns": "Próximas devoluciones",
+    "panel.vehicleCard": "Ficha del vehículo",
+    "status.active": "Activo",
+    "status.available": "Disponible",
+    "status.maintenance": "En reparación",
+    "status.offline": "Sin conexión",
+    "status.overdue": "Vencido",
+    "status.rented": "En alquiler",
+    "status.reserved": "Reservado",
+    "status.returnDue": "Devuelve pronto",
+    "status.noCritical": "Sin eventos críticos",
+    "status.system": "Sistema",
+    "time.now": "ahora",
+    "vehicle.add": "Añadir vehículo",
+    "vehicle.client": "Cliente",
+    "vehicle.documents": "Documentos PDF",
+    "vehicle.expense": "Añadir gasto",
+    "vehicle.mileage": "Kilometraje",
+    "vehicle.return": "Devolución",
+    "vehicle.save": "Guardar vehículo",
+    "vehicle.service": "Servicio",
+    "vehicle.serviceCreate": "Crear servicio",
+    "vehicle.uploadDocument": "Subir documento",
     "nav.Bookings": "Reservas",
     "nav.Dashboard": "Panel",
     "nav.Drivers/Clients": "Clientes",
@@ -230,6 +397,10 @@ const uiCopy = {
     "settings.documents": "Documentos",
     "settings.contracts": "Contratos",
     "settings.integrations": "Integraciones",
+    "settings.maps": "Google Maps",
+    "settings.mapsActive": "mapa en vivo conectado",
+    "settings.mapsPreview": "modo preview activo",
+    "settings.platform": "FleetCore Cloud: online",
     "settings.role": "Rol",
     "settings.update": "Actualizar datos",
     "settings.vehicles": "Vehículos",
@@ -260,16 +431,63 @@ const uiCopy = {
     "common.refresh": "Actualiser",
     "common.search": "Plaque, VIN, client, téléphone",
     "common.signOut": "Se déconnecter",
-    "dashboard.apiReady": "Données chargées depuis PostgreSQL via backend API",
+    "common.cancel": "Annuler",
+    "common.save": "Enregistrer",
+    "common.noClient": "Sans client",
+    "common.noReturn": "Sans retour",
+    "section.subtitle.Dashboard": "Vue dirigeant de la flotte, des revenus, des retours et des alertes.",
+    "section.subtitle.GPS": "Connectez traceurs, plateformes et positions en direct dans un centre unique.",
+    "section.subtitle.Vehicles": "Gérez flotte, documents, service et rentabilité par véhicule.",
+    "section.subtitle.Drivers/Clients": "CRM clients, documents, historique de location et vérification.",
+    "section.subtitle.Bookings": "Réservations, contrats, signatures et liens WhatsApp clients.",
+    "section.subtitle.Finance": "Paiements, dépenses, dépôts, remboursements et ROI par véhicule.",
+    "section.subtitle.Service": "Maintenance, inspections, documents et charge de service.",
+    "section.subtitle.Settings": "Compte, abonnement, intégrations et données business.",
     "dashboard.activeRentals": "En location",
     "dashboard.available": "Disponible",
     "dashboard.monthlyRevenue": "Revenu mensuel",
     "dashboard.overdue": "En service",
     "dashboard.todayRevenue": "Revenu du jour",
     "dashboard.totalVehicles": "Véhicules",
+    "gps.connect": "Connecter GPS",
+    "gps.connectVehicle": "Connecter le GPS au véhicule",
+    "gps.deviceId": "ID du traceur",
+    "gps.devices": "Appareils GPS",
+    "gps.empty": "Connectez le premier traceur GPS.",
+    "gps.fastConnect": "Connexion rapide du véhicule",
+    "gps.notConnected": "GPS non connecté",
+    "gps.platform": "Plateforme",
+    "gps.speed": "Vitesse, km/h",
+    "gps.supported": "Plateformes GPS compatibles",
+    "gps.supportedHint": "Choisissez un fournisseur télématique ou connectez API/webhook.",
     "finance.expenses": "Dépenses",
     "finance.income": "Revenus",
     "finance.net": "Profit net",
+    "panel.latestRequests": "Dernières demandes",
+    "panel.notifications": "Notifications",
+    "panel.returns": "Retours à venir",
+    "panel.vehicleCard": "Fiche véhicule",
+    "status.active": "Actif",
+    "status.available": "Disponible",
+    "status.maintenance": "En réparation",
+    "status.offline": "Hors ligne",
+    "status.overdue": "En retard",
+    "status.rented": "En location",
+    "status.reserved": "Réservé",
+    "status.returnDue": "Retour bientôt",
+    "status.noCritical": "Aucun événement critique",
+    "status.system": "Système",
+    "time.now": "maintenant",
+    "vehicle.add": "Ajouter un véhicule",
+    "vehicle.client": "Client",
+    "vehicle.documents": "Documents PDF",
+    "vehicle.expense": "Ajouter une dépense",
+    "vehicle.mileage": "Kilométrage",
+    "vehicle.return": "Retour",
+    "vehicle.save": "Enregistrer le véhicule",
+    "vehicle.service": "Service",
+    "vehicle.serviceCreate": "Créer maintenance",
+    "vehicle.uploadDocument": "Téléverser document",
     "nav.Bookings": "Réservations",
     "nav.Dashboard": "Tableau",
     "nav.Drivers/Clients": "Clients",
@@ -284,6 +502,10 @@ const uiCopy = {
     "settings.documents": "Documents",
     "settings.contracts": "Contrats",
     "settings.integrations": "Intégrations",
+    "settings.maps": "Google Maps",
+    "settings.mapsActive": "carte en direct connectée",
+    "settings.mapsPreview": "mode aperçu actif",
+    "settings.platform": "FleetCore Cloud: en ligne",
     "settings.role": "Rôle",
     "settings.update": "Actualiser",
     "settings.vehicles": "Véhicules",
@@ -314,16 +536,63 @@ const uiCopy = {
     "common.refresh": "Daten aktualisieren",
     "common.search": "Kennzeichen, VIN, Kunde, Telefon",
     "common.signOut": "Abmelden",
-    "dashboard.apiReady": "Daten aus PostgreSQL über Backend API geladen",
+    "common.cancel": "Abbrechen",
+    "common.save": "Speichern",
+    "common.noClient": "Kein Kunde",
+    "common.noReturn": "Keine Rückgabe",
+    "section.subtitle.Dashboard": "Managementblick auf Flotte, Umsatz, Rückgaben und operative Alerts.",
+    "section.subtitle.GPS": "Tracker, Plattformen und Live-Positionen in einer Leitstelle verbinden.",
+    "section.subtitle.Vehicles": "Fahrzeuge, Dokumente, Service und Profitabilität je Fahrzeug verwalten.",
+    "section.subtitle.Drivers/Clients": "Kunden-CRM, Dokumente, Mietverlauf und Verifizierungsdateien.",
+    "section.subtitle.Bookings": "Buchungen, Verträge, Signaturen und WhatsApp-Kundenlinks.",
+    "section.subtitle.Finance": "Zahlungen, Kosten, Kautionen, Rückgaben und ROI je Fahrzeug.",
+    "section.subtitle.Service": "Wartung, Inspektionen, Dokumente und Serviceauslastung.",
+    "section.subtitle.Settings": "Firmenkonto, Abo, Integrationen und Geschäftsdaten.",
     "dashboard.activeRentals": "Vermietet",
     "dashboard.available": "Jetzt verfügbar",
     "dashboard.monthlyRevenue": "Monatsumsatz",
     "dashboard.overdue": "Im Service",
     "dashboard.todayRevenue": "Umsatz heute",
     "dashboard.totalVehicles": "Fahrzeuge gesamt",
+    "gps.connect": "GPS verbinden",
+    "gps.connectVehicle": "GPS mit Fahrzeug verbinden",
+    "gps.deviceId": "Tracker-ID",
+    "gps.devices": "GPS-Geräte",
+    "gps.empty": "Ersten GPS-Tracker verbinden.",
+    "gps.fastConnect": "Ausgewähltes Fahrzeug verbinden",
+    "gps.notConnected": "GPS nicht verbunden",
+    "gps.platform": "Plattform",
+    "gps.speed": "Geschwindigkeit, km/h",
+    "gps.supported": "Unterstützte GPS-Plattformen",
+    "gps.supportedHint": "Telematik-Anbieter wählen oder API/Webhook verbinden.",
     "finance.expenses": "Kosten",
     "finance.income": "Umsatz",
     "finance.net": "Nettogewinn",
+    "panel.latestRequests": "Letzte Anfragen",
+    "panel.notifications": "Benachrichtigungen",
+    "panel.returns": "Nächste Rückgaben",
+    "panel.vehicleCard": "Fahrzeugkarte",
+    "status.active": "Aktiv",
+    "status.available": "Verfügbar",
+    "status.maintenance": "In Reparatur",
+    "status.offline": "Offline",
+    "status.overdue": "Überfällig",
+    "status.rented": "Vermietet",
+    "status.reserved": "Reserviert",
+    "status.returnDue": "Rückgabe bald",
+    "status.noCritical": "Keine kritischen Ereignisse",
+    "status.system": "System",
+    "time.now": "jetzt",
+    "vehicle.add": "Fahrzeug hinzufügen",
+    "vehicle.client": "Kunde",
+    "vehicle.documents": "PDF-Dokumente",
+    "vehicle.expense": "Kosten hinzufügen",
+    "vehicle.mileage": "Kilometerstand",
+    "vehicle.return": "Rückgabe",
+    "vehicle.save": "Fahrzeug speichern",
+    "vehicle.service": "Service",
+    "vehicle.serviceCreate": "Service erstellen",
+    "vehicle.uploadDocument": "Dokument hochladen",
     "nav.Bookings": "Buchungen",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Kunden",
@@ -338,6 +607,10 @@ const uiCopy = {
     "settings.documents": "Dokumente",
     "settings.contracts": "Verträge",
     "settings.integrations": "Integrationen",
+    "settings.maps": "Google Maps",
+    "settings.mapsActive": "Live-Karte verbunden",
+    "settings.mapsPreview": "Vorschaumodus aktiv",
+    "settings.platform": "FleetCore Cloud: online",
     "settings.role": "Rolle",
     "settings.update": "Daten aktualisieren",
     "settings.vehicles": "Fahrzeuge",
@@ -355,6 +628,10 @@ function translate(locale: Locale, key: string) {
 
 function sectionLabel(locale: Locale, section: Section) {
   return translate(locale, `nav.${section}`);
+}
+
+function sectionSubtitle(locale: Locale, section: Section) {
+  return translate(locale, `section.subtitle.${section}`);
 }
 
 const emptyMetrics: DashboardMetrics = {
@@ -446,13 +723,13 @@ function CarPin({ className, color, label }: { className: string; color: UiNotif
   );
 }
 
-function vehicleStatusLabel(vehicle: Vehicle, rental?: Rental) {
-  if (vehicle.status === "maintenance") return "На ремонте";
-  if (rental?.status === "reserved") return "Забронирован";
-  if (rental?.status === "return_due") return "Скоро возврат";
-  if (vehicle.status === "rented") return "В аренде";
-  if (vehicle.status === "offline") return "Оффлайн";
-  return "Свободен";
+function vehicleStatusLabel(locale: Locale, vehicle: Vehicle, rental?: Rental) {
+  if (vehicle.status === "maintenance") return translate(locale, "status.maintenance");
+  if (rental?.status === "reserved") return translate(locale, "status.reserved");
+  if (rental?.status === "return_due") return translate(locale, "status.returnDue");
+  if (vehicle.status === "rented") return translate(locale, "status.rented");
+  if (vehicle.status === "offline") return translate(locale, "status.offline");
+  return translate(locale, "status.available");
 }
 
 function statusTone(vehicle: Vehicle, rental?: Rental): UiNotification["tone"] {
@@ -679,7 +956,7 @@ export default function DashboardClient() {
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("Подключаемся к backend API...");
+  const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const [operation, setOperation] = useState<OperationKind | undefined>();
   const [operationForm, setOperationForm] = useState(defaultOperationForm);
@@ -777,7 +1054,7 @@ export default function DashboardClient() {
         vehicles: vehicles.data,
       });
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
-      setMessage(t("dashboard.apiReady"));
+      setMessage("");
     } catch (error) {
       if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
         logout();
@@ -842,19 +1119,19 @@ export default function DashboardClient() {
       .filter((rental) => rental.status !== "closed" && new Date(rental.returnAt).getTime() < now)
       .map((rental) => {
         const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
-        return { id: `rental-${rental.id}`, meta: vehicle?.plateNumber ?? "Авто", time: "сейчас", title: "Клиент не вернул авто", tone: "red" as const };
+        return { id: `rental-${rental.id}`, meta: vehicle?.plateNumber ?? sectionLabel(locale, "Vehicles"), time: t("time.now"), title: t("status.returnDue"), tone: "red" as const };
       });
     const paymentAlerts = data.invoices
       .filter((invoice) => invoice.status === "overdue")
-      .map((invoice) => ({ id: `invoice-${invoice.id}`, meta: invoice.invoiceNumber, time: dateFmt.format(new Date(invoice.dueAt)), title: "Просрочен платеж", tone: "red" as const }));
+      .map((invoice) => ({ id: `invoice-${invoice.id}`, meta: invoice.invoiceNumber, time: dateFmt.format(new Date(invoice.dueAt)), title: t("status.overdue"), tone: "red" as const }));
     const docAlerts = data.documents
       .filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * 24 * 60 * 60 * 1000)
-      .map((doc) => ({ id: `doc-${doc.id}`, meta: doc.title, time: doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "-", title: doc.type === "insurance" ? "Заканчивается страховка" : "Заканчивается техосмотр", tone: "orange" as const }));
+      .map((doc) => ({ id: `doc-${doc.id}`, meta: doc.title, time: doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "-", title: t("settings.documents"), tone: "orange" as const }));
     const serviceAlerts = data.vehicles
       .filter((vehicle) => vehicle.odometerKm > 40_000)
-      .map((vehicle) => ({ id: `service-${vehicle.id}`, meta: vehicle.plateNumber, time: `${vehicle.odometerKm.toLocaleString()} км`, title: "Необходимо ТО через X км", tone: "blue" as const }));
+      .map((vehicle) => ({ id: `service-${vehicle.id}`, meta: vehicle.plateNumber, time: `${vehicle.odometerKm.toLocaleString()} км`, title: t("vehicle.serviceCreate"), tone: "blue" as const }));
     return [...dueRentals, ...paymentAlerts, ...docAlerts, ...serviceAlerts].slice(0, 8);
-  }, [data.documents, data.invoices, data.rentals, data.vehicles]);
+  }, [data.documents, data.invoices, data.rentals, data.vehicles, locale]);
 
   const dashboardCards = [
     [t("dashboard.totalVehicles"), data.vehicles.length, "blue"],
@@ -1654,7 +1931,7 @@ export default function DashboardClient() {
         <header className="desktop-header">
           <div>
             <h1>{sectionLabel(locale, activeSection)}</h1>
-            <p className="api-status">{loading ? t("common.loading") : message}</p>
+            <p className="api-status">{loading ? t("common.loading") : message || sectionSubtitle(locale, activeSection)}</p>
           </div>
           <div className="header-actions">
             <label className="global-search">
@@ -1678,15 +1955,15 @@ export default function DashboardClient() {
                   </article>
                 ))}
               </div>
-              <MapPanel gpsDevices={data.gpsDevices} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
+              <MapPanel gpsDevices={data.gpsDevices} locale={locale} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
               <section className="split-panels">
-                <UpcomingReturns rentals={data.rentals} vehicles={data.vehicles} customers={data.customers} />
-                <LatestRequests customers={data.customers} invoices={data.invoices} />
+                <UpcomingReturns customers={data.customers} locale={locale} rentals={data.rentals} vehicles={data.vehicles} />
+                <LatestRequests customers={data.customers} invoices={data.invoices} locale={locale} />
               </section>
             </div>
             <aside className="side-column">
-              <NotificationsPanel notifications={notifications} />
-              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
+              <NotificationsPanel locale={locale} notifications={notifications} />
+              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
             </aside>
           </section>
         ) : null}
@@ -1694,20 +1971,27 @@ export default function DashboardClient() {
         {activeSection === "GPS" ? (
           <section className="workspace-grid">
             <div className="main-column">
-              <MapPanel gpsDevices={data.gpsDevices} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
+              <MapPanel gpsDevices={data.gpsDevices} locale={locale} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
               <div className="quick-actions-grid">
-                <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("gps")} type="button">Подключить GPS к авто</button>
-                <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void connectGps()} type="button">Быстро подключить выбранное авто</button>
+                <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("gps")} type="button">{t("gps.connectVehicle")}</button>
+                <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void connectGps()} type="button">{t("gps.fastConnect")}</button>
+              </div>
+              <div className="table-panel gps-platform-panel">
+                <div className="section-title compact-title"><h2>{t("gps.supported")}</h2><Badge value={`${gpsProviderOptions.length}`} /></div>
+                <p>{t("gps.supportedHint")}</p>
+                <div className="provider-grid">
+                  {gpsProviderOptions.map((provider) => <span key={provider.value}>{provider.label}</span>)}
+                </div>
               </div>
             </div>
             <aside className="side-column">
               <div className="table-panel">
-                <h2>GPS устройства</h2>
+                <h2>{t("gps.devices")}</h2>
                 {data.gpsDevices.map((device) => {
                   const vehicle = data.vehicles.find((item) => item.id === device.vehicleId);
                   return <p className="history-row" key={device.id}>{vehicle?.plateNumber} · {device.provider} · {device.status} · {device.speedKph} км/ч</p>;
                 })}
-                {!data.gpsDevices.length ? <p className="history-row">Подключите первый GPS-трекер.</p> : null}
+                {!data.gpsDevices.length ? <p className="history-row">{t("gps.empty")}</p> : null}
               </div>
             </aside>
           </section>
@@ -1733,8 +2017,8 @@ export default function DashboardClient() {
                         <span>{vehicle.plateNumber}</span>
                         <small>{customer?.displayName ?? "Без клиента"}</small>
                       </div>
-                      <Badge value={vehicleStatusLabel(vehicle, rental)} />
-                      <time>{rental ? dateFmt.format(new Date(rental.returnAt)) : "Нет возврата"}</time>
+                      <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
+                      <time>{rental ? dateFmt.format(new Date(rental.returnAt)) : t("common.noReturn")}</time>
                     </button>
                   );
                 })}
@@ -1742,7 +2026,7 @@ export default function DashboardClient() {
             </div>
             <aside className="side-column">
               <VehicleForm form={vehicleForm} setForm={setVehicleForm} onSubmit={submitVehicle} />
-              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
+              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
             </aside>
           </section>
         ) : null}
@@ -1754,7 +2038,7 @@ export default function DashboardClient() {
                 <article className="customer-line" key={customer.id}>
                   <div className="avatar small">{customer.displayName.slice(0, 1)}</div>
                   <div><strong>{customer.displayName}</strong><span>{customer.phone} · {customer.email}</span></div>
-                  <Badge value={customer.riskLevel === "low" ? "Активен" : customer.riskLevel} />
+                  <Badge value={customer.riskLevel === "low" ? t("status.active") : customer.riskLevel} />
                 </article>
               ))}
             </div>
@@ -1826,7 +2110,7 @@ export default function DashboardClient() {
 
         {activeSection === "Service" ? (
           <section className="workspace-grid">
-            <NotificationsPanel notifications={notifications} />
+            <NotificationsPanel locale={locale} notifications={notifications} />
             <div className="table-panel">
               <h2>Документы и ТО</h2>
               {data.documents.map((doc) => <p className="history-row" key={doc.id}>{doc.title} · {doc.type} · {doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}</p>)}
@@ -1850,9 +2134,9 @@ export default function DashboardClient() {
 
             <section className="table-panel settings-panel">
               <h2>{t("settings.integrations")}</h2>
-              <p className="history-row">Google Maps: {GOOGLE_MAPS_API_KEY ? "API key подключен" : "работает preview без API key"}</p>
-              <p className="history-row">Backend API: {API_URL}</p>
-              <button className="primary-button full" onClick={() => openOperation("gps")} type="button">Подключить GPS</button>
+              <p className="history-row">{t("settings.maps")}: {GOOGLE_MAPS_API_KEY ? t("settings.mapsActive") : t("settings.mapsPreview")}</p>
+              <p className="history-row">{t("settings.platform")}</p>
+              <button className="primary-button full" onClick={() => openOperation("gps")} type="button">{t("gps.connect")}</button>
             </section>
 
             <section className="table-panel settings-panel">
@@ -1873,6 +2157,7 @@ export default function DashboardClient() {
           files={operationFiles}
           form={operationForm}
           kind={operation}
+          locale={locale}
           onChange={setOperationForm}
           onClose={() => setOperation(undefined)}
           onFiles={setOperationFiles}
@@ -1899,7 +2184,7 @@ function MobileAppNav({ activeSection, locale, notificationsCount, onSelect }: {
   );
 }
 
-function MapPanel({ gpsDevices, onSelect, selectedVehicleId, vehicles, rentals }: { gpsDevices: GpsDevice[]; onSelect: (id: string) => void; selectedVehicleId: string | undefined; vehicles: Vehicle[]; rentals: Rental[] }) {
+function MapPanel({ gpsDevices, locale, onSelect, selectedVehicleId, vehicles, rentals }: { gpsDevices: GpsDevice[]; locale: Locale; onSelect: (id: string) => void; selectedVehicleId: string | undefined; vehicles: Vehicle[]; rentals: Rental[] }) {
   const googleMapRef = useRef<HTMLDivElement>(null);
   const googleMapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const googleMarkersRef = useRef<GoogleMarkerInstance[]>([]);
@@ -1967,27 +2252,27 @@ function MapPanel({ gpsDevices, onSelect, selectedVehicleId, vehicles, rentals }
           <button className={`map-pin pin-${(index % 5) + 1} ${statusTone(vehicle, rental)} ${selectedVehicleId === vehicle.id ? "selected" : ""}`} key={vehicle.id} onClick={() => onSelect(vehicle.id)} type="button">
             <span>▣</span>
             <strong>{vehicle.plateNumber}</strong>
-            <small>{gps ? `${gps.speedKph} км/ч · ${gps.status}` : "GPS не подключен"}</small>
+            <small>{gps ? `${gps.speedKph} км/ч · ${gps.status}` : translate(locale, "gps.notConnected")}</small>
           </button>
         );
       })}
       <div className="map-legend">
-        <span><i className="green" /> Свободен</span>
-        <span><i className="blue" /> Забронирован</span>
-        <span><i className="orange" /> Скоро возврат</span>
-        <span><i className="red" /> Просрочен</span>
-        <span><i className="black" /> На ремонте</span>
+        <span><i className="green" /> {translate(locale, "status.available")}</span>
+        <span><i className="blue" /> {translate(locale, "status.reserved")}</span>
+        <span><i className="orange" /> {translate(locale, "status.returnDue")}</span>
+        <span><i className="red" /> {translate(locale, "status.overdue")}</span>
+        <span><i className="black" /> {translate(locale, "status.maintenance")}</span>
       </div>
     </section>
   );
 }
 
-function NotificationsPanel({ notifications }: { notifications: UiNotification[] }) {
+function NotificationsPanel({ locale, notifications }: { locale: Locale; notifications: UiNotification[] }) {
   return (
     <section className="table-panel">
-      <div className="section-title compact-title"><h2>Уведомления</h2><Badge value={String(notifications.length)} /></div>
+      <div className="section-title compact-title"><h2>{translate(locale, "panel.notifications")}</h2><Badge value={String(notifications.length)} /></div>
       <div className="notification-list">
-        {(notifications.length ? notifications : [{ id: "ok", meta: "Система", time: "сейчас", title: "Критических событий нет", tone: "green" as const }]).map((item) => (
+        {(notifications.length ? notifications : [{ id: "ok", meta: translate(locale, "status.system"), time: translate(locale, "time.now"), title: translate(locale, "status.noCritical"), tone: "green" as const }]).map((item) => (
           <article className="notification-row" key={item.id}>
             <i className={item.tone}>{item.tone === "green" ? "✓" : "!"}</i>
             <div><strong>{item.title}</strong><span>{item.meta}</span></div>
@@ -1999,28 +2284,28 @@ function NotificationsPanel({ notifications }: { notifications: UiNotification[]
   );
 }
 
-function VehicleCard({ customer, documents, finance, onDocument, onExpense, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; onDocument: () => void; onExpense: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
-  if (!vehicle) return <section className="table-panel"><h2>Карточка автомобиля</h2><p>Добавьте первый автомобиль.</p></section>;
+function VehicleCard({ customer, documents, finance, locale, onDocument, onExpense, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; locale: Locale; onDocument: () => void; onExpense: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
+  if (!vehicle) return <section className="table-panel"><h2>{translate(locale, "panel.vehicleCard")}</h2><p>{translate(locale, "vehicle.add")}</p></section>;
   const vehicleDocuments = documents.filter((doc) => doc.vehicleId === vehicle.id);
   const vehicleServiceRecords = serviceRecords.filter((record) => record.vehicleId === vehicle.id);
   return (
     <section className="table-panel vehicle-card-panel">
       <VehicleArt />
-      <Badge value={vehicleStatusLabel(vehicle, rental)} />
+      <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
       <h2>{vehicle.make} {vehicle.model}</h2>
       <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
       <div className="detail-grid">
-        <article><span>Пробег</span><strong>{vehicle.odometerKm.toLocaleString()} км</strong></article>
-        <article><span>Клиент</span><strong>{customer?.displayName ?? "Нет"}</strong></article>
-        <article><span>Возврат</span><strong>{rental ? dateFmt.format(new Date(rental.returnAt)) : "-"}</strong></article>
-        <article><span>Документы PDF</span><strong>{vehicleDocuments.length}</strong></article>
-        <article><span>Сервис</span><strong>{vehicleServiceRecords.length}</strong></article>
-        <article><span>Расходы</span><strong>{money.format(finance?.expenses ?? 0)}</strong></article>
+        <article><span>{translate(locale, "vehicle.mileage")}</span><strong>{vehicle.odometerKm.toLocaleString()} км</strong></article>
+        <article><span>{translate(locale, "vehicle.client")}</span><strong>{customer?.displayName ?? translate(locale, "common.noClient")}</strong></article>
+        <article><span>{translate(locale, "vehicle.return")}</span><strong>{rental ? dateFmt.format(new Date(rental.returnAt)) : "-"}</strong></article>
+        <article><span>{translate(locale, "vehicle.documents")}</span><strong>{vehicleDocuments.length}</strong></article>
+        <article><span>{translate(locale, "vehicle.service")}</span><strong>{vehicleServiceRecords.length}</strong></article>
+        <article><span>{translate(locale, "finance.expenses")}</span><strong>{money.format(finance?.expenses ?? 0)}</strong></article>
         <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
       </div>
-      <button className="ghost-button full-button" onClick={onDocument} type="button">Загрузить документ</button>
-      <button className="ghost-button full-button" onClick={onExpense} type="button">Добавить расход</button>
-      <button className="ghost-button full-button" onClick={onService} type="button">Создать ТО</button>
+      <button className="ghost-button full-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
+      <button className="ghost-button full-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
+      <button className="ghost-button full-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>
     </section>
   );
 }
@@ -2030,6 +2315,7 @@ function OperationDialog({
   files,
   form,
   kind,
+  locale,
   onChange,
   onClose,
   onFiles,
@@ -2039,6 +2325,7 @@ function OperationDialog({
   files: FileList | null;
   form: typeof defaultOperationForm;
   kind: OperationKind;
+  locale: Locale;
   onChange: (form: typeof defaultOperationForm) => void;
   onClose: () => void;
   onFiles: (files: FileList | null) => void;
@@ -2179,19 +2466,15 @@ function OperationDialog({
 
           {kind === "gps" ? (
             <>
-              <label>Платформа
+              <label>{translate(locale, "gps.platform")}
                 <select value={form.provider} onChange={(event) => patch("provider", event.target.value)}>
-                  <option value="traccar">Traccar</option>
-                  <option value="wialon">Wialon</option>
-                  <option value="navixy">Navixy</option>
-                  <option value="gpswox">GPSWOX</option>
-                  <option value="manual">Manual</option>
+                  {gpsProviderOptions.map((provider) => <option key={provider.value} value={provider.value}>{provider.label}</option>)}
                 </select>
               </label>
-              <label>ID трекера<input value={form.externalDeviceId} onChange={(event) => patch("externalDeviceId", event.target.value)} /></label>
+              <label>{translate(locale, "gps.deviceId")}<input value={form.externalDeviceId} onChange={(event) => patch("externalDeviceId", event.target.value)} /></label>
               <label>Latitude<input value={form.latitude} onChange={(event) => patch("latitude", event.target.value)} /></label>
               <label>Longitude<input value={form.longitude} onChange={(event) => patch("longitude", event.target.value)} /></label>
-              <label>Скорость, км/ч<input type="number" min="0" value={form.speedKph} onChange={(event) => patch("speedKph", event.target.value)} /></label>
+              <label>{translate(locale, "gps.speed")}<input type="number" min="0" value={form.speedKph} onChange={(event) => patch("speedKph", event.target.value)} /></label>
             </>
           ) : null}
 
@@ -2240,8 +2523,8 @@ function OperationDialog({
         </div>
 
         <div className="modal-actions">
-          <button className="ghost-button" onClick={onClose} type="button">Отмена</button>
-          <button className="primary-button" type="submit">Сохранить</button>
+          <button className="ghost-button" onClick={onClose} type="button">{translate(locale, "common.cancel")}</button>
+          <button className="primary-button" type="submit">{translate(locale, "common.save")}</button>
         </div>
       </form>
     </div>
@@ -2276,10 +2559,10 @@ function CustomerForm({ form, onSubmit, setForm }: { form: Record<string, string
   );
 }
 
-function UpcomingReturns({ customers, rentals, vehicles }: { customers: Customer[]; rentals: Rental[]; vehicles: Vehicle[] }) {
+function UpcomingReturns({ customers, locale, rentals, vehicles }: { customers: Customer[]; locale: Locale; rentals: Rental[]; vehicles: Vehicle[] }) {
   return (
     <section className="table-panel">
-      <h2>Ближайшие возвраты</h2>
+      <h2>{translate(locale, "panel.returns")}</h2>
       {rentals.slice(0, 4).map((rental) => {
         const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
         const customer = customers.find((item) => item.id === rental.customerId);
@@ -2289,10 +2572,10 @@ function UpcomingReturns({ customers, rentals, vehicles }: { customers: Customer
   );
 }
 
-function LatestRequests({ customers, invoices }: { customers: Customer[]; invoices: Invoice[] }) {
+function LatestRequests({ customers, invoices, locale }: { customers: Customer[]; invoices: Invoice[]; locale: Locale }) {
   return (
     <section className="table-panel">
-      <h2>Последние заявки</h2>
+      <h2>{translate(locale, "panel.latestRequests")}</h2>
       {invoices.slice(-4).map((invoice) => {
         const customer = customers.find((item) => item.id === invoice.customerId);
         return <p className="history-row" key={invoice.id}>{invoice.invoiceNumber} · {customer?.displayName} · {money.format(invoice.total)}</p>;
