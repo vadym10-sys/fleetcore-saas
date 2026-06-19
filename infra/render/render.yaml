@@ -14,6 +14,8 @@ services:
         generateValue: true
       - key: WEB_ORIGIN
         sync: false
+      - key: API_PUBLIC_URL
+        value: https://fleetcore-api.onrender.com
       - key: PORT
         value: 4000
 

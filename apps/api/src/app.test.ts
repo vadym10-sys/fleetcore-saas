@@ -125,7 +125,7 @@ test("authenticated API can upsert GPS state", async () => {
 test("authenticated API stores and serves uploaded files", async () => {
   const content = "FleetCore upload smoke test";
   const upload = await app.inject({
-    headers: { authorization: `Bearer ${token}` },
+    headers: { authorization: `Bearer ${token}`, "x-forwarded-proto": "https" },
     method: "POST",
     payload: {
       base64: Buffer.from(content).toString("base64"),
@@ -140,6 +140,7 @@ test("authenticated API stores and serves uploaded files", async () => {
   assert.equal(file.originalName, "smoke-document.txt");
   assert.equal(file.mimeType, "text/plain");
   assert.equal(file.sizeBytes, Buffer.byteLength(content));
+  assert.equal(new URL(file.publicUrl).protocol, "https:");
 
   const download = await app.inject({
     method: "GET",

@@ -7,7 +7,11 @@ import { fileUploadInput } from "../schemas.js";
 const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES ?? 8 * 1024 * 1024);
 
 function publicBaseUrl(request: FastifyRequest) {
-  return process.env.API_PUBLIC_URL ?? `${request.protocol}://${request.headers.host}`;
+  if (process.env.API_PUBLIC_URL) return process.env.API_PUBLIC_URL;
+
+  const forwardedProto = request.headers["x-forwarded-proto"];
+  const protocol = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+  return `${protocol ?? request.protocol}://${request.headers.host}`;
 }
 
 function publicFileUrl(request: FastifyRequest, fileId: string, originalName: string) {
