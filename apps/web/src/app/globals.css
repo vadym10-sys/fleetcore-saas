@@ -432,6 +432,25 @@ h3 {
   min-height: 520px;
 }
 
+.google-map-panel {
+  background: #eef3ec;
+}
+
+.google-map-panel iframe {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  filter: saturate(0.95) contrast(0.96);
+}
+
+.google-map-panel:before,
+.google-map-panel:after {
+  display: none;
+}
+
 .map-card:before,
 .night-map:before {
   content: "";
@@ -476,9 +495,21 @@ h3 {
 }
 
 .map-pin strong {
-  display: none;
+  display: block;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.map-pin small {
+  display: none;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.map-pin.selected small {
+  display: block;
 }
 
 .map-pin.green span { background: var(--green); }
@@ -1361,7 +1392,7 @@ h3 {
     bottom: 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: 2px;
     padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
@@ -1415,6 +1446,25 @@ h3 {
     color: white;
     font-size: 10px;
     font-style: normal;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .operation-modal {
+    max-height: calc(100vh - 16px);
+    padding: 14px;
+  }
+
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modal-actions button {
+    min-height: 48px;
   }
 }
 
@@ -1755,6 +1805,87 @@ h3 {
   font-size: 12px;
   font-weight: 900;
   text-decoration: none;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(13, 17, 38, 0.46);
+}
+
+.operation-modal {
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 24px 70px rgba(13, 17, 38, 0.22);
+}
+
+.modal-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.modal-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.modal-title h2 {
+  margin: 4px 0 0;
+}
+
+.modal-title button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
+}
+
+.file-drop {
+  min-height: 112px;
+  justify-content: center;
+  border: 1px dashed #c8cce0;
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.file-drop input {
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: white;
+}
+
+.file-drop span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .finance-layout {

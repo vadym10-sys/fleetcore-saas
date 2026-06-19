@@ -7,7 +7,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const TENANT_ID = "tenant_atlas";
 
 type ApiEnvelope<T> = { data: T };
-type Section = "Dashboard" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
+type Section = "Dashboard" | "GPS" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
+type OperationKind =
+  | "booking"
+  | "contract"
+  | "customerDocument"
+  | "depositDocument"
+  | "depositReturn"
+  | "expense"
+  | "gps"
+  | "payment"
+  | "signature"
+  | "service"
+  | "vehicleDocument";
 
 type AppData = {
   customers: Customer[];
@@ -32,7 +44,7 @@ type UiNotification = {
   time: string;
 };
 
-const sections: Section[] = ["Dashboard", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
+const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
 
 const emptyMetrics: DashboardMetrics = {
   activeRentals: 0,
@@ -45,6 +57,34 @@ const emptyMetrics: DashboardMetrics = {
 const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const dateFmt = new Intl.DateTimeFormat("ru", { day: "2-digit", month: "short" });
 const folderPickerProps = { directory: "", webkitdirectory: "" } as Record<string, string>;
+
+const defaultOperationForm = {
+  amount: "100",
+  category: "maintenance",
+  cost: "120",
+  customerId: "",
+  depositAmount: "500",
+  documentTitle: "",
+  documentType: "other",
+  externalDeviceId: "",
+  finalAmount: "",
+  invoiceId: "",
+  latitude: "52.2297",
+  longitude: "21.0122",
+  method: "manual",
+  note: "",
+  odometerKm: "1000",
+  provider: "traccar",
+  reference: "",
+  rentalId: "",
+  returnAt: "",
+  serviceAt: "",
+  serviceType: "inspection",
+  speedKph: "0",
+  status: "planned",
+  totalAmount: "180",
+  vehicleId: "",
+};
 
 async function api<T>(path: string, options: RequestInit = {}, token?: string) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -254,6 +294,9 @@ export default function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("Подключаемся к backend API...");
   const [busyAction, setBusyAction] = useState<string | undefined>();
+  const [operation, setOperation] = useState<OperationKind | undefined>();
+  const [operationForm, setOperationForm] = useState(defaultOperationForm);
+  const [operationFiles, setOperationFiles] = useState<FileList | null>(null);
   const vehicleDocumentInputRef = useRef<HTMLInputElement>(null);
   const vehicleFolderInputRef = useRef<HTMLInputElement>(null);
   const customerDocumentInputRef = useRef<HTMLInputElement>(null);
@@ -411,6 +454,37 @@ export default function DashboardClient() {
     ["Доход за месяц", money.format(data.metrics.monthlyRevenue), "green"],
     ["Доход сегодня", money.format(incomeToday), "green"],
   ] as const;
+
+  function openOperation(kind: OperationKind) {
+    const vehicle = selectedVehicle ?? data.vehicles[0];
+    const customer = activeCustomer ?? data.customers[0];
+    const rental = activeRental ?? data.rentals[0];
+    const invoice = activeInvoice ?? data.invoices[0];
+    const nextServiceDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const nextReturnDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+
+    setOperationForm({
+      ...defaultOperationForm,
+      amount: String(Math.max(50, Math.round(vehicle?.dailyRate ? vehicle.dailyRate * 1.4 : 100))),
+      cost: String(Math.max(80, Math.round(vehicle?.dailyRate ? vehicle.dailyRate * 2 : 120))),
+      customerId: customer?.id ?? "",
+      depositAmount: String(rental?.depositAmount ?? 500),
+      documentTitle: kind === "signature" ? "Подписанный договор" : kind === "depositDocument" ? "Депозит / возврат" : "",
+      documentType: kind === "vehicleDocument" ? "other" : kind === "customerDocument" ? "passport" : "other",
+      externalDeviceId: vehicle ? `device-${vehicle.id}` : "",
+      finalAmount: String(rental?.totalAmount ?? vehicle?.dailyRate ?? 100),
+      invoiceId: invoice?.id ?? "",
+      note: vehicle ? `${vehicle.plateNumber}` : "",
+      odometerKm: String(vehicle?.odometerKm ?? 1000),
+      rentalId: rental?.id ?? "",
+      returnAt: nextReturnDate,
+      serviceAt: nextServiceDate,
+      totalAmount: String(rental?.totalAmount ?? (vehicle?.dailyRate ? vehicle.dailyRate * 2 : 180)),
+      vehicleId: vehicle?.id ?? "",
+    });
+    setOperationFiles(null);
+    setOperation(kind);
+  }
 
   async function runAction(label: string, action: () => Promise<void>) {
     if (busyAction) return;
@@ -656,8 +730,215 @@ export default function DashboardClient() {
     return response.data;
   }
 
+  async function submitOperation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!operation) return;
+
+    await runAction("Сохраняем операцию...", async () => {
+      const vehicle = data.vehicles.find((item) => item.id === operationForm.vehicleId) ?? await ensureVehicle();
+      const customer = data.customers.find((item) => item.id === operationForm.customerId) ?? await ensureCustomer();
+      const rental = data.rentals.find((item) => item.id === operationForm.rentalId);
+      const invoice = data.invoices.find((item) => item.id === operationForm.invoiceId) ?? activeInvoice;
+      const files = Array.from(operationFiles ?? []);
+
+      if (operation === "vehicleDocument") {
+        if (!files.length) throw new Error("Выберите файл документа автомобиля");
+        await Promise.all(files.map(async (file) => {
+          const storedFile = await uploadFile(file);
+          return api<VehicleDocument>("/documents/vehicles", {
+            body: JSON.stringify({
+              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+              fileUrl: storedFile.publicUrl,
+              title: operationForm.documentTitle || file.name,
+              type: operationForm.documentType,
+              vehicleId: vehicle.id,
+            }),
+            method: "POST",
+          }, token);
+        }));
+        setMessage(`Документы авто сохранены: ${files.length}`);
+      }
+
+      if (operation === "customerDocument") {
+        if (!files.length) throw new Error("Выберите паспорт, ID или водительские права клиента");
+        await Promise.all(files.map(async (file) => {
+          const storedFile = await uploadFile(file);
+          return api<CustomerDocument>("/operations/customer-documents", {
+            body: JSON.stringify({
+              customerId: customer.id,
+              fileUrl: storedFile.publicUrl,
+              title: operationForm.documentTitle || file.name,
+              type: operationForm.documentType,
+              verified: false,
+            }),
+            method: "POST",
+          }, token);
+        }));
+        setMessage(`Документы клиента сохранены: ${files.length}`);
+      }
+
+      if (operation === "expense") {
+        await api<Expense>("/operations/expenses", {
+          body: JSON.stringify({
+            amount: Number(operationForm.amount),
+            category: operationForm.category,
+            currency: "EUR",
+            note: operationForm.note || `Расход по ${vehicle.plateNumber}`,
+            vehicleId: vehicle.id,
+          }),
+          method: "POST",
+        }, token);
+        await Promise.all(files.map(async (file) => {
+          const storedFile = await uploadFile(file);
+          return api<VehicleDocument>("/documents/vehicles", {
+            body: JSON.stringify({
+              fileUrl: storedFile.publicUrl,
+              title: `Расход: ${file.name}`,
+              type: "other",
+              vehicleId: vehicle.id,
+            }),
+            method: "POST",
+          }, token);
+        }));
+        setMessage("Расход сохранен");
+      }
+
+      if (operation === "service") {
+        await api<ServiceRecord>("/operations/service-records", {
+          body: JSON.stringify({
+            cost: Number(operationForm.cost),
+            note: operationForm.note || `ТО ${vehicle.plateNumber}`,
+            odometerKm: Number(operationForm.odometerKm),
+            serviceAt: new Date(operationForm.serviceAt || Date.now()).toISOString(),
+            status: operationForm.status,
+            type: operationForm.serviceType,
+            vehicleId: vehicle.id,
+          }),
+          method: "POST",
+        }, token);
+        setMessage("Техобслуживание создано");
+      }
+
+      if (operation === "booking") {
+        await api<Rental>("/rentals", {
+          body: JSON.stringify({
+            customerId: customer.id,
+            depositAmount: Number(operationForm.depositAmount),
+            pickupAt: new Date().toISOString(),
+            returnAt: new Date(operationForm.returnAt || Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+            status: "reserved",
+            totalAmount: Number(operationForm.totalAmount),
+            vehicleId: vehicle.id,
+          }),
+          method: "POST",
+        }, token);
+        setMessage("Бронь создана");
+      }
+
+      if (operation === "payment") {
+        const targetInvoice = invoice ?? await ensureInvoice();
+        await api<Payment>(`/finance/invoices/${targetInvoice.id}/payments`, {
+          body: JSON.stringify({
+            amount: Number(operationForm.amount || targetInvoice.total),
+            currency: targetInvoice.currency,
+            method: operationForm.method,
+            reference: operationForm.reference || `UI-${Date.now()}`,
+          }),
+          method: "POST",
+        }, token);
+        setMessage("Оплата проведена");
+      }
+
+      if (operation === "depositDocument") {
+        const targetRental = rental ?? await ensureRental();
+        const targetCustomer = data.customers.find((item) => item.id === targetRental.customerId) ?? customer;
+        if (!files.length) throw new Error("Выберите чек или документ депозита");
+        await Promise.all(files.map(async (file) => {
+          const storedFile = await uploadFile(file);
+          return api<CustomerDocument>("/operations/customer-documents", {
+            body: JSON.stringify({
+              customerId: targetCustomer.id,
+              fileUrl: storedFile.publicUrl,
+              title: operationForm.documentTitle || `Депозит / возврат: ${file.name}`,
+              type: "other",
+              verified: true,
+            }),
+            method: "POST",
+          }, token);
+        }));
+        setMessage("Документы депозита сохранены");
+      }
+
+      if (operation === "depositReturn") {
+        const targetRental = rental ?? await ensureRental();
+        const targetVehicle = data.vehicles.find((item) => item.id === targetRental.vehicleId) ?? vehicle;
+        await api<Rental>(`/rentals/${targetRental.id}/return`, {
+          body: JSON.stringify({
+            finalAmount: Number(operationForm.finalAmount || targetRental.totalAmount),
+            odometerKm: Number(operationForm.odometerKm || targetVehicle.odometerKm),
+          }),
+          method: "POST",
+        }, token);
+        await api<Expense>("/operations/expenses", {
+          body: JSON.stringify({
+            amount: Number(operationForm.depositAmount || targetRental.depositAmount),
+            category: "other",
+            currency: "EUR",
+            note: operationForm.note || `Возврат депозита по аренде ${targetRental.id}`,
+            vehicleId: targetVehicle.id,
+          }),
+          method: "POST",
+        }, token);
+        setMessage("Возврат депозита оформлен");
+      }
+
+      if (operation === "gps") {
+        await api<GpsDevice>("/gps/devices", {
+          body: JSON.stringify({
+            externalDeviceId: operationForm.externalDeviceId || `device-${vehicle.id}`,
+            latitude: Number(operationForm.latitude),
+            longitude: Number(operationForm.longitude),
+            provider: operationForm.provider,
+            speedKph: Number(operationForm.speedKph),
+            status: Number(operationForm.speedKph) > 0 ? "online" : "idle",
+            vehicleId: vehicle.id,
+          }),
+          method: "POST",
+        }, token);
+        setMessage("GPS подключен к автомобилю");
+      }
+
+      if (operation === "contract" || operation === "signature") {
+        const targetRental = rental ?? await ensureRental();
+        if (files.length) {
+          await Promise.all(files.map(async (file) => {
+            const storedFile = await uploadFile(file);
+            return api<RentalContract>("/operations/rental-contracts", {
+              body: JSON.stringify({
+                documentUrl: storedFile.publicUrl,
+                rentalId: targetRental.id,
+                sentVia: "manual",
+                signedAt: operation === "signature" ? new Date().toISOString() : undefined,
+                status: operation === "signature" ? "signed" : "draft",
+              }),
+              method: "POST",
+            }, token);
+          }));
+          setMessage(operation === "signature" ? "Подписанный договор сохранен" : "Договор аренды загружен");
+        } else {
+          const contract = await createContractRecord(operation === "signature" ? "signed" : "draft", "manual", targetRental);
+          setMessage(`Электронный договор создан: ${contract.id}`);
+        }
+      }
+
+      await loadData();
+      setOperation(undefined);
+      setOperationFiles(null);
+    });
+  }
+
   function requestVehicleDocumentUpload() {
-    vehicleDocumentInputRef.current?.click();
+    openOperation("vehicleDocument");
   }
 
   function requestVehicleFolderUpload() {
@@ -665,7 +946,7 @@ export default function DashboardClient() {
   }
 
   function requestCustomerDocumentUpload() {
-    customerDocumentInputRef.current?.click();
+    openOperation("customerDocument");
   }
 
   function requestCustomerFolderUpload() {
@@ -673,15 +954,15 @@ export default function DashboardClient() {
   }
 
   function requestContractUpload() {
-    contractInputRef.current?.click();
+    openOperation("contract");
   }
 
   function requestDepositUpload() {
-    depositInputRef.current?.click();
+    openOperation("depositDocument");
   }
 
   function requestSignatureUpload() {
-    signatureInputRef.current?.click();
+    openOperation("signature");
   }
 
   async function payActiveInvoice() {
@@ -779,8 +1060,8 @@ export default function DashboardClient() {
     return new File([contractHtml], `rental-contract-${rental.id}.html`, { type: "text/html" });
   }
 
-  async function createContractRecord(status: RentalContract["status"], sentVia: RentalContract["sentVia"]) {
-    const rental = await ensureRental();
+  async function createContractRecord(status: RentalContract["status"], sentVia: RentalContract["sentVia"], rentalOverride?: Rental) {
+    const rental = rentalOverride ?? await ensureRental();
     const storedFile = await uploadFile(await createContractFile(rental));
     const response = await api<RentalContract>("/operations/rental-contracts", {
       body: JSON.stringify({
@@ -945,7 +1226,7 @@ export default function DashboardClient() {
         <nav className="side-nav">
           {sections.map((item) => (
             <button className={activeSection === item ? "active" : ""} key={item} onClick={() => setActiveSection(item)} type="button">
-              <span>{item === "Dashboard" ? "⌂" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
+              <span>{item === "Dashboard" ? "⌂" : item === "GPS" ? "⌖" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
               {item}
               {item === "Service" && notifications.length ? <em>{notifications.length}</em> : null}
             </button>
@@ -971,7 +1252,7 @@ export default function DashboardClient() {
               <input placeholder="Номер, VIN, клиент, телефон" value={search} onChange={(event) => setSearch(event.target.value)} />
             </label>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void loadData()} type="button">↻</button>
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => void connectGps()} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
           </div>
         </header>
 
@@ -986,7 +1267,7 @@ export default function DashboardClient() {
                   </article>
                 ))}
               </div>
-              <MapPanel vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
+              <MapPanel gpsDevices={data.gpsDevices} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
               <section className="split-panels">
                 <UpcomingReturns rentals={data.rentals} vehicles={data.vehicles} customers={data.customers} />
                 <LatestRequests customers={data.customers} invoices={data.invoices} />
@@ -994,7 +1275,29 @@ export default function DashboardClient() {
             </div>
             <aside className="side-column">
               <NotificationsPanel notifications={notifications} />
-              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => void createExpenseForVehicle()} onService={() => void createServiceForVehicle()} />
+              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
+            </aside>
+          </section>
+        ) : null}
+
+        {activeSection === "GPS" ? (
+          <section className="workspace-grid">
+            <div className="main-column">
+              <MapPanel gpsDevices={data.gpsDevices} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
+              <div className="quick-actions-grid">
+                <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("gps")} type="button">Подключить GPS к авто</button>
+                <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void connectGps()} type="button">Быстро подключить выбранное авто</button>
+              </div>
+            </div>
+            <aside className="side-column">
+              <div className="table-panel">
+                <h2>GPS устройства</h2>
+                {data.gpsDevices.map((device) => {
+                  const vehicle = data.vehicles.find((item) => item.id === device.vehicleId);
+                  return <p className="history-row" key={device.id}>{vehicle?.plateNumber} · {device.provider} · {device.status} · {device.speedKph} км/ч</p>;
+                })}
+                {!data.gpsDevices.length ? <p className="history-row">Подключите первый GPS-трекер.</p> : null}
+              </div>
             </aside>
           </section>
         ) : null}
@@ -1028,7 +1331,7 @@ export default function DashboardClient() {
             </div>
             <aside className="side-column">
               <VehicleForm form={vehicleForm} setForm={setVehicleForm} onSubmit={submitVehicle} />
-              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => void createExpenseForVehicle()} onService={() => void createServiceForVehicle()} />
+              <VehicleCard vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
             </aside>
           </section>
         ) : null}
@@ -1063,9 +1366,9 @@ export default function DashboardClient() {
 
         {activeSection === "Bookings" ? (
           <section className="table-panel bookings-board">
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => void createQuickBooking()} type="button">Создать быструю бронь</button>
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Создать быструю бронь</button>
             <div className="quick-actions-grid">
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать электронный договор</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Создать электронный договор</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор аренды</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">Отправить ссылку WhatsApp</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Загрузить подпись</button>
@@ -1092,10 +1395,10 @@ export default function DashboardClient() {
             <article className="metric-card"><span>Доход</span><strong className="green">{money.format(finance.totalIncome)}</strong></article>
             <article className="metric-card"><span>Расходы</span><strong className="red">{money.format(finance.expenses)}</strong></article>
             <article className="metric-card"><span>Чистая прибыль</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => void payActiveInvoice()} type="button">Провести оплату</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createExpenseForVehicle()} type="button">Добавить расход</button>
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("payment")} type="button">Провести оплату</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Добавить расход</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestDepositUpload} type="button">Загрузить депозит/возврат</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void returnDeposit()} type="button">Оформить возврат депозита</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("depositReturn")} type="button">Оформить возврат депозита</button>
             <div className="table-panel finance-wide">
               <h2>ROI по каждому авто</h2>
               {finance.incomeByVehicle.map((item) => (
@@ -1119,24 +1422,37 @@ export default function DashboardClient() {
               {data.serviceRecords.map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
               <button className="primary-button full" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Загрузить PDF документ</button>
               <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={requestVehicleFolderUpload} type="button">Загрузить папку авто</button>
-              <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={() => void createServiceForVehicle()} type="button">Создать ТО</button>
+              <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">Создать ТО</button>
             </div>
           </section>
         ) : null}
 
         {activeSection === "Settings" ? (
           <section className="settings-grid">
-            <ActionCard title="Электронный договор аренды" text={`${data.rentalContracts.length} договоров`} onClick={() => void createDraftContract()} />
+            <ActionCard title="Электронный договор аренды" text={`${data.rentalContracts.length} договоров`} onClick={requestContractUpload} />
             <ActionCard title="Загрузить договор аренды" text="PDF, DOCX, HTML или фото договора" onClick={requestContractUpload} />
             <ActionCard title="Загрузка паспорта/ID клиента" text={`${data.customerDocuments.length} документов`} onClick={requestCustomerDocumentUpload} />
             <ActionCard title="Загрузка папки клиента" text="Папка на desktop, несколько файлов на телефоне" onClick={requestCustomerFolderUpload} />
-            <ActionCard title="Депозит и возврат депозита" text="Загрузка чека и запись возврата" onClick={requestDepositUpload} />
+            <ActionCard title="Депозит и возврат депозита" text="Загрузка чека и запись возврата" onClick={() => openOperation("depositReturn")} />
             <ActionCard title="WhatsApp-интеграция" text="Открывает WhatsApp с ссылкой договора" onClick={() => void sendRentalContract()} />
             <ActionCard title="Автоотправка договора" text="Создает договор и готовит сообщение клиенту" onClick={() => void sendRentalContract()} />
             <ActionCard title="Электронная подпись" text="Загрузить подписанный файл или фото" onClick={requestSignatureUpload} />
           </section>
         ) : null}
       </section>
+
+      {operation ? (
+        <OperationDialog
+          data={data}
+          files={operationFiles}
+          form={operationForm}
+          kind={operation}
+          onChange={setOperationForm}
+          onClose={() => setOperation(undefined)}
+          onFiles={setOperationFiles}
+          onSubmit={submitOperation}
+        />
+      ) : null}
 
       <MobileAppNav activeSection={activeSection} notificationsCount={notifications.length} onSelect={setActiveSection} />
     </main>
@@ -1148,7 +1464,7 @@ function MobileAppNav({ activeSection, notificationsCount, onSelect }: { activeS
     <nav className="mobile-app-nav" aria-label="Mobile app navigation">
       {sections.map((item) => (
         <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
-          <span>{item === "Dashboard" ? "⌂" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
+          <span>{item === "Dashboard" ? "⌂" : item === "GPS" ? "⌖" : item === "Vehicles" ? "▣" : item === "Finance" ? "€" : item === "Service" ? "◷" : item === "Settings" ? "⚙" : "♙"}</span>
           <small>{item === "Drivers/Clients" ? "Clients" : item}</small>
           {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
         </button>
@@ -1157,19 +1473,29 @@ function MobileAppNav({ activeSection, notificationsCount, onSelect }: { activeS
   );
 }
 
-function MapPanel({ onSelect, selectedVehicleId, vehicles, rentals }: { onSelect: (id: string) => void; selectedVehicleId: string | undefined; vehicles: Vehicle[]; rentals: Rental[] }) {
+function MapPanel({ gpsDevices, onSelect, selectedVehicleId, vehicles, rentals }: { gpsDevices: GpsDevice[]; onSelect: (id: string) => void; selectedVehicleId: string | undefined; vehicles: Vehicle[]; rentals: Rental[] }) {
+  const selectedGps = gpsDevices.find((device) => device.vehicleId === selectedVehicleId) ?? gpsDevices[0];
+  const mapQuery = selectedGps ? `${selectedGps.latitude},${selectedGps.longitude}` : "Warsaw, Poland";
   return (
-    <section className="map-card large-map business-map">
+    <section className="map-card large-map business-map google-map-panel">
+      <iframe
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=12&output=embed`}
+        title="Google Maps GPS fleet"
+      />
       {vehicles.slice(0, 8).map((vehicle, index) => {
         const rental = rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+        const gps = gpsDevices.find((item) => item.vehicleId === vehicle.id);
         return (
           <button className={`map-pin pin-${(index % 5) + 1} ${statusTone(vehicle, rental)} ${selectedVehicleId === vehicle.id ? "selected" : ""}`} key={vehicle.id} onClick={() => onSelect(vehicle.id)} type="button">
             <span>▣</span>
             <strong>{vehicle.plateNumber}</strong>
+            <small>{gps ? `${gps.speedKph} км/ч · ${gps.status}` : "GPS не подключен"}</small>
           </button>
         );
       })}
-      <div className="map-controls"><button>⌖</button><button>＋</button><button>−</button></div>
+      <div className="map-controls"><button type="button">⌖</button><button type="button">＋</button><button type="button">−</button></div>
       <div className="map-legend">
         <span><i className="green" /> Свободен</span>
         <span><i className="blue" /> Забронирован</span>
@@ -1230,6 +1556,229 @@ function ActionCard({ onClick, text, title }: { onClick: () => void; text: strin
       <strong>{title}</strong>
       <span>{text}</span>
     </button>
+  );
+}
+
+function OperationDialog({
+  data,
+  files,
+  form,
+  kind,
+  onChange,
+  onClose,
+  onFiles,
+  onSubmit,
+}: {
+  data: AppData;
+  files: FileList | null;
+  form: typeof defaultOperationForm;
+  kind: OperationKind;
+  onChange: (form: typeof defaultOperationForm) => void;
+  onClose: () => void;
+  onFiles: (files: FileList | null) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const titleByKind: Record<OperationKind, string> = {
+    booking: "Создать бронь",
+    contract: "Договор аренды",
+    customerDocument: "Документ клиента",
+    depositDocument: "Документ депозита / возврата",
+    depositReturn: "Возврат депозита",
+    expense: "Добавить расход",
+    gps: "Подключить GPS",
+    payment: "Провести оплату",
+    signature: "Электронная подпись",
+    service: "Создать техобслуживание",
+    vehicleDocument: "Документ автомобиля",
+  };
+
+  const showVehicle = ["booking", "expense", "gps", "service", "vehicleDocument"].includes(kind);
+  const showCustomer = ["booking", "customerDocument"].includes(kind);
+  const showRental = ["contract", "depositDocument", "depositReturn", "signature"].includes(kind);
+  const showFiles = ["contract", "customerDocument", "depositDocument", "expense", "signature", "vehicleDocument"].includes(kind);
+
+  function patch(key: keyof typeof defaultOperationForm, value: string) {
+    onChange({ ...form, [key]: value });
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <form className="operation-modal" onSubmit={onSubmit}>
+        <div className="modal-title">
+          <div>
+            <span>FleetCore operation</span>
+            <h2>{titleByKind[kind]}</h2>
+          </div>
+          <button onClick={onClose} type="button">×</button>
+        </div>
+
+        <div className="form-grid">
+          {showVehicle ? (
+            <label>Автомобиль
+              <select value={form.vehicleId} onChange={(event) => patch("vehicleId", event.target.value)}>
+                {data.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.make} {vehicle.model} · {vehicle.plateNumber}</option>)}
+              </select>
+            </label>
+          ) : null}
+
+          {showCustomer ? (
+            <label>Клиент
+              <select value={form.customerId} onChange={(event) => patch("customerId", event.target.value)}>
+                {data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName} · {customer.phone}</option>)}
+              </select>
+            </label>
+          ) : null}
+
+          {showRental ? (
+            <label>Аренда
+              <select value={form.rentalId} onChange={(event) => patch("rentalId", event.target.value)}>
+                {data.rentals.map((rental) => {
+                  const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+                  const customer = data.customers.find((item) => item.id === rental.customerId);
+                  return <option key={rental.id} value={rental.id}>{customer?.displayName} · {vehicle?.plateNumber} · {money.format(rental.totalAmount)}</option>;
+                })}
+              </select>
+            </label>
+          ) : null}
+
+          {kind === "booking" ? (
+            <>
+              <label>Дата возврата<input type="datetime-local" value={form.returnAt} onChange={(event) => patch("returnAt", event.target.value)} /></label>
+              <label>Сумма аренды<input type="number" min="0" value={form.totalAmount} onChange={(event) => patch("totalAmount", event.target.value)} /></label>
+              <label>Депозит<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {kind === "expense" ? (
+            <>
+              <label>Категория
+                <select value={form.category} onChange={(event) => patch("category", event.target.value)}>
+                  <option value="maintenance">Ремонт / ТО</option>
+                  <option value="insurance">Страховка</option>
+                  <option value="fuel">Топливо</option>
+                  <option value="cleaning">Мойка</option>
+                  <option value="parking">Парковка</option>
+                  <option value="other">Другое</option>
+                </select>
+              </label>
+              <label>Сумма<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
+              <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {kind === "service" ? (
+            <>
+              <label>Тип ТО
+                <select value={form.serviceType} onChange={(event) => patch("serviceType", event.target.value)}>
+                  <option value="inspection">Техосмотр</option>
+                  <option value="oil">Масло</option>
+                  <option value="repair">Ремонт</option>
+                  <option value="tires">Шины</option>
+                  <option value="other">Другое</option>
+                </select>
+              </label>
+              <label>Дата<input type="date" value={form.serviceAt} onChange={(event) => patch("serviceAt", event.target.value)} /></label>
+              <label>Пробег<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
+              <label>Стоимость<input type="number" min="0" value={form.cost} onChange={(event) => patch("cost", event.target.value)} /></label>
+              <label>Статус
+                <select value={form.status} onChange={(event) => patch("status", event.target.value)}>
+                  <option value="planned">Запланировано</option>
+                  <option value="completed">Выполнено</option>
+                </select>
+              </label>
+              <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {kind === "payment" ? (
+            <>
+              <label>Инвойс
+                <select value={form.invoiceId} onChange={(event) => patch("invoiceId", event.target.value)}>
+                  {data.invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} · {money.format(invoice.total)}</option>)}
+                </select>
+              </label>
+              <label>Сумма<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
+              <label>Метод
+                <select value={form.method} onChange={(event) => patch("method", event.target.value)}>
+                  <option value="manual">Manual</option>
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                  <option value="stripe">Stripe</option>
+                </select>
+              </label>
+              <label>Референс<input value={form.reference} onChange={(event) => patch("reference", event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {kind === "gps" ? (
+            <>
+              <label>Платформа
+                <select value={form.provider} onChange={(event) => patch("provider", event.target.value)}>
+                  <option value="traccar">Traccar</option>
+                  <option value="wialon">Wialon</option>
+                  <option value="navixy">Navixy</option>
+                  <option value="gpswox">GPSWOX</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </label>
+              <label>ID трекера<input value={form.externalDeviceId} onChange={(event) => patch("externalDeviceId", event.target.value)} /></label>
+              <label>Latitude<input value={form.latitude} onChange={(event) => patch("latitude", event.target.value)} /></label>
+              <label>Longitude<input value={form.longitude} onChange={(event) => patch("longitude", event.target.value)} /></label>
+              <label>Скорость, км/ч<input type="number" min="0" value={form.speedKph} onChange={(event) => patch("speedKph", event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {kind === "depositReturn" ? (
+            <>
+              <label>Финальная сумма<input type="number" min="0" value={form.finalAmount} onChange={(event) => patch("finalAmount", event.target.value)} /></label>
+              <label>Сумма депозита<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
+              <label>Пробег при возврате<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
+              <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
+            </>
+          ) : null}
+
+          {["contract", "customerDocument", "depositDocument", "signature", "vehicleDocument"].includes(kind) ? (
+            <>
+              <label className="wide-field">Название документа<input value={form.documentTitle} placeholder="Можно оставить пустым" onChange={(event) => patch("documentTitle", event.target.value)} /></label>
+              {kind === "vehicleDocument" ? (
+                <label>Тип документа
+                  <select value={form.documentType} onChange={(event) => patch("documentType", event.target.value)}>
+                    <option value="insurance">Страховка</option>
+                    <option value="registration">Регистрация</option>
+                    <option value="inspection">Техосмотр</option>
+                    <option value="rental_contract">Договор аренды</option>
+                    <option value="other">Другое</option>
+                  </select>
+                </label>
+              ) : null}
+              {kind === "customerDocument" ? (
+                <label>Тип документа
+                  <select value={form.documentType} onChange={(event) => patch("documentType", event.target.value)}>
+                    <option value="passport">Паспорт</option>
+                    <option value="id_card">ID card</option>
+                    <option value="driver_license">Водительские права</option>
+                    <option value="other">Другое</option>
+                  </select>
+                </label>
+              ) : null}
+            </>
+          ) : null}
+
+          {showFiles ? (
+            <label className="file-drop wide-field">Файлы
+              <input multiple type="file" onChange={(event) => onFiles(event.currentTarget.files)} />
+              <span>{files?.length ? `Выбрано файлов: ${files.length}` : kind === "contract" ? "Можно выбрать файл или создать договор без файла" : "Выберите файл"}</span>
+            </label>
+          ) : null}
+        </div>
+
+        <div className="modal-actions">
+          <button className="ghost-button" onClick={onClose} type="button">Отмена</button>
+          <button className="primary-button" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
   );
 }
 
