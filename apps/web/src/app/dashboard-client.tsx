@@ -119,10 +119,17 @@ async function api<T>(path: string, options: RequestInit = {}, token?: string) {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `Request failed: ${response.status}`);
+    throw new ApiRequestError(body || `Request failed: ${response.status}`, response.status);
   }
 
   return (await response.json()) as ApiEnvelope<T>;
+}
+
+class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
 }
 
 function Badge({ value }: { value: string }) {
@@ -421,38 +428,47 @@ export default function DashboardClient() {
 
   async function loadData(currentToken = token) {
     setLoading(true);
-    const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, expenses, serviceRecords, customerDocuments, rentalContracts] = await Promise.all([
-      api<DashboardMetrics>("/dashboard", {}, currentToken),
-      api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
-      api<Customer[]>("/customers", {}, currentToken),
-      api<Rental[]>("/rentals", {}, currentToken),
-      api<Invoice[]>("/finance/invoices", {}, currentToken),
-      api<Payment[]>("/finance/payments", {}, currentToken),
-      api<GpsDevice[]>("/gps/devices", {}, currentToken),
-      api<VehicleDocument[]>("/documents/vehicles", {}, currentToken),
-      api<Expense[]>("/operations/expenses", {}, currentToken),
-      api<ServiceRecord[]>("/operations/service-records", {}, currentToken),
-      api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
-      api<RentalContract[]>("/operations/rental-contracts", {}, currentToken),
-    ]);
+    try {
+      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, expenses, serviceRecords, customerDocuments, rentalContracts] = await Promise.all([
+        api<DashboardMetrics>("/dashboard", {}, currentToken),
+        api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
+        api<Customer[]>("/customers", {}, currentToken),
+        api<Rental[]>("/rentals", {}, currentToken),
+        api<Invoice[]>("/finance/invoices", {}, currentToken),
+        api<Payment[]>("/finance/payments", {}, currentToken),
+        api<GpsDevice[]>("/gps/devices", {}, currentToken),
+        api<VehicleDocument[]>("/documents/vehicles", {}, currentToken),
+        api<Expense[]>("/operations/expenses", {}, currentToken),
+        api<ServiceRecord[]>("/operations/service-records", {}, currentToken),
+        api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
+        api<RentalContract[]>("/operations/rental-contracts", {}, currentToken),
+      ]);
 
-    setData({
-      customers: customers.data,
-      documents: documents.data,
-      gpsDevices: gpsDevices.data,
-      invoices: invoices.data,
-      metrics: metrics.data,
-      payments: payments.data,
-      rentals: rentals.data,
-      customerDocuments: customerDocuments.data,
-      expenses: expenses.data,
-      rentalContracts: rentalContracts.data,
-      serviceRecords: serviceRecords.data,
-      vehicles: vehicles.data,
-    });
-    setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
-    setLoading(false);
-    setMessage("Данные загружены из PostgreSQL через backend API");
+      setData({
+        customers: customers.data,
+        documents: documents.data,
+        gpsDevices: gpsDevices.data,
+        invoices: invoices.data,
+        metrics: metrics.data,
+        payments: payments.data,
+        rentals: rentals.data,
+        customerDocuments: customerDocuments.data,
+        expenses: expenses.data,
+        rentalContracts: rentalContracts.data,
+        serviceRecords: serviceRecords.data,
+        vehicles: vehicles.data,
+      });
+      setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
+      setMessage("Данные загружены из PostgreSQL через backend API");
+    } catch (error) {
+      if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
+        logout();
+        return;
+      }
+      setMessage(error instanceof Error ? error.message : "Не удалось загрузить данные");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
