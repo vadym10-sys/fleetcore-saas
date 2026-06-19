@@ -706,7 +706,14 @@ async function api<T>(path: string, options: RequestInit = {}, token?: string) {
 
   if (!response.ok) {
     const body = await response.text();
-    throw new ApiRequestError(body || `Request failed: ${response.status}`, response.status);
+    let message = body || `Request failed: ${response.status}`;
+    try {
+      const parsed = JSON.parse(body) as { error?: string };
+      message = parsed.error ?? message;
+    } catch {
+      // Keep raw response text when the API did not return JSON.
+    }
+    throw new ApiRequestError(message, response.status);
   }
 
   return (await response.json()) as ApiEnvelope<T>;
@@ -2071,7 +2078,8 @@ export default function DashboardClient() {
                   const customer = data.customers.find((item) => item.id === rental?.customerId);
                   const gps = data.gpsDevices.find((item) => item.vehicleId === vehicle.id);
                   const vehicleFinance = finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id);
-                  return <VehicleGridCard customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onDelete={() => void removeVehicle(vehicle)} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
+                  const hasRentalHistory = data.rentals.some((item) => item.vehicleId === vehicle.id);
+                  return <VehicleGridCard canDelete={!hasRentalHistory} customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onDelete={() => void removeVehicle(vehicle)} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
                 })}
               </div>
             </div>
@@ -2422,6 +2430,7 @@ function VehicleHero({
 
 function VehicleGridCard({
   customer,
+  canDelete,
   finance,
   gps,
   isSelected,
@@ -2431,6 +2440,7 @@ function VehicleGridCard({
   rental,
   vehicle,
 }: {
+  canDelete: boolean;
   customer: Customer | undefined;
   finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined;
   gps: GpsDevice | undefined;
@@ -2445,10 +2455,10 @@ function VehicleGridCard({
     <article className={`fleet-vehicle-card ${isSelected ? "selected" : ""}`} onClick={onSelect} onKeyDown={(event) => {
       if (event.key === "Enter" || event.key === " ") onSelect();
     }} role="button" tabIndex={0}>
-      <button aria-label={translate(locale, "vehicle.delete")} className="vehicle-remove-button" onClick={(event) => {
+      <button aria-label={translate(locale, "vehicle.delete")} className="vehicle-remove-button" data-disabled={!canDelete} onClick={(event) => {
         event.stopPropagation();
         onDelete();
-      }} title={translate(locale, "vehicle.delete")} type="button">×</button>
+      }} title={canDelete ? translate(locale, "vehicle.delete") : translate(locale, "vehicle.deleteBlocked")} type="button">×</button>
       <div className="fleet-vehicle-top">
         <VehicleArt />
         <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />

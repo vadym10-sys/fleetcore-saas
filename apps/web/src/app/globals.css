@@ -1983,6 +1983,10 @@ h3 {
   color: #dc2626;
 }
 
+.vehicle-remove-button[data-disabled="true"] {
+  opacity: 0.42;
+}
+
 .fleet-vehicle-card:hover,
 .fleet-vehicle-card.selected {
   border-color: rgba(35, 70, 216, 0.42);

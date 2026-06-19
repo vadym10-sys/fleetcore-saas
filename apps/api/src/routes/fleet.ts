@@ -51,7 +51,15 @@ export const fleetRoutes: FastifyPluginAsync = async (app) => {
     if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
 
     const { vehicleId } = request.params as { vehicleId: string };
-    const result = await deleteVehicle(getTenantScope(request), vehicleId);
+    let result: Awaited<ReturnType<typeof deleteVehicle>>;
+    try {
+      result = await deleteVehicle(getTenantScope(request), vehicleId);
+    } catch (error) {
+      if ((error as { code?: string }).code === "23503") {
+        return reply.code(409).send({ error: "Vehicle has rental history and cannot be deleted" });
+      }
+      throw error;
+    }
     if (result.reason === "vehicle_has_rentals") {
       return reply.code(409).send({ error: "Vehicle has rental history and cannot be deleted" });
     }
