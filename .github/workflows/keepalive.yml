@@ -1,0 +1,17 @@
+name: Keep Render services warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping FleetCore web
+        run: curl --fail --location --max-time 60 https://fleetcore-web.onrender.com >/dev/null
+
+      - name: Ping FleetCore API
+        run: curl --fail --location --max-time 60 https://fleetcore-api.onrender.com/health >/dev/null

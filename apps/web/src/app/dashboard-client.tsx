@@ -758,6 +758,22 @@ async function refreshStoredSession() {
   return refreshed.data;
 }
 
+async function warmApi() {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 45000);
+  try {
+    const response = await fetch(`${API_URL}/health`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 async function api<T>(path: string, options: RequestInit = {}, token?: string, retry = true) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -963,6 +979,7 @@ function LanguageSelect({ locale, onChange }: { locale: Locale; onChange: (local
 function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onSession: (session: AuthSession) => void }) {
   const t = (key: string) => translate(locale, key);
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [apiReady, setApiReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(t("auth.message"));
   const [login, setLogin] = useState({ email: "", password: "" });
@@ -983,11 +1000,29 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
     if (!loading) setMessage(t("auth.message"));
   }, [locale, loading]);
 
+  useEffect(() => {
+    let active = true;
+    setMessage("Подключаем FleetCore API...");
+    warmApi().then((ready) => {
+      if (!active) return;
+      setApiReady(ready);
+      setMessage(ready
+        ? translate(locale, "auth.message")
+        : "Сервер просыпается дольше обычного. Нажмите вход еще раз через несколько секунд.");
+    });
+    return () => {
+      active = false;
+    };
+  }, [locale]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    setMessage(mode === "login" ? "Проверяем доступ..." : "Создаем компанию...");
+    setMessage(apiReady ? (mode === "login" ? "Проверяем доступ..." : "Создаем компанию...") : "Будим сервер и проверяем доступ...");
     try {
+      if (!apiReady) {
+        setApiReady(await warmApi());
+      }
       if (mode === "register" && register.password !== register.passwordConfirm) {
         throw new Error("Пароли не совпадают");
       }
@@ -1028,8 +1063,11 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
 
   async function loginDemo() {
     setLoading(true);
-    setMessage("Открываем демо-аккаунт...");
+    setMessage(apiReady ? "Открываем демо-аккаунт..." : "Будим сервер и открываем демо-аккаунт...");
     try {
+      if (!apiReady) {
+        setApiReady(await warmApi());
+      }
       const response = await api<AuthSession>("/auth/login", {
         body: JSON.stringify({ email: "founder@atlas.example", password: "development-only" }),
         method: "POST",
@@ -1071,6 +1109,10 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
           <span className="auth-kicker">FleetCore SaaS</span>
           <h1>{mode === "login" ? t("auth.loginTitle") : t("auth.registerTitle")}</h1>
           <p>{message}</p>
+          <div className={`api-ready-status ${apiReady ? "ready" : "warming"}`}>
+            <span />
+            {apiReady ? "API online" : "Connecting API"}
+          </div>
         </div>
         <LanguageSelect locale={locale} onChange={onLocaleChange} />
         <div className="auth-tabs">

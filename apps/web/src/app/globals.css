@@ -1717,6 +1717,38 @@ h3 {
   line-height: 1.5;
 }
 
+.api-ready-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  margin-top: 12px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.api-ready-status span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #f59e0b;
+}
+
+.api-ready-status.ready {
+  border-color: rgba(15, 159, 110, 0.22);
+  background: rgba(15, 159, 110, 0.08);
+  color: #0f9f6e;
+}
+
+.api-ready-status.ready span {
+  background: #0f9f6e;
+}
+
 .auth-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
