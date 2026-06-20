@@ -310,6 +310,17 @@ button:disabled {
   margin: 0 0 26px;
 }
 
+.header-title-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mobile-menu-button {
+  display: none;
+}
+
 .api-status {
   margin-top: 8px;
   color: var(--muted);
@@ -1596,69 +1607,6 @@ h3 {
     grid-template-columns: 1fr;
   }
 
-  .mobile-app-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 30;
-    display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 2px;
-    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 -12px 28px rgba(29, 32, 64, 0.08);
-  }
-
-  .mobile-app-nav button {
-    position: relative;
-    min-width: 0;
-    min-height: 58px;
-    display: grid;
-    place-items: center;
-    gap: 3px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted);
-    font-weight: 800;
-  }
-
-  .mobile-app-nav button.active {
-    background: var(--primary-soft);
-    color: var(--primary);
-  }
-
-  .mobile-app-nav span {
-    font-size: 17px;
-    line-height: 1;
-  }
-
-  .mobile-app-nav small {
-    max-width: 100%;
-    overflow: hidden;
-    font-size: 9px;
-    line-height: 1.1;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-app-nav em {
-    position: absolute;
-    right: 7px;
-    top: 5px;
-    min-width: 17px;
-    height: 17px;
-    display: grid;
-    place-items: center;
-    border-radius: 999px;
-    background: var(--red);
-    color: white;
-    font-size: 10px;
-    font-style: normal;
-  }
-
   .modal-backdrop {
     align-items: end;
     padding: 8px;
@@ -2482,7 +2430,7 @@ h3 {
   color: white;
 }
 
-.mobile-account-strip {
+.mobile-drawer-shell {
   display: none;
 }
 
@@ -3195,10 +3143,6 @@ h3 {
   display: none;
 }
 
-.mobile-app-nav {
-  display: none;
-}
-
 .document-mini-list,
 .file-object-list {
   display: grid;
@@ -3290,9 +3234,6 @@ h3 {
     display: none;
   }
 
-  .mobile-app-nav {
-    display: grid;
-  }
 }
 
 /* Premium visual system for FleetCore Business tier */
@@ -3810,19 +3751,6 @@ h3 {
   box-shadow: var(--shadow-strong);
 }
 
-.mobile-app-nav {
-  box-shadow: 0 -18px 45px rgba(17, 24, 39, 0.14);
-}
-
-.mobile-app-nav button.active {
-  background: #111827;
-  color: white;
-}
-
-.mobile-app-nav button.active span {
-  color: white;
-}
-
 .language-select {
   min-width: 92px;
   height: 46px;
@@ -3946,7 +3874,7 @@ h3 {
 @media (max-width: 760px) {
   .product-shell {
     grid-template-columns: 1fr;
-    padding: 10px 10px 96px;
+    padding: 10px 10px 22px;
   }
 
   .fleet-app {
@@ -3999,6 +3927,26 @@ h3 {
     background: rgba(248, 250, 252, 0.92);
   }
 
+  .header-title-block {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .mobile-menu-button {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(203, 213, 225, 0.9);
+    border-radius: 12px;
+    background: #111827;
+    color: white;
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.18);
+    font-size: 20px;
+    font-weight: 900;
+  }
+
   .desktop-header h1 {
     font-size: 25px;
   }
@@ -4011,61 +3959,193 @@ h3 {
     grid-template-columns: minmax(0, 1fr) 76px 44px 88px;
   }
 
-  .mobile-account-strip {
+  .mobile-drawer-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: block;
+    pointer-events: none;
+  }
+
+  .mobile-drawer-shell.open {
+    pointer-events: auto;
+  }
+
+  .mobile-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(15, 23, 42, 0);
+    transition: background 180ms ease;
+  }
+
+  .mobile-drawer-shell.open .mobile-drawer-backdrop {
+    background: rgba(15, 23, 42, 0.42);
+  }
+
+  .mobile-drawer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 370px);
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 78px 112px;
-    gap: 8px;
-    align-items: stretch;
-    margin: -4px 0 14px;
-    padding: 10px;
-    border: 1px solid rgba(221, 227, 236, 0.92);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.94);
-    box-shadow: 0 12px 30px rgba(17, 24, 39, 0.08);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    gap: 14px;
+    padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+    border-right: 1px solid rgba(221, 227, 236, 0.9);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98)),
+      #ffffff;
+    box-shadow: 24px 0 70px rgba(17, 24, 39, 0.24);
+    transform: translateX(-105%);
+    transition: transform 220ms ease;
   }
 
-  .mobile-account-strip .ghost-button,
-  .mobile-account-strip .primary-button {
-    min-height: 48px;
-    padding: 0 8px;
-    font-size: 12px;
+  .mobile-drawer-shell.open .mobile-drawer {
+    transform: translateX(0);
   }
 
-  .mobile-account-main {
+  .mobile-drawer-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 42px;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .mobile-drawer-profile {
     min-width: 0;
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    column-gap: 9px;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 10px;
     align-items: center;
-    padding: 7px 9px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
+    padding: 10px;
+    border: 1px solid rgba(221, 227, 236, 0.9);
+    border-radius: 12px;
     background: #f8fafc;
     text-align: left;
   }
 
-  .mobile-account-main .avatar {
-    grid-row: 1 / span 2;
+  .mobile-drawer-profile span:last-child {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
   }
 
-  .mobile-account-main strong,
-  .mobile-account-main small {
-    min-width: 0;
+  .mobile-drawer-profile strong,
+  .mobile-drawer-profile small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .mobile-account-main strong {
+  .mobile-drawer-profile strong {
     color: var(--ink);
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 900;
   }
 
-  .mobile-account-main small {
+  .mobile-drawer-profile small {
     color: var(--muted);
     font-size: 11px;
     font-weight: 800;
+  }
+
+  .mobile-drawer-close {
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(221, 227, 236, 0.9);
+    border-radius: 12px;
+    background: white;
+    color: #111827;
+    font-size: 24px;
+    font-weight: 800;
+  }
+
+  .mobile-drawer-nav {
+    min-height: 0;
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .mobile-drawer-nav button {
+    min-height: 52px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid rgba(221, 227, 236, 0.9);
+    border-radius: 12px;
+    background: white;
+    color: #475569;
+    font-weight: 900;
+    text-align: left;
+  }
+
+  .mobile-drawer-nav .nav-icon {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.06);
+  }
+
+  .mobile-drawer-nav button.active {
+    border-color: rgba(184, 137, 58, 0.42);
+    background: #111827;
+    color: white;
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.16);
+  }
+
+  .mobile-drawer-nav button.active .nav-icon {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .mobile-drawer-nav em {
+    min-width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: #e11d48;
+    color: white;
+    font-size: 11px;
+    font-style: normal;
+  }
+
+  .mobile-drawer-tools {
+    display: grid;
+    gap: 8px;
+  }
+
+  .mobile-drawer-tools .language-select {
+    width: 100%;
+  }
+
+  .mobile-drawer-plan {
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid rgba(184, 137, 58, 0.24);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(35, 70, 216, 0.86));
+    color: white;
+  }
+
+  .mobile-drawer-plan span,
+  .mobile-drawer-plan small {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .mobile-drawer-plan strong {
+    font-size: 18px;
   }
 
   .language-select {
@@ -4157,11 +4237,6 @@ h3 {
     display: none;
   }
 
-  .mobile-app-nav {
-    border-top-color: rgba(203, 213, 225, 0.9);
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(18px);
-  }
 }
 
 /* Navigation polish: readable premium app chrome on desktop and phone */
@@ -4222,53 +4297,5 @@ h3 {
   .desktop-sidebar .side-nav .nav-icon {
     width: 30px;
     height: 30px;
-  }
-}
-
-@media (max-width: 760px) {
-  .mobile-app-nav {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(72px, 1fr);
-    gap: 7px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-  }
-
-  .mobile-app-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .mobile-app-nav button {
-    min-height: 62px;
-    padding: 7px 6px;
-    border: 1px solid transparent;
-  }
-
-  .mobile-app-nav .nav-icon {
-    width: 28px;
-    height: 28px;
-    display: grid;
-    place-items: center;
-    border-radius: 8px;
-    background: rgba(15, 23, 42, 0.06);
-    font-size: 14px;
-  }
-
-  .mobile-app-nav small {
-    max-width: 66px;
-    font-size: 9px;
-    line-height: 1.05;
-  }
-
-  .mobile-app-nav button.active {
-    border-color: rgba(184, 137, 58, 0.42);
-    background: #111827;
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
-  }
-
-  .mobile-app-nav button.active .nav-icon {
-    background: rgba(255, 255, 255, 0.12);
   }
 }

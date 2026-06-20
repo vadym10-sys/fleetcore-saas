@@ -44,8 +44,10 @@ test("dashboard client keeps production account and document flows wired", () =>
     "processFlowAction",
     "openRentalContractPdf",
     "auth-choice-grid",
-    "mobile-account-strip",
     "initialMode",
+    "MobileDrawer",
+    "mobile-drawer",
+    "mobile-menu-button",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

@@ -114,6 +114,9 @@ const uiCopy = {
     "auth.resetPassword": "Reset password",
     "auth.register": "Create account",
     "auth.registerTitle": "Register B2B company",
+    "drawer.planSubtitle": "FleetCore premium workspace",
+    "drawer.profileTeam": "Profile and team",
+    "drawer.switchAccount": "Sign in with another account",
     "auth.businessName": "Business name",
     "auth.legalName": "Legal name",
     "auth.country": "Country",
@@ -224,6 +227,9 @@ const uiCopy = {
     "auth.resetPassword": "Восстановить пароль",
     "auth.register": "Создать аккаунт",
     "auth.registerTitle": "Регистрация B2B-компании",
+    "drawer.planSubtitle": "Премиальное рабочее пространство FleetCore",
+    "drawer.profileTeam": "Профиль и команда",
+    "drawer.switchAccount": "Войти другим аккаунтом",
     "auth.businessName": "Название бизнеса",
     "auth.legalName": "Юридическое имя",
     "auth.country": "Страна",
@@ -334,6 +340,9 @@ const uiCopy = {
     "auth.resetPassword": "Restablecer contraseña",
     "auth.register": "Crear cuenta",
     "auth.registerTitle": "Registrar empresa B2B",
+    "drawer.planSubtitle": "Espacio premium de FleetCore",
+    "drawer.profileTeam": "Perfil y equipo",
+    "drawer.switchAccount": "Entrar con otra cuenta",
     "auth.businessName": "Nombre comercial",
     "auth.legalName": "Razón social",
     "auth.country": "País",
@@ -444,6 +453,9 @@ const uiCopy = {
     "auth.resetPassword": "Réinitialiser le mot de passe",
     "auth.register": "Créer un compte",
     "auth.registerTitle": "Inscription société B2B",
+    "drawer.planSubtitle": "Espace premium FleetCore",
+    "drawer.profileTeam": "Profil et équipe",
+    "drawer.switchAccount": "Se connecter avec un autre compte",
     "auth.businessName": "Nom commercial",
     "auth.legalName": "Raison sociale",
     "auth.country": "Pays",
@@ -554,6 +566,9 @@ const uiCopy = {
     "auth.resetPassword": "Passwort zurücksetzen",
     "auth.register": "Konto erstellen",
     "auth.registerTitle": "B2B-Firma registrieren",
+    "drawer.planSubtitle": "Premium-Arbeitsbereich von FleetCore",
+    "drawer.profileTeam": "Profil und Team",
+    "drawer.switchAccount": "Mit anderem Konto anmelden",
     "auth.businessName": "Firmenname",
     "auth.legalName": "Rechtsname",
     "auth.country": "Land",
@@ -1196,6 +1211,7 @@ export default function DashboardClient() {
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const [operation, setOperation] = useState<OperationKind | undefined>();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [profileName, setProfileName] = useState("");
   const [teamForm, setTeamForm] = useState({
@@ -2533,9 +2549,12 @@ export default function DashboardClient() {
 
       <section className="desktop-workspace">
         <header className="desktop-header">
-          <div>
-            <h1>{sectionLabel(locale, activeSection)}</h1>
-            <p className={`api-status ${message ? "has-message" : ""}`}>{loading ? t("common.loading") : message || sectionSubtitle(locale, activeSection)}</p>
+          <div className="header-title-block">
+            <button className="mobile-menu-button" onClick={() => setMobileDrawerOpen(true)} type="button" aria-label="Open menu">☰</button>
+            <div>
+              <h1>{sectionLabel(locale, activeSection)}</h1>
+              <p className={`api-status ${message ? "has-message" : ""}`}>{loading ? t("common.loading") : message || sectionSubtitle(locale, activeSection)}</p>
+            </div>
           </div>
           <div className="header-actions">
             <label className="global-search">
@@ -2547,16 +2566,6 @@ export default function DashboardClient() {
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
           </div>
         </header>
-
-        <section className="mobile-account-strip" aria-label="Mobile account actions">
-          <button className="mobile-account-main" onClick={() => setProfileOpen(true)} type="button">
-            <span className="avatar small">{profilePhoto ? <img alt="" src={profilePhoto} /> : session.user.fullName.slice(0, 1)}</span>
-            <strong>{session.user.fullName}</strong>
-            <small>{session.user.role}</small>
-          </button>
-          <button className="ghost-button" onClick={() => void logout("login")} type="button">Войти</button>
-          <button className="primary-button" onClick={() => void logout("register")} type="button">Регистрация</button>
-        </section>
 
         <section className="command-center" aria-label="FleetCore command center">
           <div className="command-copy">
@@ -2905,7 +2914,29 @@ export default function DashboardClient() {
         />
       ) : null}
 
-      <MobileAppNav activeSection={activeSection} locale={locale} notificationsCount={notifications.length} onSelect={setActiveSection} />
+      <MobileDrawer
+        activeSection={activeSection}
+        locale={locale}
+        notificationsCount={notifications.length}
+        onClose={() => setMobileDrawerOpen(false)}
+        onLocaleChange={changeLocale}
+        onLogin={() => void logout("login")}
+        onOpenProfile={() => setProfileOpen(true)}
+        onRegister={() => void logout("register")}
+        onSelect={(section) => {
+          setActiveSection(section);
+          setMobileDrawerOpen(false);
+        }}
+        open={mobileDrawerOpen}
+        photo={profilePhoto}
+        planMonth={t("tariff.month")}
+        planName={t("tariff.name")}
+        planSubtitle={t("drawer.planSubtitle")}
+        profileLabel={t("drawer.profileTeam")}
+        registerLabel={t("auth.register")}
+        session={session}
+        switchAccountLabel={t("drawer.switchAccount")}
+      />
     </main>
   );
 }
@@ -3093,17 +3124,99 @@ function RentalFlowPanel({ busy, flow, onOpenPdf, onPrimaryAction }: { busy: boo
   );
 }
 
-function MobileAppNav({ activeSection, locale, notificationsCount, onSelect }: { activeSection: Section; locale: Locale; notificationsCount: number; onSelect: (section: Section) => void }) {
+function MobileDrawer({
+  activeSection,
+  locale,
+  notificationsCount,
+  onClose,
+  onLocaleChange,
+  onLogin,
+  onOpenProfile,
+  onRegister,
+  onSelect,
+  open,
+  photo,
+  planMonth,
+  planName,
+  planSubtitle,
+  profileLabel,
+  registerLabel,
+  session,
+  switchAccountLabel,
+}: {
+  activeSection: Section;
+  locale: Locale;
+  notificationsCount: number;
+  onClose: () => void;
+  onLocaleChange: (locale: Locale) => void;
+  onLogin: () => void;
+  onOpenProfile: () => void;
+  onRegister: () => void;
+  onSelect: (section: Section) => void;
+  open: boolean;
+  photo: string;
+  planMonth: string;
+  planName: string;
+  planSubtitle: string;
+  profileLabel: string;
+  registerLabel: string;
+  session: AuthSession;
+  switchAccountLabel: string;
+}) {
+  function openProfile() {
+    onOpenProfile();
+    onClose();
+  }
+
+  function login() {
+    onClose();
+    onLogin();
+  }
+
+  function register() {
+    onClose();
+    onRegister();
+  }
+
   return (
-    <nav className="mobile-app-nav" aria-label="Mobile app navigation">
-      {sections.map((item) => (
-        <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
-          <span className="nav-icon">{sectionIcon(item)}</span>
-          <small>{sectionLabel(locale, item)}</small>
-          {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
-        </button>
-      ))}
-    </nav>
+    <div className={`mobile-drawer-shell ${open ? "open" : ""}`} aria-hidden={!open}>
+      <button className="mobile-drawer-backdrop" onClick={onClose} type="button" aria-label="Close menu" />
+      <aside className="mobile-drawer" aria-label="Mobile navigation">
+        <div className="mobile-drawer-head">
+          <button className="mobile-drawer-profile" onClick={openProfile} type="button">
+            <span className="avatar">{photo ? <img alt="" src={photo} /> : session.user.fullName.slice(0, 1)}</span>
+            <span>
+              <strong>{session.user.fullName}</strong>
+              <small>{session.user.role} · {session.user.email}</small>
+            </span>
+          </button>
+          <button className="mobile-drawer-close" onClick={onClose} type="button" aria-label="Close menu">×</button>
+        </div>
+
+        <nav className="mobile-drawer-nav">
+          {sections.map((item) => (
+            <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
+              <span className="nav-icon">{sectionIcon(item)}</span>
+              <span>{sectionLabel(locale, item)}</span>
+              {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
+            </button>
+          ))}
+        </nav>
+
+        <div className="mobile-drawer-tools">
+          <LanguageSelect locale={locale} onChange={onLocaleChange} />
+          <button className="ghost-button" onClick={openProfile} type="button">{profileLabel}</button>
+          <button className="ghost-button" onClick={login} type="button">{switchAccountLabel}</button>
+          <button className="primary-button" onClick={register} type="button">{registerLabel}</button>
+        </div>
+
+        <div className="mobile-drawer-plan">
+          <span>{planName}</span>
+          <strong>€499 / {planMonth}</strong>
+          <small>{planSubtitle}</small>
+        </div>
+      </aside>
+    </div>
   );
 }
 
