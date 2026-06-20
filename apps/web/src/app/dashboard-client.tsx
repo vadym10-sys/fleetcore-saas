@@ -3060,14 +3060,14 @@ export default function DashboardClient() {
               </article>
             ))}
           </div>
-          <div className="command-actions">
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">{t("command.newBooking")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">{t("command.vehicle")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">{t("command.customer")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openShareDialog} type="button">WhatsApp</button>
+          <div className="command-actions" data-testid="fleet-command-actions">
+            <button aria-label="Быстро создать бронь" className="primary-button" data-testid="command-create-booking" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">{t("command.newBooking")}</button>
+            <button aria-label="Быстро добавить автомобиль" className="ghost-button" data-testid="command-create-vehicle" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">{t("command.vehicle")}</button>
+            <button aria-label="Быстро добавить клиента" className="ghost-button" data-testid="command-create-customer" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">{t("command.customer")}</button>
+            <button aria-label="Быстро загрузить документ автомобиля" className="ghost-button" data-testid="command-upload-document" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
+            <button aria-label="Быстро добавить расход" className="ghost-button" data-testid="command-create-expense" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
+            <button aria-label="Быстро создать ТО" className="ghost-button" data-testid="command-create-service" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
+            <button aria-label="Отправить договор через WhatsApp Telegram или Email" className="ghost-button" data-testid="command-share-contract" disabled={Boolean(busyAction)} onClick={openShareDialog} type="button">WhatsApp</button>
           </div>
         </section>
 
