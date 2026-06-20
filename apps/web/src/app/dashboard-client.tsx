@@ -1294,6 +1294,7 @@ export default function DashboardClient() {
     displayName: "Новый клиент",
     email: `client-${Date.now().toString().slice(-5)}@example.com`,
     phone: "+48 600 111 222",
+    vehicleId: "",
   });
   const [companyForm, setCompanyForm] = useState({
     billingEmail: "",
@@ -1609,7 +1610,13 @@ export default function DashboardClient() {
   async function createCustomerRecord(overrides: Partial<typeof customerForm> = {}) {
     const draft = { ...customerForm, ...overrides };
     const response = await api<Customer>("/customers", {
-      body: JSON.stringify({ ...draft, riskLevel: "low", type: "individual" }),
+      body: JSON.stringify({
+        displayName: draft.displayName,
+        email: draft.email,
+        phone: draft.phone,
+        riskLevel: "low",
+        type: "individual",
+      }),
       method: "POST",
     }, token);
     return response.data;
@@ -1708,9 +1715,49 @@ export default function DashboardClient() {
     event.preventDefault();
     await runAction("Создаем клиента...", async () => {
       await createCustomerRecord();
-      setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com` }));
+      setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com`, vehicleId: "" }));
       await loadData();
       setMessage("Клиент сохранен");
+    });
+  }
+
+  async function assignVehicleToNewCustomer() {
+    await runAction("Закрепляем автомобиль за клиентом...", async () => {
+      const unavailableVehicleIds = new Set(data.rentals.filter((rental) => rental.status !== "closed").map((rental) => rental.vehicleId));
+      const vehicle = data.vehicles.find((item) => item.id === customerForm.vehicleId)
+        ?? data.vehicles.find((item) => item.status === "available" && !unavailableVehicleIds.has(item.id))
+        ?? data.vehicles.find((item) => !unavailableVehicleIds.has(item.id));
+
+      if (!vehicle) {
+        setMessage("Нет свободного автомобиля для закрепления");
+        return;
+      }
+
+      const customer = await createCustomerRecord();
+      const pickupAt = new Date();
+      const returnAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await api<Rental>("/rentals", {
+        body: JSON.stringify({
+          customerId: customer.id,
+          depositAmount: 500,
+          pickupAt: pickupAt.toISOString(),
+          returnAt: returnAt.toISOString(),
+          status: "reserved",
+          totalAmount: vehicle.dailyRate * 7,
+          vehicleId: vehicle.id,
+        }),
+        method: "POST",
+      }, token);
+      await api<Vehicle>(`/fleet/vehicles/${vehicle.id}`, {
+        body: JSON.stringify({ status: "rented" }),
+        method: "PATCH",
+      }, token);
+
+      setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com`, vehicleId: "" }));
+      setSelectedVehicleId(vehicle.id);
+      await loadData();
+      setMessage(`${customer.displayName} закреплен за ${vehicle.make} ${vehicle.model}`);
     });
   }
 
@@ -2842,7 +2889,15 @@ export default function DashboardClient() {
               ))}
             </div>
             <aside className="side-column">
-              <CustomerForm form={customerForm} formRef={customerCreateRef} setForm={setCustomerForm} onSubmit={submitCustomer} />
+              <CustomerForm
+                form={customerForm}
+                formRef={customerCreateRef}
+                onAssignVehicle={() => void assignVehicleToNewCustomer()}
+                onSubmit={submitCustomer}
+                rentals={data.rentals}
+                setForm={setCustomerForm}
+                vehicles={data.vehicles}
+              />
               <div className="table-panel">
                 <h2>CRM история</h2>
                 <button className="ghost-button full-button" onClick={requestCustomerDocumentUpload} type="button">Загрузить паспорт/ID</button>
@@ -4050,7 +4105,26 @@ function VehicleForm({ form, formRef, onSubmit, setForm }: { form: Record<string
   );
 }
 
-function CustomerForm({ form, formRef, onSubmit, setForm }: { form: Record<string, string>; formRef: RefObject<HTMLFormElement | null>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
+function CustomerForm({
+  form,
+  formRef,
+  onAssignVehicle,
+  onSubmit,
+  rentals,
+  setForm,
+  vehicles,
+}: {
+  form: Record<string, string>;
+  formRef: RefObject<HTMLFormElement | null>;
+  onAssignVehicle: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  rentals: Rental[];
+  setForm: (form: any) => void;
+  vehicles: Vehicle[];
+}) {
+  const unavailableVehicleIds = new Set(rentals.filter((rental) => rental.status !== "closed").map((rental) => rental.vehicleId));
+  const availableVehicles = vehicles.filter((vehicle) => vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id));
+
   return (
     <form className="live-form" onSubmit={onSubmit} ref={formRef}>
       <h2>Добавить клиента</h2>
@@ -4058,8 +4132,19 @@ function CustomerForm({ form, formRef, onSubmit, setForm }: { form: Record<strin
         {(["displayName", "email", "phone"] as const).map((key) => (
           <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
         ))}
+        <label>Автомобиль клиента
+          <select value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })}>
+            <option value="">Выберите свободный автомобиль</option>
+            {availableVehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>{vehicle.make} {vehicle.model} · {vehicle.plateNumber} · €{vehicle.dailyRate}/день</option>
+            ))}
+          </select>
+        </label>
       </div>
       <button className="primary-button full" type="submit">Сохранить клиента</button>
+      <button className="ghost-button full-button customer-assign-vehicle" disabled={!availableVehicles.length} onClick={onAssignVehicle} type="button">
+        Добавить к этому клиенту автомобиль
+      </button>
     </form>
   );
 }

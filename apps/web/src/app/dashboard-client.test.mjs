@@ -54,6 +54,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "mobile-menu-button",
     "openVehicleCreate",
     "openCustomerCreate",
+    "assignVehicleToNewCustomer",
+    "customer-assign-vehicle",
     "openRentalContractPdfForRental",
     "OnboardingWizard",
     "fleetcore-onboarding-open",
