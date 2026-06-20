@@ -60,6 +60,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "shareRentalContract",
     "openTelegram",
     "openEmail",
+    "sidebar-signout-button",
+    "mobile-drawer-signout",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

@@ -2652,6 +2652,10 @@ export default function DashboardClient() {
           <div className="usage"><i /></div>
           <button onClick={() => setActiveSection("Settings")} type="button">{t("tariff.manage")}</button>
         </div>
+        <button className="sidebar-signout-button" onClick={() => void logout()} type="button">
+          <span>↩</span>
+          <strong>{t("common.signOut")}</strong>
+        </button>
       </aside>
 
       <section className="desktop-workspace">
@@ -3065,6 +3069,7 @@ export default function DashboardClient() {
         onClose={() => setMobileDrawerOpen(false)}
         onLocaleChange={changeLocale}
         onLogin={() => void logout("login")}
+        onLogout={() => void logout()}
         onOpenProfile={() => setProfileOpen(true)}
         onRegister={() => void logout("register")}
         onSelect={(section) => {
@@ -3428,6 +3433,7 @@ function MobileDrawer({
   onClose,
   onLocaleChange,
   onLogin,
+  onLogout,
   onOpenProfile,
   onRegister,
   onSelect,
@@ -3447,6 +3453,7 @@ function MobileDrawer({
   onClose: () => void;
   onLocaleChange: (locale: Locale) => void;
   onLogin: () => void;
+  onLogout: () => void;
   onOpenProfile: () => void;
   onRegister: () => void;
   onSelect: (section: Section) => void;
@@ -3468,6 +3475,11 @@ function MobileDrawer({
   function login() {
     onClose();
     onLogin();
+  }
+
+  function logout() {
+    onClose();
+    onLogout();
   }
 
   function register() {
@@ -3503,6 +3515,7 @@ function MobileDrawer({
         <div className="mobile-drawer-tools">
           <LanguageSelect locale={locale} onChange={onLocaleChange} />
           <button className="ghost-button" onClick={openProfile} type="button">{profileLabel}</button>
+          <button className="mobile-drawer-signout" onClick={logout} type="button">{translate(locale, "common.signOut")}</button>
           <button className="ghost-button" onClick={login} type="button">{switchAccountLabel}</button>
           <button className="primary-button" onClick={register} type="button">{registerLabel}</button>
         </div>
