@@ -1397,7 +1397,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
   return (
     <main className="auth-shell">
       <section className="auth-panel">
-        <div>
+        <div className="auth-header">
           <span className="auth-kicker">FleetCore SaaS</span>
           <h1>{mode === "login" ? t("auth.loginTitle") : t("auth.registerTitle")}</h1>
           <p>{message}</p>
@@ -1406,20 +1406,9 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
             {apiReady ? "API online" : "Connecting API"}
           </div>
         </div>
-        <LanguageSelect locale={locale} onChange={onLocaleChange} />
-        <div className="auth-choice-grid">
-          <button className={mode === "login" ? "active" : ""} disabled={loading} onClick={() => setMode("login")} type="button">
-            <strong>{t("auth.choiceLoginTitle")}</strong>
-            <span>{t("auth.choiceLoginText")}</span>
-          </button>
-          <button className={mode === "register" ? "active" : ""} disabled={loading} onClick={() => setMode("register")} type="button">
-            <strong>{t("auth.choiceRegisterTitle")}</strong>
-            <span>{t("auth.choiceRegisterText")}</span>
-          </button>
-          <button disabled={loading} onClick={() => void loginDemo()} type="button">
-            <strong>{t("auth.choiceDemoTitle")}</strong>
-            <span>{t("auth.choiceDemoText")}</span>
-          </button>
+        <div className="auth-toolbar">
+          <LanguageSelect locale={locale} onChange={onLocaleChange} />
+          <button className="auth-demo-link" disabled={loading} onClick={() => void loginDemo()} type="button">{t("auth.choiceDemoTitle")}</button>
         </div>
         <div className="auth-tabs">
           <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")} type="button">{t("auth.login")}</button>
@@ -1448,22 +1437,35 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
           )}
           <button className="primary-button full" disabled={loading} type="submit">{loading ? t("common.loading") : mode === "login" ? t("auth.login") : t("auth.register")}</button>
           {mode === "login" ? (
-            <>
+            <div className="auth-secondary-actions">
               <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">{t("auth.demo")}</button>
-              <button className="ghost-button full-button" disabled={loading} onClick={() => void requestPasswordReset()} type="button">{t("auth.resetPassword")}</button>
-            </>
+              <button className="text-button" disabled={loading} onClick={() => void requestPasswordReset()} type="button">{t("auth.resetPassword")}</button>
+            </div>
           ) : null}
         </form>
       </section>
       <section className="auth-preview">
-        <div className="preview-map">
-          <CarPin className="pin-one" color="green" label="BMW X5" />
-          <CarPin className="pin-two" color="blue" label="Audi A6" />
-          <CarPin className="pin-four" color="orange" label="Camry" />
-        </div>
-        <div className="preview-card">
-          <strong>{t("auth.previewTitle")}</strong>
-          <span>{t("auth.previewText")}</span>
+        <div className="auth-preview-shell">
+          <div className="auth-preview-topline">
+            <span>FleetCore Business</span>
+            <strong>€499 / month</strong>
+          </div>
+          <div className="auth-preview-hero">
+            <span>Premium fleet operations</span>
+            <h2>Один рабочий центр для аренды, документов, GPS и финансов.</h2>
+            <p>{t("auth.previewText")}</p>
+          </div>
+          <div className="auth-preview-metrics">
+            <article><span>Fleet</span><strong>36</strong><small>vehicles</small></article>
+            <article><span>Revenue</span><strong>€42k</strong><small>month</small></article>
+            <article><span>Returns</span><strong>8</strong><small>today</small></article>
+          </div>
+          <div className="auth-preview-flow">
+            <article className="done"><span>1</span><div><strong>Booking</strong><small>BMW X5 reserved</small></div></article>
+            <article className="done"><span>2</span><div><strong>Contract</strong><small>PDF sent to client</small></div></article>
+            <article><span>3</span><div><strong>Deposit</strong><small>€500 held</small></div></article>
+            <article><span>4</span><div><strong>Return</strong><small>final settlement</small></div></article>
+          </div>
         </div>
       </section>
     </main>
