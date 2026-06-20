@@ -61,6 +61,31 @@ function shouldExposeDevToken() {
 }
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
+  app.post("/auth/demo", async (request, reply): Promise<{ data: AuthSession } | void> => {
+    const limitKey = `demo:${requestIp(request) ?? "unknown"}`;
+    if (!authRateLimit(limitKey, 24, 60_000)) {
+      return reply.code(429).send({ error: "Too many demo login attempts. Try again soon." });
+    }
+
+    const user = await getUserByEmail("founder@atlas.example");
+    if (!user) {
+      return reply.code(503).send({ error: "Demo account is not ready yet. Try again in a few seconds." });
+    }
+
+    await touchUserLogin(user.id);
+    await writeAuditLog({
+      action: "auth.demo_login",
+      actorEmail: user.email,
+      companyId: user.companyId,
+      ipAddress: requestIp(request),
+      tenantId: user.tenantId,
+      userAgent: userAgent(request),
+      userId: user.id,
+    });
+
+    return envelope(await createSession(user, request));
+  });
+
   app.post("/auth/login", async (request, reply): Promise<{ data: AuthSession } | void> => {
     const parsed = loginInput.safeParse(request.body ?? {});
     if (!parsed.success) {

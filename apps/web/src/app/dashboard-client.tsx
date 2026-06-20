@@ -1107,8 +1107,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
       if (!apiReady) {
         setApiReady(await warmApi());
       }
-      const response = await api<AuthSession>("/auth/login", {
-        body: JSON.stringify({ email: "founder@atlas.example", password: "development-only" }),
+      const response = await api<AuthSession>("/auth/demo", {
         method: "POST",
       });
       saveStoredSession(response.data);

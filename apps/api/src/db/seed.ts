@@ -1,5 +1,6 @@
 import { pool } from "./client.js";
 import { defaultCompanyId, defaultTenantId } from "./constants.js";
+import { hashPassword } from "../lib/auth.js";
 
 export async function seedDatabase() {
   await pool.query(
@@ -21,8 +22,12 @@ export async function seedDatabase() {
     `insert into users (
       id, tenant_id, company_id, email, password_hash, full_name, role
     ) values ($1, $2, $3, $4, $5, $6, $7)
-    on conflict (tenant_id, email) do nothing`,
-    ["user_founder", defaultTenantId, defaultCompanyId, "founder@atlas.example", "development-only", "Maya Carter", "owner"],
+    on conflict (tenant_id, email) do update set
+      company_id = excluded.company_id,
+      password_hash = excluded.password_hash,
+      role = excluded.role,
+      updated_at = now()`,
+    ["user_founder", defaultTenantId, defaultCompanyId, "founder@atlas.example", hashPassword("development-only"), "Maya Carter", "owner"],
   );
 
   await pool.query(

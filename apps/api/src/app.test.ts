@@ -35,6 +35,18 @@ test("login returns a signed access token", async () => {
   assert.equal(token.split(".").length, 3);
 });
 
+test("demo login returns the seeded owner account without a password", async () => {
+  const response = await app.inject({
+    method: "POST",
+    url: "/auth/demo",
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.user.email, "founder@atlas.example");
+  assert.equal(response.json().data.user.role, "owner");
+  assert.equal(typeof response.json().data.accessToken, "string");
+});
+
 test("refresh and logout manage SaaS sessions", async () => {
   const login = await app.inject({
     method: "POST",

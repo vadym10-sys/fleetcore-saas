@@ -8,6 +8,7 @@ test("dashboard client keeps production account and document flows wired", () =>
   for (const marker of [
     "/auth/refresh",
     "/auth/logout",
+    "/auth/demo",
     "/auth/request-password-reset",
     "/auth/request-email-verification",
     "Document center",
