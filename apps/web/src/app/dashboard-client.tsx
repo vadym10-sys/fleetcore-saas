@@ -1265,8 +1265,8 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
   });
 
   useEffect(() => {
-    if (!loading) setMessage(t("auth.message"));
-  }, [locale, loading]);
+    setMessage(t("auth.message"));
+  }, [locale]);
 
   useEffect(() => {
     setMode(initialMode);
@@ -1330,6 +1330,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
         localStorage.setItem(`fleetcore-onboarding-open:${response.data.companyId}`, "1");
         requestProfileSetup(response.data);
       }
+      setLoading(false);
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось войти");
@@ -1349,6 +1350,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
       });
       saveStoredSession(response.data);
       requestProfileSetup(response.data);
+      setLoading(false);
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось открыть демо");
