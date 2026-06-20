@@ -175,8 +175,12 @@ export const rentalContractInput = z.object({
   rentalId: z.string().min(1),
   documentUrl: z.string().url().default("https://example.com/fleetcore/rental-contract.pdf"),
   sentVia: z.enum(["email", "whatsapp", "manual"]).default("whatsapp"),
-  status: z.enum(["draft", "sent", "signed"]).default("sent"),
+  status: z.enum(["draft", "sent", "viewed", "signed"]).default("sent"),
   signedAt: z.string().datetime().optional(),
+});
+
+export const publicContractSignatureInput = z.object({
+  signerName: z.string().trim().min(2),
 });
 
 export const fileUploadInput = z.object({

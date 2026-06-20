@@ -1928,7 +1928,7 @@ export default function DashboardClient() {
       const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
       const contract = await createContractRecord("sent", "whatsapp");
       await loadData();
-      openWhatsApp(customer.phone, `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore: ${contract.documentUrl}`);
+      openWhatsApp(customer.phone, `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore для просмотра и подписи: ${contract.publicUrl ?? contract.documentUrl}`);
       setMessage("Договор создан и ссылка открыта для отправки в WhatsApp");
     });
   }
@@ -2267,7 +2267,7 @@ export default function DashboardClient() {
                   <Badge value={rental.status} />
                   <span>Депозит {money.format(rental.depositAmount)}</span>
                   <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
-                  {contract ? <a className="document-link" href={contract.documentUrl} rel="noreferrer" target="_blank">{contract.status === "signed" ? "Подписан" : "Открыть договор"}</a> : null}
+                  {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
                 </article>
               );
             })}

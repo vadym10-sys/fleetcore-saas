@@ -32,6 +32,10 @@ function resolveCorsOrigin(origin: string | undefined) {
 export async function buildServer() {
   const app = Fastify({ bodyLimit: Number(process.env.MAX_UPLOAD_BODY_BYTES ?? 12 * 1024 * 1024), logger: true });
 
+  app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
+    done(null, body);
+  });
+
   app.addHook("onRequest", async (request, reply) => {
     reply.header("access-control-allow-origin", resolveCorsOrigin(request.headers.origin));
     reply.header("access-control-allow-methods", "GET,POST,PATCH,DELETE,OPTIONS");

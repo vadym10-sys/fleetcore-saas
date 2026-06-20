@@ -4,15 +4,58 @@ import {
   createExpense,
   createRentalContract,
   createServiceRecord,
+  getPublicRentalContract,
   listCustomerDocuments,
   listExpenses,
   listRentalContracts,
   listServiceRecords,
+  signPublicRentalContract,
   writeAuditLog,
 } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
-import { customerDocumentInput, expenseInput, rentalContractInput, serviceRecordInput } from "../schemas.js";
+import { customerDocumentInput, expenseInput, publicContractSignatureInput, rentalContractInput, serviceRecordInput } from "../schemas.js";
+
+function htmlEscape(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function contractHtml(contract: { documentUrl: string; id: string; rentalId: string; signedAt?: string; status: string }, token: string) {
+  const signed = contract.status === "signed";
+  return `<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>FleetCore rental contract</title>
+<body style="margin:0;background:#f3f5f8;color:#111827;font-family:Inter,Arial,sans-serif">
+  <main style="max-width:760px;margin:0 auto;padding:24px">
+    <section style="background:#111827;color:white;border-radius:12px;padding:24px;margin-bottom:16px">
+      <div style="font-weight:900;font-size:14px;color:#f2c879">FleetCore rental contract</div>
+      <h1 style="margin:10px 0 6px;font-size:30px">Contract ${htmlEscape(contract.id)}</h1>
+      <p style="margin:0;color:#cbd5e1">Rental ${htmlEscape(contract.rentalId)} · status ${htmlEscape(contract.status)}</p>
+    </section>
+    <section style="background:white;border:1px solid #dde3ec;border-radius:12px;padding:20px;margin-bottom:16px">
+      <p style="margin-top:0">Open the rental document, review the terms, then sign below.</p>
+      <a href="${htmlEscape(contract.documentUrl)}" target="_blank" rel="noreferrer" style="display:inline-block;background:#2346d8;color:white;text-decoration:none;font-weight:800;border-radius:8px;padding:12px 16px">Open contract document</a>
+    </section>
+    <section style="background:white;border:1px solid #dde3ec;border-radius:12px;padding:20px">
+      ${signed ? `<h2 style="margin-top:0;color:#0f9f6e">Signed</h2><p>Signed at ${htmlEscape(contract.signedAt ?? "")}</p>` : `
+      <h2 style="margin-top:0">Electronic signature</h2>
+      <form method="post" action="/operations/rental-contracts/public/${encodeURIComponent(contract.id)}/sign?token=${encodeURIComponent(token)}">
+        <label style="display:block;font-weight:800;margin-bottom:8px">Full name</label>
+        <input name="signerName" required minlength="2" style="box-sizing:border-box;width:100%;height:46px;border:1px solid #dde3ec;border-radius:8px;padding:0 12px;font:inherit;margin-bottom:14px" />
+        <button style="height:46px;border:0;border-radius:8px;background:#0f9f6e;color:white;font-weight:900;padding:0 18px" type="submit">Sign contract</button>
+      </form>`}
+    </section>
+  </main>
+</body>
+</html>`;
+}
 
 export const operationRoutes: FastifyPluginAsync = async (app) => {
   app.get("/operations/expenses", async (request) => envelope(await listExpenses(getTenantScope(request))));
@@ -112,6 +155,54 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/operations/rental-contracts", async (request) => envelope(await listRentalContracts(getTenantScope(request))));
+
+  app.get("/operations/rental-contracts/public/:contractId", async (request, reply) => {
+    const { contractId } = request.params as { contractId: string };
+    const { token } = request.query as { token?: string };
+    if (!token) return reply.code(401).send({ error: "Missing contract token" });
+
+    const contract = await getPublicRentalContract(contractId, token);
+    if (!contract) return reply.code(404).send({ error: "Contract not found" });
+
+    await writeAuditLog({
+      action: "rental.contract.viewed",
+      companyId: contract.companyId,
+      entityId: contract.id,
+      entityType: "rental_contract",
+      metadata: { rentalId: contract.rentalId, status: contract.status },
+      tenantId: contract.tenantId,
+    });
+    reply.header("content-type", "text/html; charset=utf-8");
+    return reply.send(contractHtml(contract, token));
+  });
+
+  app.post("/operations/rental-contracts/public/:contractId/sign", async (request, reply) => {
+    const { contractId } = request.params as { contractId: string };
+    const { token } = request.query as { token?: string };
+    if (!token) return reply.code(401).send({ error: "Missing contract token" });
+
+    const body = typeof request.body === "string"
+      ? Object.fromEntries(new URLSearchParams(request.body))
+      : request.body;
+    const parsed = publicContractSignatureInput.safeParse(body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid signature payload", issues: parsed.error.flatten() });
+    }
+
+    const signed = await signPublicRentalContract(contractId, token, parsed.data.signerName);
+    if (!signed) return reply.code(404).send({ error: "Contract not found or already signed" });
+
+    await writeAuditLog({
+      action: "rental.contract.signed",
+      companyId: signed.contract.companyId,
+      entityId: signed.contract.id,
+      entityType: "rental_contract",
+      metadata: { rentalId: signed.contract.rentalId, signerName: signed.signerName },
+      tenantId: signed.contract.tenantId,
+    });
+    reply.header("content-type", "text/html; charset=utf-8");
+    return reply.send(contractHtml(signed.contract, token));
+  });
 
   app.post("/operations/rental-contracts", async (request, reply) => {
     if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;

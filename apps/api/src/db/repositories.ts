@@ -986,7 +986,10 @@ export async function createCustomerDocument(scope: TenantScope, input: Customer
 
 export async function listRentalContracts(scope: TenantScope): Promise<RentalContract[]> {
   const result = await pool.query(
-    "select * from rental_contracts where tenant_id = $1 and company_id = $2 order by created_at desc",
+    `select *, null as public_url
+     from rental_contracts
+     where tenant_id = $1 and company_id = $2
+     order by created_at desc`,
     [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapRentalContract);
@@ -995,19 +998,26 @@ export async function listRentalContracts(scope: TenantScope): Promise<RentalCon
 export async function createRentalContract(scope: TenantScope, input: RentalContractInput): Promise<RentalContract | undefined> {
   const rental = await getRental(scope, input.rentalId);
   if (!rental) return undefined;
+  const publicOrigin = process.env.API_PUBLIC_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:4000";
+  const publicToken = input.status === "draft" ? null : createId("contract_public");
+  const publicTokenHash = publicToken ? createHash("sha256").update(publicToken).digest("hex") : null;
 
   const result = await pool.query(
     `insert into rental_contracts (
-      id, tenant_id, company_id, rental_id, customer_id, status, document_url, sent_via, signed_at
-    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      id, tenant_id, company_id, rental_id, customer_id, status, document_url, sent_via, signed_at,
+      sent_at, viewed_at, public_token_hash
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     on conflict (tenant_id, company_id, rental_id)
     do update set
       status = excluded.status,
       document_url = excluded.document_url,
       sent_via = excluded.sent_via,
+      sent_at = coalesce(excluded.sent_at, rental_contracts.sent_at),
+      viewed_at = coalesce(excluded.viewed_at, rental_contracts.viewed_at),
       signed_at = excluded.signed_at,
+      public_token_hash = coalesce(excluded.public_token_hash, rental_contracts.public_token_hash),
       updated_at = now()
-    returning *`,
+    returning *, case when public_token_hash is not null then $13 || '/operations/rental-contracts/public/' || id else null end as public_url`,
     [
       createId("ctr"),
       scope.tenantId,
@@ -1018,7 +1028,49 @@ export async function createRentalContract(scope: TenantScope, input: RentalCont
       input.documentUrl,
       input.sentVia,
       input.signedAt ?? null,
+      input.status === "sent" || input.status === "viewed" || input.status === "signed" ? new Date().toISOString() : null,
+      input.status === "viewed" || input.status === "signed" ? new Date().toISOString() : null,
+      publicTokenHash,
+      publicOrigin,
     ],
   );
-  return mapRentalContract(result.rows[0]);
+  const contract = mapRentalContract(result.rows[0]);
+  return publicToken ? { ...contract, publicUrl: `${publicOrigin}/operations/rental-contracts/public/${contract.id}?token=${publicToken}` } : contract;
+}
+
+export async function getPublicRentalContract(contractId: string, publicToken: string) {
+  const publicOrigin = process.env.API_PUBLIC_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:4000";
+  const tokenHash = createHash("sha256").update(publicToken).digest("hex");
+  const result = await pool.query(
+    `update rental_contracts
+     set status = case when status = 'sent' then 'viewed' else status end,
+         viewed_at = coalesce(viewed_at, now()),
+         updated_at = now()
+     where id = $1 and public_token_hash = $2 and status in ('sent', 'viewed', 'signed')
+     returning *, $3 || '/operations/rental-contracts/public/' || id as public_url`,
+    [contractId, tokenHash, publicOrigin],
+  );
+  const contract = result.rows[0] ? mapRentalContract(result.rows[0]) : undefined;
+  return contract ? { ...contract, publicUrl: `${publicOrigin}/operations/rental-contracts/public/${contract.id}?token=${publicToken}` } : undefined;
+}
+
+export async function signPublicRentalContract(contractId: string, publicToken: string, signerName: string) {
+  const publicOrigin = process.env.API_PUBLIC_URL ?? process.env.WEB_ORIGIN ?? "http://localhost:4000";
+  const tokenHash = createHash("sha256").update(publicToken).digest("hex");
+  const result = await pool.query(
+    `update rental_contracts
+     set status = 'signed',
+         viewed_at = coalesce(viewed_at, now()),
+         signed_at = now(),
+         updated_at = now()
+     where id = $1 and public_token_hash = $2 and status in ('sent', 'viewed')
+     returning *, $3 || '/operations/rental-contracts/public/' || id as public_url`,
+    [contractId, tokenHash, publicOrigin],
+  );
+  if (!result.rows[0]) return undefined;
+  const contract = mapRentalContract(result.rows[0]);
+  return {
+    contract: { ...contract, publicUrl: `${publicOrigin}/operations/rental-contracts/public/${contract.id}?token=${publicToken}` },
+    signerName,
+  };
 }

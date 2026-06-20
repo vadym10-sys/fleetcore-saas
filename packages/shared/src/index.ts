@@ -181,9 +181,12 @@ export interface RentalContract extends TenantScopedEntity {
   companyId: string;
   rentalId: string;
   customerId: string;
-  status: "draft" | "sent" | "signed";
+  status: "draft" | "sent" | "viewed" | "signed";
   documentUrl: string;
+  publicUrl?: string;
   sentVia: "email" | "whatsapp" | "manual";
+  sentAt?: string;
+  viewedAt?: string;
   signedAt?: string;
 }
 

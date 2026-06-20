@@ -18,13 +18,17 @@ function isPublicUploadPreview(url: string) {
   return /^\/uploads\/[^/]+\/.+/.test(url);
 }
 
+function isPublicContractRoute(url: string) {
+  return /^\/operations\/rental-contracts\/public\/[^/]+/.test(url);
+}
+
 export function installTenantContext(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
     if (request.method === "OPTIONS") {
       return;
     }
 
-    if (publicRoutes.has(request.url) || isPublicUploadPreview(request.url)) {
+    if (publicRoutes.has(request.url) || isPublicUploadPreview(request.url) || isPublicContractRoute(request.url)) {
       return;
     }
 

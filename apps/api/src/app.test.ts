@@ -427,6 +427,43 @@ test("authenticated API can manage business operations", async () => {
   });
   assert.equal(contract.statusCode, 201);
   assert.equal(contract.json().data.rentalId, rental.id);
+  assert.equal(contract.json().data.status, "sent");
+  assert.equal(typeof contract.json().data.publicUrl, "string");
+
+  const publicUrl = new URL(contract.json().data.publicUrl);
+  const viewed = await app.inject({
+    method: "GET",
+    url: `${publicUrl.pathname}${publicUrl.search}`,
+  });
+  assert.equal(viewed.statusCode, 200);
+  assert.match(viewed.body, /Electronic signature/);
+
+  const afterView = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/operations/rental-contracts",
+  });
+  assert.equal(afterView.statusCode, 200);
+  assert.equal(afterView.json().data.find((item: { id: string }) => item.id === contract.json().data.id).status, "viewed");
+
+  const signed = await app.inject({
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    method: "POST",
+    payload: "signerName=Jane%20Customer",
+    url: `${publicUrl.pathname}/sign${publicUrl.search}`,
+  });
+  assert.equal(signed.statusCode, 200);
+  assert.match(signed.body, /Signed/);
+
+  const afterSign = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/operations/rental-contracts",
+  });
+  assert.equal(afterSign.statusCode, 200);
+  const signedContract = afterSign.json().data.find((item: { id: string }) => item.id === contract.json().data.id);
+  assert.equal(signedContract.status, "signed");
+  assert.equal(typeof signedContract.signedAt, "string");
 });
 
 test("owners can read company audit log", async () => {
@@ -440,4 +477,5 @@ test("owners can read company audit log", async () => {
   assert.ok(Array.isArray(response.json().data));
   assert.ok(response.json().data.some((entry: { action: string }) => entry.action.startsWith("auth.")));
   assert.ok(response.json().data.some((entry: { action: string }) => entry.action === "file.uploaded"));
+  assert.ok(response.json().data.some((entry: { action: string }) => entry.action === "rental.contract.signed"));
 });

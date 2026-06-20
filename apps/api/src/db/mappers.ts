@@ -221,7 +221,10 @@ export function mapRentalContract(row: DbRow): RentalContract {
     customerId: String(row.customer_id),
     status: row.status as RentalContract["status"],
     documentUrl: String(row.document_url),
+    ...(row.public_url ? { publicUrl: String(row.public_url) } : {}),
     sentVia: row.sent_via as RentalContract["sentVia"],
+    ...(row.sent_at ? { sentAt: iso(row.sent_at) } : {}),
+    ...(row.viewed_at ? { viewedAt: iso(row.viewed_at) } : {}),
     ...(row.signed_at ? { signedAt: iso(row.signed_at) } : {}),
   };
 }
