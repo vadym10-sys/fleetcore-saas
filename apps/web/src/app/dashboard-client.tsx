@@ -195,6 +195,9 @@ const uiCopy = {
     "vehicle.service": "Service",
     "vehicle.serviceCreate": "Create service",
     "vehicle.uploadDocument": "Upload document",
+    "vehicle.photoAdd": "Add vehicle photo",
+    "vehicle.photoReplace": "Replace photo",
+    "vehicle.photoRemove": "Remove photo",
     "command.kicker": "FleetCore Command",
     "command.title": "Fleet operations center",
     "command.subtitle": "Run the most frequent actions in one click without moving between sections.",
@@ -351,6 +354,9 @@ const uiCopy = {
     "vehicle.service": "Сервис",
     "vehicle.serviceCreate": "Создать ТО",
     "vehicle.uploadDocument": "Загрузить документ",
+    "vehicle.photoAdd": "Добавить фото авто",
+    "vehicle.photoReplace": "Заменить фото",
+    "vehicle.photoRemove": "Убрать фото",
     "command.kicker": "FleetCore Command",
     "command.title": "Рабочий центр автопарка",
     "command.subtitle": "Самые частые действия доступны в один клик без перехода по разделам.",
@@ -507,6 +513,9 @@ const uiCopy = {
     "vehicle.service": "Servicio",
     "vehicle.serviceCreate": "Crear servicio",
     "vehicle.uploadDocument": "Subir documento",
+    "vehicle.photoAdd": "Añadir foto del vehículo",
+    "vehicle.photoReplace": "Cambiar foto",
+    "vehicle.photoRemove": "Quitar foto",
     "command.kicker": "FleetCore Command",
     "command.title": "Centro operativo de flota",
     "command.subtitle": "Ejecuta las acciones más frecuentes con un clic sin cambiar de sección.",
@@ -663,6 +672,9 @@ const uiCopy = {
     "vehicle.service": "Service",
     "vehicle.serviceCreate": "Créer maintenance",
     "vehicle.uploadDocument": "Téléverser document",
+    "vehicle.photoAdd": "Ajouter photo véhicule",
+    "vehicle.photoReplace": "Remplacer la photo",
+    "vehicle.photoRemove": "Retirer la photo",
     "command.kicker": "FleetCore Command",
     "command.title": "Centre opérations flotte",
     "command.subtitle": "Lancez les actions fréquentes en un clic sans changer de section.",
@@ -819,6 +831,9 @@ const uiCopy = {
     "vehicle.service": "Service",
     "vehicle.serviceCreate": "Service erstellen",
     "vehicle.uploadDocument": "Dokument hochladen",
+    "vehicle.photoAdd": "Fahrzeugfoto hinzufügen",
+    "vehicle.photoReplace": "Foto ersetzen",
+    "vehicle.photoRemove": "Foto entfernen",
     "command.kicker": "FleetCore Command",
     "command.title": "Flotten-Leitstelle",
     "command.subtitle": "Häufige Aktionen mit einem Klick ausführen, ohne Bereiche zu wechseln.",
@@ -3955,8 +3970,8 @@ function VehicleCard({ customer, documents, finance, locale, onDocument, onExpen
         </div>
       ) : null}
       <div className="vehicle-photo-actions">
-        <button className="ghost-button full-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? "Заменить фото" : "Добавить фото авто"}</button>
-        {vehicle.photoUrl ? <button className="ghost-button full-button" onClick={onRemovePhoto} type="button">Убрать фото</button> : null}
+        <button className="ghost-button full-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? translate(locale, "vehicle.photoReplace") : translate(locale, "vehicle.photoAdd")}</button>
+        {vehicle.photoUrl ? <button className="ghost-button full-button" onClick={onRemovePhoto} type="button">{translate(locale, "vehicle.photoRemove")}</button> : null}
       </div>
       <button className="ghost-button full-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
       <button className="ghost-button full-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
@@ -4011,8 +4026,8 @@ function VehicleHero({
         <h2>{vehicle.make} {vehicle.model}</h2>
         <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
         <div className="vehicle-hero-actions">
-          <button className="primary-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? "Заменить фото" : "Фото авто"}</button>
-          {vehicle.photoUrl ? <button className="ghost-button" onClick={onRemovePhoto} type="button">Убрать фото</button> : null}
+          <button className="primary-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? translate(locale, "vehicle.photoReplace") : translate(locale, "vehicle.photoAdd")}</button>
+          {vehicle.photoUrl ? <button className="ghost-button" onClick={onRemovePhoto} type="button">{translate(locale, "vehicle.photoRemove")}</button> : null}
           <button className="primary-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
           <button className="ghost-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
           <button className="ghost-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>
@@ -4108,18 +4123,311 @@ function OperationDialog({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   saving: boolean;
 }) {
+  const modalCopy: Record<Locale, Record<string, string>> = {
+    en: {
+      operation: "FleetCore operation",
+      "title.booking": "Create booking",
+      "title.contract": "Rental contract",
+      "title.customerDocument": "Customer document",
+      "title.depositDocument": "Deposit / refund document",
+      "title.depositReturn": "Deposit refund",
+      "title.expense": "Add expense",
+      "title.gps": "Connect GPS",
+      "title.payment": "Record payment",
+      "title.signature": "Electronic signature",
+      "title.service": "Create maintenance",
+      "title.vehicleDocument": "Vehicle document",
+      vehicle: "Vehicle",
+      customer: "Customer",
+      rental: "Rental",
+      returnAt: "Return date",
+      totalAmount: "Rental amount",
+      depositAmount: "Deposit",
+      category: "Category",
+      maintenance: "Repair / service",
+      insurance: "Insurance",
+      fuel: "Fuel",
+      cleaning: "Cleaning",
+      parking: "Parking",
+      other: "Other",
+      amount: "Amount",
+      note: "Comment",
+      serviceType: "Service type",
+      inspection: "Inspection",
+      oil: "Oil",
+      repair: "Repair",
+      tires: "Tires",
+      date: "Date",
+      odometer: "Mileage",
+      cost: "Cost",
+      status: "Status",
+      planned: "Planned",
+      completed: "Completed",
+      invoice: "Invoice",
+      method: "Method",
+      reference: "Reference",
+      finalAmount: "Final rental amount",
+      depositRefundAmount: "Deposit refund amount",
+      returnOdometer: "Return mileage",
+      documentTitle: "Document title",
+      documentPlaceholder: "Optional",
+      documentType: "Document type",
+      registration: "Registration",
+      rentalContract: "Rental contract",
+      passport: "Passport",
+      idCard: "ID card",
+      driverLicense: "Driver license",
+      files: "Files",
+      fileChoose: "Choose file",
+      fileContractHint: "You can choose a file or create a contract without a file",
+      filesSelected: "Files selected",
+    },
+    ru: {
+      operation: "Операция FleetCore",
+      "title.booking": "Создать бронь",
+      "title.contract": "Договор аренды",
+      "title.customerDocument": "Документ клиента",
+      "title.depositDocument": "Документ депозита / возврата",
+      "title.depositReturn": "Возврат депозита",
+      "title.expense": "Добавить расход",
+      "title.gps": "Подключить GPS",
+      "title.payment": "Провести оплату",
+      "title.signature": "Электронная подпись",
+      "title.service": "Создать техобслуживание",
+      "title.vehicleDocument": "Документ автомобиля",
+      vehicle: "Автомобиль",
+      customer: "Клиент",
+      rental: "Аренда",
+      returnAt: "Дата возврата",
+      totalAmount: "Сумма аренды",
+      depositAmount: "Депозит",
+      category: "Категория",
+      maintenance: "Ремонт / ТО",
+      insurance: "Страховка",
+      fuel: "Топливо",
+      cleaning: "Мойка",
+      parking: "Парковка",
+      other: "Другое",
+      amount: "Сумма",
+      note: "Комментарий",
+      serviceType: "Тип ТО",
+      inspection: "Техосмотр",
+      oil: "Масло",
+      repair: "Ремонт",
+      tires: "Шины",
+      date: "Дата",
+      odometer: "Пробег",
+      cost: "Стоимость",
+      status: "Статус",
+      planned: "Запланировано",
+      completed: "Выполнено",
+      invoice: "Инвойс",
+      method: "Метод",
+      reference: "Референс",
+      finalAmount: "Итоговая сумма аренды",
+      depositRefundAmount: "Сумма возврата депозита",
+      returnOdometer: "Пробег при возврате",
+      documentTitle: "Название документа",
+      documentPlaceholder: "Можно оставить пустым",
+      documentType: "Тип документа",
+      registration: "Регистрация",
+      rentalContract: "Договор аренды",
+      passport: "Паспорт",
+      idCard: "ID card",
+      driverLicense: "Водительские права",
+      files: "Файлы",
+      fileChoose: "Выберите файл",
+      fileContractHint: "Можно выбрать файл или создать договор без файла",
+      filesSelected: "Выбрано файлов",
+    },
+    es: {
+      operation: "Operación FleetCore",
+      "title.booking": "Crear reserva",
+      "title.contract": "Contrato de alquiler",
+      "title.customerDocument": "Documento del cliente",
+      "title.depositDocument": "Documento de depósito / reembolso",
+      "title.depositReturn": "Reembolso de depósito",
+      "title.expense": "Añadir gasto",
+      "title.gps": "Conectar GPS",
+      "title.payment": "Registrar pago",
+      "title.signature": "Firma electrónica",
+      "title.service": "Crear mantenimiento",
+      "title.vehicleDocument": "Documento del vehículo",
+      vehicle: "Vehículo",
+      customer: "Cliente",
+      rental: "Alquiler",
+      returnAt: "Fecha de devolución",
+      totalAmount: "Importe de alquiler",
+      depositAmount: "Depósito",
+      category: "Categoría",
+      maintenance: "Reparación / servicio",
+      insurance: "Seguro",
+      fuel: "Combustible",
+      cleaning: "Limpieza",
+      parking: "Parking",
+      other: "Otro",
+      amount: "Importe",
+      note: "Comentario",
+      serviceType: "Tipo de servicio",
+      inspection: "Inspección",
+      oil: "Aceite",
+      repair: "Reparación",
+      tires: "Neumáticos",
+      date: "Fecha",
+      odometer: "Kilometraje",
+      cost: "Coste",
+      status: "Estado",
+      planned: "Planificado",
+      completed: "Completado",
+      invoice: "Factura",
+      method: "Método",
+      reference: "Referencia",
+      finalAmount: "Importe final de alquiler",
+      depositRefundAmount: "Importe de reembolso",
+      returnOdometer: "Kilometraje de devolución",
+      documentTitle: "Título del documento",
+      documentPlaceholder: "Opcional",
+      documentType: "Tipo de documento",
+      registration: "Registro",
+      rentalContract: "Contrato de alquiler",
+      passport: "Pasaporte",
+      idCard: "ID card",
+      driverLicense: "Permiso de conducir",
+      files: "Archivos",
+      fileChoose: "Elegir archivo",
+      fileContractHint: "Puedes elegir un archivo o crear contrato sin archivo",
+      filesSelected: "Archivos seleccionados",
+    },
+    fr: {
+      operation: "Opération FleetCore",
+      "title.booking": "Créer réservation",
+      "title.contract": "Contrat de location",
+      "title.customerDocument": "Document client",
+      "title.depositDocument": "Document dépôt / remboursement",
+      "title.depositReturn": "Remboursement dépôt",
+      "title.expense": "Ajouter dépense",
+      "title.gps": "Connecter GPS",
+      "title.payment": "Enregistrer paiement",
+      "title.signature": "Signature électronique",
+      "title.service": "Créer maintenance",
+      "title.vehicleDocument": "Document véhicule",
+      vehicle: "Véhicule",
+      customer: "Client",
+      rental: "Location",
+      returnAt: "Date de retour",
+      totalAmount: "Montant location",
+      depositAmount: "Dépôt",
+      category: "Catégorie",
+      maintenance: "Réparation / service",
+      insurance: "Assurance",
+      fuel: "Carburant",
+      cleaning: "Nettoyage",
+      parking: "Parking",
+      other: "Autre",
+      amount: "Montant",
+      note: "Commentaire",
+      serviceType: "Type service",
+      inspection: "Inspection",
+      oil: "Huile",
+      repair: "Réparation",
+      tires: "Pneus",
+      date: "Date",
+      odometer: "Kilométrage",
+      cost: "Coût",
+      status: "Statut",
+      planned: "Planifié",
+      completed: "Terminé",
+      invoice: "Facture",
+      method: "Méthode",
+      reference: "Référence",
+      finalAmount: "Montant final location",
+      depositRefundAmount: "Montant remboursement",
+      returnOdometer: "Kilométrage retour",
+      documentTitle: "Titre du document",
+      documentPlaceholder: "Optionnel",
+      documentType: "Type document",
+      registration: "Immatriculation",
+      rentalContract: "Contrat de location",
+      passport: "Passeport",
+      idCard: "ID card",
+      driverLicense: "Permis de conduire",
+      files: "Fichiers",
+      fileChoose: "Choisir fichier",
+      fileContractHint: "Vous pouvez choisir un fichier ou créer un contrat sans fichier",
+      filesSelected: "Fichiers sélectionnés",
+    },
+    de: {
+      operation: "FleetCore Vorgang",
+      "title.booking": "Buchung erstellen",
+      "title.contract": "Mietvertrag",
+      "title.customerDocument": "Kundendokument",
+      "title.depositDocument": "Kaution / Erstattung Dokument",
+      "title.depositReturn": "Kaution erstatten",
+      "title.expense": "Kosten hinzufügen",
+      "title.gps": "GPS verbinden",
+      "title.payment": "Zahlung erfassen",
+      "title.signature": "Elektronische Signatur",
+      "title.service": "Wartung erstellen",
+      "title.vehicleDocument": "Fahrzeugdokument",
+      vehicle: "Fahrzeug",
+      customer: "Kunde",
+      rental: "Miete",
+      returnAt: "Rückgabedatum",
+      totalAmount: "Mietbetrag",
+      depositAmount: "Kaution",
+      category: "Kategorie",
+      maintenance: "Reparatur / Service",
+      insurance: "Versicherung",
+      fuel: "Kraftstoff",
+      cleaning: "Reinigung",
+      parking: "Parken",
+      other: "Andere",
+      amount: "Betrag",
+      note: "Kommentar",
+      serviceType: "Servicetyp",
+      inspection: "Inspektion",
+      oil: "Öl",
+      repair: "Reparatur",
+      tires: "Reifen",
+      date: "Datum",
+      odometer: "Kilometerstand",
+      cost: "Kosten",
+      status: "Status",
+      planned: "Geplant",
+      completed: "Abgeschlossen",
+      invoice: "Rechnung",
+      method: "Methode",
+      reference: "Referenz",
+      finalAmount: "Finaler Mietbetrag",
+      depositRefundAmount: "Kautionserstattung",
+      returnOdometer: "Kilometerstand bei Rückgabe",
+      documentTitle: "Dokumenttitel",
+      documentPlaceholder: "Optional",
+      documentType: "Dokumenttyp",
+      registration: "Registrierung",
+      rentalContract: "Mietvertrag",
+      passport: "Reisepass",
+      idCard: "ID card",
+      driverLicense: "Führerschein",
+      files: "Dateien",
+      fileChoose: "Datei wählen",
+      fileContractHint: "Sie können eine Datei wählen oder Vertrag ohne Datei erstellen",
+      filesSelected: "Dateien ausgewählt",
+    },
+  };
+  const m = (key: string) => modalCopy[locale][key] ?? modalCopy.en[key] ?? key;
   const titleByKind: Record<OperationKind, string> = {
-    booking: "Создать бронь",
-    contract: "Договор аренды",
-    customerDocument: "Документ клиента",
-    depositDocument: "Документ депозита / возврата",
-    depositReturn: "Возврат депозита",
-    expense: "Добавить расход",
-    gps: "Подключить GPS",
-    payment: "Провести оплату",
-    signature: "Электронная подпись",
-    service: "Создать техобслуживание",
-    vehicleDocument: "Документ автомобиля",
+    booking: m("title.booking"),
+    contract: m("title.contract"),
+    customerDocument: m("title.customerDocument"),
+    depositDocument: m("title.depositDocument"),
+    depositReturn: m("title.depositReturn"),
+    expense: m("title.expense"),
+    gps: m("title.gps"),
+    payment: m("title.payment"),
+    signature: m("title.signature"),
+    service: m("title.service"),
+    vehicleDocument: m("title.vehicleDocument"),
   };
 
   const showVehicle = ["booking", "expense", "gps", "service", "vehicleDocument"].includes(kind);
@@ -4136,7 +4444,7 @@ function OperationDialog({
       <form className="operation-modal" onSubmit={onSubmit}>
         <div className="modal-title">
           <div>
-            <span>FleetCore operation</span>
+            <span>{m("operation")}</span>
             <h2>{titleByKind[kind]}</h2>
           </div>
           <button onClick={onClose} type="button">×</button>
@@ -4144,7 +4452,7 @@ function OperationDialog({
 
         <div className="form-grid">
           {showVehicle ? (
-            <label>Автомобиль
+            <label>{m("vehicle")}
               <select value={form.vehicleId} onChange={(event) => patch("vehicleId", event.target.value)}>
                 {data.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.make} {vehicle.model} · {vehicle.plateNumber}</option>)}
               </select>
@@ -4152,7 +4460,7 @@ function OperationDialog({
           ) : null}
 
           {showCustomer ? (
-            <label>Клиент
+            <label>{m("customer")}
               <select value={form.customerId} onChange={(event) => patch("customerId", event.target.value)}>
                 {data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName} · {customer.phone}</option>)}
               </select>
@@ -4160,7 +4468,7 @@ function OperationDialog({
           ) : null}
 
           {showRental ? (
-            <label>Аренда
+            <label>{m("rental")}
               <select value={form.rentalId} onChange={(event) => patch("rentalId", event.target.value)}>
                 {data.rentals.map((rental) => {
                   const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
@@ -4173,62 +4481,62 @@ function OperationDialog({
 
           {kind === "booking" ? (
             <>
-              <label>Дата возврата<input type="datetime-local" value={form.returnAt} onChange={(event) => patch("returnAt", event.target.value)} /></label>
-              <label>Сумма аренды<input type="number" min="0" value={form.totalAmount} onChange={(event) => patch("totalAmount", event.target.value)} /></label>
-              <label>Депозит<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
+              <label>{m("returnAt")}<input type="datetime-local" value={form.returnAt} onChange={(event) => patch("returnAt", event.target.value)} /></label>
+              <label>{m("totalAmount")}<input type="number" min="0" value={form.totalAmount} onChange={(event) => patch("totalAmount", event.target.value)} /></label>
+              <label>{m("depositAmount")}<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
             </>
           ) : null}
 
           {kind === "expense" ? (
             <>
-              <label>Категория
+              <label>{m("category")}
                 <select value={form.category} onChange={(event) => patch("category", event.target.value)}>
-                  <option value="maintenance">Ремонт / ТО</option>
-                  <option value="insurance">Страховка</option>
-                  <option value="fuel">Топливо</option>
-                  <option value="cleaning">Мойка</option>
-                  <option value="parking">Парковка</option>
-                  <option value="other">Другое</option>
+                  <option value="maintenance">{m("maintenance")}</option>
+                  <option value="insurance">{m("insurance")}</option>
+                  <option value="fuel">{m("fuel")}</option>
+                  <option value="cleaning">{m("cleaning")}</option>
+                  <option value="parking">{m("parking")}</option>
+                  <option value="other">{m("other")}</option>
                 </select>
               </label>
-              <label>Сумма<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
-              <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
+              <label>{m("amount")}<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
+              <label className="wide-field">{m("note")}<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
             </>
           ) : null}
 
           {kind === "service" ? (
             <>
-              <label>Тип ТО
+              <label>{m("serviceType")}
                 <select value={form.serviceType} onChange={(event) => patch("serviceType", event.target.value)}>
-                  <option value="inspection">Техосмотр</option>
-                  <option value="oil">Масло</option>
-                  <option value="repair">Ремонт</option>
-                  <option value="tires">Шины</option>
-                  <option value="other">Другое</option>
+                  <option value="inspection">{m("inspection")}</option>
+                  <option value="oil">{m("oil")}</option>
+                  <option value="repair">{m("repair")}</option>
+                  <option value="tires">{m("tires")}</option>
+                  <option value="other">{m("other")}</option>
                 </select>
               </label>
-              <label>Дата<input type="date" value={form.serviceAt} onChange={(event) => patch("serviceAt", event.target.value)} /></label>
-              <label>Пробег<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
-              <label>Стоимость<input type="number" min="0" value={form.cost} onChange={(event) => patch("cost", event.target.value)} /></label>
-              <label>Статус
+              <label>{m("date")}<input type="date" value={form.serviceAt} onChange={(event) => patch("serviceAt", event.target.value)} /></label>
+              <label>{m("odometer")}<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
+              <label>{m("cost")}<input type="number" min="0" value={form.cost} onChange={(event) => patch("cost", event.target.value)} /></label>
+              <label>{m("status")}
                 <select value={form.status} onChange={(event) => patch("status", event.target.value)}>
-                  <option value="planned">Запланировано</option>
-                  <option value="completed">Выполнено</option>
+                  <option value="planned">{m("planned")}</option>
+                  <option value="completed">{m("completed")}</option>
                 </select>
               </label>
-              <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
+              <label className="wide-field">{m("note")}<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
             </>
           ) : null}
 
           {kind === "payment" ? (
             <>
-              <label>Инвойс
+              <label>{m("invoice")}
                 <select value={form.invoiceId} onChange={(event) => patch("invoiceId", event.target.value)}>
                   {data.invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} · {money.format(invoice.total)}</option>)}
                 </select>
               </label>
-              <label>Сумма<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
-              <label>Метод
+              <label>{m("amount")}<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
+              <label>{m("method")}
                 <select value={form.method} onChange={(event) => patch("method", event.target.value)}>
                   <option value="manual">Manual</option>
                   <option value="cash">Cash</option>
@@ -4237,7 +4545,7 @@ function OperationDialog({
                   <option value="stripe">Stripe</option>
                 </select>
               </label>
-              <label>Референс<input value={form.reference} onChange={(event) => patch("reference", event.target.value)} /></label>
+              <label>{m("reference")}<input value={form.reference} onChange={(event) => patch("reference", event.target.value)} /></label>
             </>
           ) : null}
 
@@ -4257,34 +4565,34 @@ function OperationDialog({
 
           {kind === "depositReturn" ? (
             <>
-              <label>Итоговая сумма аренды<input type="number" min="0" value={form.finalAmount} onChange={(event) => patch("finalAmount", event.target.value)} /></label>
-              <label>Сумма возврата депозита<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
-              <label>Пробег при возврате<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
-              <label className="wide-field">Комментарий<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
+              <label>{m("finalAmount")}<input type="number" min="0" value={form.finalAmount} onChange={(event) => patch("finalAmount", event.target.value)} /></label>
+              <label>{m("depositRefundAmount")}<input type="number" min="0" value={form.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
+              <label>{m("returnOdometer")}<input type="number" min="0" value={form.odometerKm} onChange={(event) => patch("odometerKm", event.target.value)} /></label>
+              <label className="wide-field">{m("note")}<input value={form.note} onChange={(event) => patch("note", event.target.value)} /></label>
             </>
           ) : null}
 
           {["contract", "customerDocument", "depositDocument", "signature", "vehicleDocument"].includes(kind) ? (
             <>
-              <label className="wide-field">Название документа<input value={form.documentTitle} placeholder="Можно оставить пустым" onChange={(event) => patch("documentTitle", event.target.value)} /></label>
+              <label className="wide-field">{m("documentTitle")}<input value={form.documentTitle} placeholder={m("documentPlaceholder")} onChange={(event) => patch("documentTitle", event.target.value)} /></label>
               {kind === "vehicleDocument" ? (
-                <label>Тип документа
+                <label>{m("documentType")}
                   <select value={form.documentType} onChange={(event) => patch("documentType", event.target.value)}>
-                    <option value="insurance">Страховка</option>
-                    <option value="registration">Регистрация</option>
-                    <option value="inspection">Техосмотр</option>
-                    <option value="rental_contract">Договор аренды</option>
-                    <option value="other">Другое</option>
+                    <option value="insurance">{m("insurance")}</option>
+                    <option value="registration">{m("registration")}</option>
+                    <option value="inspection">{m("inspection")}</option>
+                    <option value="rental_contract">{m("rentalContract")}</option>
+                    <option value="other">{m("other")}</option>
                   </select>
                 </label>
               ) : null}
               {kind === "customerDocument" ? (
-                <label>Тип документа
+                <label>{m("documentType")}
                   <select value={form.documentType} onChange={(event) => patch("documentType", event.target.value)}>
-                    <option value="passport">Паспорт</option>
-                    <option value="id_card">ID card</option>
-                    <option value="driver_license">Водительские права</option>
-                    <option value="other">Другое</option>
+                    <option value="passport">{m("passport")}</option>
+                    <option value="id_card">{m("idCard")}</option>
+                    <option value="driver_license">{m("driverLicense")}</option>
+                    <option value="other">{m("other")}</option>
                   </select>
                 </label>
               ) : null}
@@ -4292,9 +4600,9 @@ function OperationDialog({
           ) : null}
 
           {showFiles ? (
-            <label className="file-drop wide-field">Файлы
+            <label className="file-drop wide-field">{m("files")}
               <input multiple type="file" onChange={(event) => onFiles(event.currentTarget.files)} />
-              <span>{files?.length ? `Выбрано файлов: ${files.length}` : kind === "contract" ? "Можно выбрать файл или создать договор без файла" : "Выберите файл"}</span>
+              <span>{files?.length ? `${m("filesSelected")}: ${files.length}` : kind === "contract" ? m("fileContractHint") : m("fileChoose")}</span>
             </label>
           ) : null}
         </div>
