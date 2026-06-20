@@ -114,6 +114,14 @@ const uiCopy = {
     "auth.resetPassword": "Reset password",
     "auth.register": "Create account",
     "auth.registerTitle": "Register B2B company",
+    "auth.choiceLoginTitle": "Sign in",
+    "auth.choiceLoginText": "For owner or manager",
+    "auth.choiceRegisterTitle": "Create company",
+    "auth.choiceRegisterText": "New B2B account",
+    "auth.choiceDemoTitle": "Demo",
+    "auth.choiceDemoText": "Explore SaaS without registration",
+    "auth.previewTitle": "B2B data isolation",
+    "auth.previewText": "Each company gets its own tenant, owner account, fleet, customers, rentals and finances.",
     "drawer.planSubtitle": "FleetCore premium workspace",
     "drawer.profileTeam": "Profile and team",
     "drawer.switchAccount": "Sign in with another account",
@@ -187,6 +195,41 @@ const uiCopy = {
     "vehicle.service": "Service",
     "vehicle.serviceCreate": "Create service",
     "vehicle.uploadDocument": "Upload document",
+    "command.kicker": "FleetCore Command",
+    "command.title": "Fleet operations center",
+    "command.subtitle": "Run the most frequent actions in one click without moving between sections.",
+    "command.returns": "Returns",
+    "command.overdue": "Overdue",
+    "command.documents": "Documents",
+    "command.contracts": "Contracts",
+    "command.newBooking": "New booking",
+    "command.vehicle": "Vehicle",
+    "command.customer": "Customer",
+    "command.document": "Document",
+    "command.expense": "Expense",
+    "command.service": "Service",
+    "customer.add": "Add customer",
+    "customer.assignVehicle": "Attach vehicle to this customer",
+    "customer.noAvailableVehicle": "No available vehicle is ready for this customer.",
+    "customer.createVehicleFirst": "Add vehicle first",
+    "customer.vehicle": "Customer vehicle",
+    "customer.vehiclePlaceholder": "Choose an available vehicle",
+    "customer.saved": "Customer saved",
+    "customer.creating": "Creating customer...",
+    "customer.assigning": "Attaching vehicle to customer...",
+    "customer.noVehicleForAssign": "No available vehicle to attach. Add a vehicle first.",
+    "customer.assigned": "Customer attached to vehicle",
+    "form.displayName": "Full name",
+    "form.email": "Email",
+    "form.phone": "Phone",
+    "form.make": "Make",
+    "form.model": "Model",
+    "form.year": "Year",
+    "form.plateNumber": "Plate number",
+    "form.vin": "VIN",
+    "form.location": "Location",
+    "form.odometerKm": "Mileage, km",
+    "form.dailyRate": "Daily rate",
     "nav.Bookings": "Bookings",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Clients",
@@ -227,6 +270,14 @@ const uiCopy = {
     "auth.resetPassword": "Восстановить пароль",
     "auth.register": "Создать аккаунт",
     "auth.registerTitle": "Регистрация B2B-компании",
+    "auth.choiceLoginTitle": "Войти",
+    "auth.choiceLoginText": "Для владельца или менеджера",
+    "auth.choiceRegisterTitle": "Создать компанию",
+    "auth.choiceRegisterText": "Новый B2B аккаунт",
+    "auth.choiceDemoTitle": "Демо",
+    "auth.choiceDemoText": "Посмотреть SaaS без регистрации",
+    "auth.previewTitle": "B2B изоляция данных",
+    "auth.previewText": "Каждая компания получает свой tenant, owner-аккаунт, автопарк, клиентов, аренды и финансы.",
     "drawer.planSubtitle": "Премиальное рабочее пространство FleetCore",
     "drawer.profileTeam": "Профиль и команда",
     "drawer.switchAccount": "Войти другим аккаунтом",
@@ -300,6 +351,41 @@ const uiCopy = {
     "vehicle.service": "Сервис",
     "vehicle.serviceCreate": "Создать ТО",
     "vehicle.uploadDocument": "Загрузить документ",
+    "command.kicker": "FleetCore Command",
+    "command.title": "Рабочий центр автопарка",
+    "command.subtitle": "Самые частые действия доступны в один клик без перехода по разделам.",
+    "command.returns": "Возвраты",
+    "command.overdue": "Просрочки",
+    "command.documents": "Документы",
+    "command.contracts": "Договоры",
+    "command.newBooking": "Новая бронь",
+    "command.vehicle": "Автомобиль",
+    "command.customer": "Клиент",
+    "command.document": "Документ",
+    "command.expense": "Расход",
+    "command.service": "ТО",
+    "customer.add": "Добавить клиента",
+    "customer.assignVehicle": "Добавить к этому клиенту автомобиль",
+    "customer.noAvailableVehicle": "Нет свободного автомобиля для этого клиента.",
+    "customer.createVehicleFirst": "Сначала добавить автомобиль",
+    "customer.vehicle": "Автомобиль клиента",
+    "customer.vehiclePlaceholder": "Выберите свободный автомобиль",
+    "customer.saved": "Клиент сохранен",
+    "customer.creating": "Создаем клиента...",
+    "customer.assigning": "Закрепляем автомобиль за клиентом...",
+    "customer.noVehicleForAssign": "Нет свободного автомобиля для закрепления. Сначала добавьте автомобиль.",
+    "customer.assigned": "Клиент закреплен за автомобилем",
+    "form.displayName": "Имя и фамилия",
+    "form.email": "Email",
+    "form.phone": "Телефон",
+    "form.make": "Марка",
+    "form.model": "Модель",
+    "form.year": "Год",
+    "form.plateNumber": "Госномер",
+    "form.vin": "VIN",
+    "form.location": "Локация",
+    "form.odometerKm": "Пробег, км",
+    "form.dailyRate": "Цена в день",
     "nav.Bookings": "Брони",
     "nav.Dashboard": "Главная",
     "nav.Drivers/Clients": "Клиенты",
@@ -340,6 +426,14 @@ const uiCopy = {
     "auth.resetPassword": "Restablecer contraseña",
     "auth.register": "Crear cuenta",
     "auth.registerTitle": "Registrar empresa B2B",
+    "auth.choiceLoginTitle": "Entrar",
+    "auth.choiceLoginText": "Para propietario o gestor",
+    "auth.choiceRegisterTitle": "Crear empresa",
+    "auth.choiceRegisterText": "Nueva cuenta B2B",
+    "auth.choiceDemoTitle": "Demo",
+    "auth.choiceDemoText": "Ver el SaaS sin registro",
+    "auth.previewTitle": "Aislamiento de datos B2B",
+    "auth.previewText": "Cada empresa obtiene su propio tenant, cuenta de propietario, flota, clientes, alquileres y finanzas.",
     "drawer.planSubtitle": "Espacio premium de FleetCore",
     "drawer.profileTeam": "Perfil y equipo",
     "drawer.switchAccount": "Entrar con otra cuenta",
@@ -413,6 +507,41 @@ const uiCopy = {
     "vehicle.service": "Servicio",
     "vehicle.serviceCreate": "Crear servicio",
     "vehicle.uploadDocument": "Subir documento",
+    "command.kicker": "FleetCore Command",
+    "command.title": "Centro operativo de flota",
+    "command.subtitle": "Ejecuta las acciones más frecuentes con un clic sin cambiar de sección.",
+    "command.returns": "Devoluciones",
+    "command.overdue": "Vencidos",
+    "command.documents": "Documentos",
+    "command.contracts": "Contratos",
+    "command.newBooking": "Nueva reserva",
+    "command.vehicle": "Vehículo",
+    "command.customer": "Cliente",
+    "command.document": "Documento",
+    "command.expense": "Gasto",
+    "command.service": "Servicio",
+    "customer.add": "Añadir cliente",
+    "customer.assignVehicle": "Asignar vehículo a este cliente",
+    "customer.noAvailableVehicle": "No hay vehículo disponible para este cliente.",
+    "customer.createVehicleFirst": "Añadir vehículo primero",
+    "customer.vehicle": "Vehículo del cliente",
+    "customer.vehiclePlaceholder": "Elige un vehículo disponible",
+    "customer.saved": "Cliente guardado",
+    "customer.creating": "Creando cliente...",
+    "customer.assigning": "Asignando vehículo al cliente...",
+    "customer.noVehicleForAssign": "No hay vehículo disponible para asignar. Añade un vehículo primero.",
+    "customer.assigned": "Cliente asignado al vehículo",
+    "form.displayName": "Nombre completo",
+    "form.email": "Email",
+    "form.phone": "Teléfono",
+    "form.make": "Marca",
+    "form.model": "Modelo",
+    "form.year": "Año",
+    "form.plateNumber": "Matrícula",
+    "form.vin": "VIN",
+    "form.location": "Ubicación",
+    "form.odometerKm": "Kilometraje, km",
+    "form.dailyRate": "Tarifa diaria",
     "nav.Bookings": "Reservas",
     "nav.Dashboard": "Panel",
     "nav.Drivers/Clients": "Clientes",
@@ -453,6 +582,14 @@ const uiCopy = {
     "auth.resetPassword": "Réinitialiser le mot de passe",
     "auth.register": "Créer un compte",
     "auth.registerTitle": "Inscription société B2B",
+    "auth.choiceLoginTitle": "Connexion",
+    "auth.choiceLoginText": "Pour propriétaire ou manager",
+    "auth.choiceRegisterTitle": "Créer société",
+    "auth.choiceRegisterText": "Nouveau compte B2B",
+    "auth.choiceDemoTitle": "Démo",
+    "auth.choiceDemoText": "Voir le SaaS sans inscription",
+    "auth.previewTitle": "Isolation des données B2B",
+    "auth.previewText": "Chaque société obtient son propre tenant, compte propriétaire, flotte, clients, locations et finances.",
     "drawer.planSubtitle": "Espace premium FleetCore",
     "drawer.profileTeam": "Profil et équipe",
     "drawer.switchAccount": "Se connecter avec un autre compte",
@@ -526,6 +663,41 @@ const uiCopy = {
     "vehicle.service": "Service",
     "vehicle.serviceCreate": "Créer maintenance",
     "vehicle.uploadDocument": "Téléverser document",
+    "command.kicker": "FleetCore Command",
+    "command.title": "Centre opérations flotte",
+    "command.subtitle": "Lancez les actions fréquentes en un clic sans changer de section.",
+    "command.returns": "Retours",
+    "command.overdue": "Retards",
+    "command.documents": "Documents",
+    "command.contracts": "Contrats",
+    "command.newBooking": "Nouvelle réservation",
+    "command.vehicle": "Véhicule",
+    "command.customer": "Client",
+    "command.document": "Document",
+    "command.expense": "Dépense",
+    "command.service": "Service",
+    "customer.add": "Ajouter un client",
+    "customer.assignVehicle": "Associer un véhicule à ce client",
+    "customer.noAvailableVehicle": "Aucun véhicule disponible pour ce client.",
+    "customer.createVehicleFirst": "Ajouter un véhicule d'abord",
+    "customer.vehicle": "Véhicule du client",
+    "customer.vehiclePlaceholder": "Choisir un véhicule disponible",
+    "customer.saved": "Client enregistré",
+    "customer.creating": "Création du client...",
+    "customer.assigning": "Association du véhicule au client...",
+    "customer.noVehicleForAssign": "Aucun véhicule disponible à associer. Ajoutez d'abord un véhicule.",
+    "customer.assigned": "Client associé au véhicule",
+    "form.displayName": "Nom complet",
+    "form.email": "Email",
+    "form.phone": "Téléphone",
+    "form.make": "Marque",
+    "form.model": "Modèle",
+    "form.year": "Année",
+    "form.plateNumber": "Immatriculation",
+    "form.vin": "VIN",
+    "form.location": "Emplacement",
+    "form.odometerKm": "Kilométrage, km",
+    "form.dailyRate": "Tarif jour",
     "nav.Bookings": "Réservations",
     "nav.Dashboard": "Tableau",
     "nav.Drivers/Clients": "Clients",
@@ -566,6 +738,14 @@ const uiCopy = {
     "auth.resetPassword": "Passwort zurücksetzen",
     "auth.register": "Konto erstellen",
     "auth.registerTitle": "B2B-Firma registrieren",
+    "auth.choiceLoginTitle": "Anmelden",
+    "auth.choiceLoginText": "Für Inhaber oder Manager",
+    "auth.choiceRegisterTitle": "Firma erstellen",
+    "auth.choiceRegisterText": "Neues B2B-Konto",
+    "auth.choiceDemoTitle": "Demo",
+    "auth.choiceDemoText": "SaaS ohne Registrierung ansehen",
+    "auth.previewTitle": "B2B-Datenisolation",
+    "auth.previewText": "Jede Firma erhält eigenen Tenant, Inhaber-Konto, Flotte, Kunden, Mieten und Finanzen.",
     "drawer.planSubtitle": "Premium-Arbeitsbereich von FleetCore",
     "drawer.profileTeam": "Profil und Team",
     "drawer.switchAccount": "Mit anderem Konto anmelden",
@@ -639,6 +819,41 @@ const uiCopy = {
     "vehicle.service": "Service",
     "vehicle.serviceCreate": "Service erstellen",
     "vehicle.uploadDocument": "Dokument hochladen",
+    "command.kicker": "FleetCore Command",
+    "command.title": "Flotten-Leitstelle",
+    "command.subtitle": "Häufige Aktionen mit einem Klick ausführen, ohne Bereiche zu wechseln.",
+    "command.returns": "Rückgaben",
+    "command.overdue": "Überfällig",
+    "command.documents": "Dokumente",
+    "command.contracts": "Verträge",
+    "command.newBooking": "Neue Buchung",
+    "command.vehicle": "Fahrzeug",
+    "command.customer": "Kunde",
+    "command.document": "Dokument",
+    "command.expense": "Kosten",
+    "command.service": "Service",
+    "customer.add": "Kunde hinzufügen",
+    "customer.assignVehicle": "Fahrzeug diesem Kunden zuordnen",
+    "customer.noAvailableVehicle": "Kein verfügbares Fahrzeug für diesen Kunden.",
+    "customer.createVehicleFirst": "Zuerst Fahrzeug hinzufügen",
+    "customer.vehicle": "Kundenfahrzeug",
+    "customer.vehiclePlaceholder": "Verfügbares Fahrzeug wählen",
+    "customer.saved": "Kunde gespeichert",
+    "customer.creating": "Kunde wird erstellt...",
+    "customer.assigning": "Fahrzeug wird dem Kunden zugeordnet...",
+    "customer.noVehicleForAssign": "Kein verfügbares Fahrzeug zum Zuordnen. Fügen Sie zuerst ein Fahrzeug hinzu.",
+    "customer.assigned": "Kunde dem Fahrzeug zugeordnet",
+    "form.displayName": "Vollständiger Name",
+    "form.email": "E-Mail",
+    "form.phone": "Telefon",
+    "form.make": "Marke",
+    "form.model": "Modell",
+    "form.year": "Jahr",
+    "form.plateNumber": "Kennzeichen",
+    "form.vin": "VIN",
+    "form.location": "Standort",
+    "form.odometerKm": "Kilometerstand, km",
+    "form.dailyRate": "Tagespreis",
     "nav.Bookings": "Buchungen",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Kunden",
@@ -1163,16 +1378,16 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
         <LanguageSelect locale={locale} onChange={onLocaleChange} />
         <div className="auth-choice-grid">
           <button className={mode === "login" ? "active" : ""} disabled={loading} onClick={() => setMode("login")} type="button">
-            <strong>Войти</strong>
-            <span>Для владельца или менеджера</span>
+            <strong>{t("auth.choiceLoginTitle")}</strong>
+            <span>{t("auth.choiceLoginText")}</span>
           </button>
           <button className={mode === "register" ? "active" : ""} disabled={loading} onClick={() => setMode("register")} type="button">
-            <strong>Создать компанию</strong>
-            <span>Новый B2B аккаунт</span>
+            <strong>{t("auth.choiceRegisterTitle")}</strong>
+            <span>{t("auth.choiceRegisterText")}</span>
           </button>
           <button disabled={loading} onClick={() => void loginDemo()} type="button">
-            <strong>Демо</strong>
-            <span>Посмотреть SaaS без регистрации</span>
+            <strong>{t("auth.choiceDemoTitle")}</strong>
+            <span>{t("auth.choiceDemoText")}</span>
           </button>
         </div>
         <div className="auth-tabs">
@@ -1216,8 +1431,8 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
           <CarPin className="pin-four" color="orange" label="Camry" />
         </div>
         <div className="preview-card">
-          <strong>B2B изоляция данных</strong>
-          <span>Каждая компания получает свой tenant, owner-аккаунт, автопарк, клиентов, аренды и финансы.</span>
+          <strong>{t("auth.previewTitle")}</strong>
+          <span>{t("auth.previewText")}</span>
         </div>
       </section>
     </main>
@@ -1495,10 +1710,10 @@ export default function DashboardClient() {
     [t("dashboard.todayRevenue"), money.format(incomeToday), "green"],
   ] as const;
   const workflowStats = [
-    { label: "Возвраты", value: data.rentals.filter((rental) => rental.status === "return_due").length, tone: "orange" },
-    { label: "Просрочки", value: notifications.filter((item) => item.tone === "red").length, tone: "red" },
-    { label: "Документы", value: data.documents.length + data.customerDocuments.length, tone: "blue" },
-    { label: "Договоры", value: data.rentalContracts.length, tone: "green" },
+    { label: t("command.returns"), value: data.rentals.filter((rental) => rental.status === "return_due").length, tone: "orange" },
+    { label: t("command.overdue"), value: notifications.filter((item) => item.tone === "red").length, tone: "red" },
+    { label: t("command.documents"), value: data.documents.length + data.customerDocuments.length, tone: "blue" },
+    { label: t("command.contracts"), value: data.rentalContracts.length, tone: "green" },
   ];
 
   function openOperation(kind: OperationKind) {
@@ -1685,12 +1900,12 @@ export default function DashboardClient() {
 
   async function submitVehicle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await runAction("Создаем автомобиль...", async () => {
+    await runAction(`${t("vehicle.add")}...`, async () => {
       const created = await createVehicleRecord();
       setVehicleForm((current) => ({ ...current, plateNumber: `WA-${Date.now().toString().slice(-5)}`, vin: `VIN${Date.now().toString().slice(-10)}` }));
       setSelectedVehicleId(created.id);
       await loadData();
-      setMessage("Автомобиль сохранен");
+      setMessage(t("vehicle.save"));
     });
   }
 
@@ -1713,23 +1928,23 @@ export default function DashboardClient() {
 
   async function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await runAction("Создаем клиента...", async () => {
+    await runAction(t("customer.creating"), async () => {
       await createCustomerRecord();
       setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com`, vehicleId: "" }));
       await loadData();
-      setMessage("Клиент сохранен");
+      setMessage(t("customer.saved"));
     });
   }
 
   async function assignVehicleToNewCustomer() {
-    await runAction("Закрепляем автомобиль за клиентом...", async () => {
+    await runAction(t("customer.assigning"), async () => {
       const unavailableVehicleIds = new Set(data.rentals.filter((rental) => rental.status !== "closed").map((rental) => rental.vehicleId));
       const vehicle = data.vehicles.find((item) => item.id === customerForm.vehicleId)
         ?? data.vehicles.find((item) => item.status === "available" && !unavailableVehicleIds.has(item.id))
         ?? data.vehicles.find((item) => !unavailableVehicleIds.has(item.id));
 
       if (!vehicle) {
-        setMessage("Нет свободного автомобиля для закрепления");
+        setMessage(t("customer.noVehicleForAssign"));
         return;
       }
 
@@ -1757,7 +1972,7 @@ export default function DashboardClient() {
       setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com`, vehicleId: "" }));
       setSelectedVehicleId(vehicle.id);
       await loadData();
-      setMessage(`${customer.displayName} закреплен за ${vehicle.make} ${vehicle.model}`);
+      setMessage(`${customer.displayName}: ${t("customer.assigned")} ${vehicle.make} ${vehicle.model}`);
     });
   }
 
@@ -2746,9 +2961,9 @@ export default function DashboardClient() {
 
         <section className="command-center" aria-label="FleetCore command center">
           <div className="command-copy">
-            <span className="eyebrow">FleetCore Command</span>
-            <strong>{busyAction ? busyAction : "Рабочий центр автопарка"}</strong>
-            <p>{message || "Самые частые действия доступны в один клик без перехода по разделам."}</p>
+            <span className="eyebrow">{t("command.kicker")}</span>
+            <strong>{busyAction ? busyAction : t("command.title")}</strong>
+            <p>{message || t("command.subtitle")}</p>
           </div>
           <div className="workflow-stats">
             {workflowStats.map((item) => (
@@ -2759,12 +2974,12 @@ export default function DashboardClient() {
             ))}
           </div>
           <div className="command-actions">
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Новая бронь</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">Автомобиль</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">Клиент</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Документ</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Расход</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">ТО</button>
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">{t("command.newBooking")}</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">{t("command.vehicle")}</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">{t("command.customer")}</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
           </div>
         </section>
@@ -2873,7 +3088,7 @@ export default function DashboardClient() {
                 })}
               </div>
             </div>
-            <VehicleForm form={vehicleForm} formRef={vehicleCreateRef} setForm={setVehicleForm} onSubmit={submitVehicle} />
+            <VehicleForm form={vehicleForm} formRef={vehicleCreateRef} locale={locale} setForm={setVehicleForm} onSubmit={submitVehicle} />
           </section>
         ) : null}
 
@@ -2892,7 +3107,9 @@ export default function DashboardClient() {
               <CustomerForm
                 form={customerForm}
                 formRef={customerCreateRef}
+                locale={locale}
                 onAssignVehicle={() => void assignVehicleToNewCustomer()}
+                onCreateVehicle={openVehicleCreate}
                 onSubmit={submitCustomer}
                 rentals={data.rentals}
                 setForm={setCustomerForm}
@@ -4091,16 +4308,16 @@ function OperationDialog({
   );
 }
 
-function VehicleForm({ form, formRef, onSubmit, setForm }: { form: Record<string, string>; formRef: RefObject<HTMLFormElement | null>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
+function VehicleForm({ form, formRef, locale, onSubmit, setForm }: { form: Record<string, string>; formRef: RefObject<HTMLFormElement | null>; locale: Locale; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
   return (
     <form className="live-form" onSubmit={onSubmit} ref={formRef}>
-      <h2>Добавить автомобиль</h2>
+      <h2>{translate(locale, "vehicle.add")}</h2>
       <div className="form-grid single">
         {(["make", "model", "year", "plateNumber", "vin", "location", "odometerKm", "dailyRate"] as const).map((key) => (
-          <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
+          <label key={key}>{translate(locale, `form.${key}`)}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
         ))}
       </div>
-      <button className="primary-button full" type="submit">Сохранить авто</button>
+      <button className="primary-button full" type="submit">{translate(locale, "vehicle.save")}</button>
     </form>
   );
 }
@@ -4108,7 +4325,9 @@ function VehicleForm({ form, formRef, onSubmit, setForm }: { form: Record<string
 function CustomerForm({
   form,
   formRef,
+  locale,
   onAssignVehicle,
+  onCreateVehicle,
   onSubmit,
   rentals,
   setForm,
@@ -4116,7 +4335,9 @@ function CustomerForm({
 }: {
   form: Record<string, string>;
   formRef: RefObject<HTMLFormElement | null>;
+  locale: Locale;
   onAssignVehicle: () => void;
+  onCreateVehicle: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   rentals: Rental[];
   setForm: (form: any) => void;
@@ -4124,27 +4345,34 @@ function CustomerForm({
 }) {
   const unavailableVehicleIds = new Set(rentals.filter((rental) => rental.status !== "closed").map((rental) => rental.vehicleId));
   const availableVehicles = vehicles.filter((vehicle) => vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id));
+  const hasVehicles = vehicles.length > 0;
 
   return (
     <form className="live-form" onSubmit={onSubmit} ref={formRef}>
-      <h2>Добавить клиента</h2>
+      <h2>{translate(locale, "customer.add")}</h2>
       <div className="form-grid single">
         {(["displayName", "email", "phone"] as const).map((key) => (
-          <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
+          <label key={key}>{translate(locale, `form.${key}`)}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
         ))}
-        <label>Автомобиль клиента
-          <select value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })}>
-            <option value="">Выберите свободный автомобиль</option>
+        <label>{translate(locale, "customer.vehicle")}
+          <select disabled={!availableVehicles.length} value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })}>
+            <option value="">{availableVehicles.length ? translate(locale, "customer.vehiclePlaceholder") : translate(locale, "customer.noAvailableVehicle")}</option>
             {availableVehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>{vehicle.make} {vehicle.model} · {vehicle.plateNumber} · €{vehicle.dailyRate}/день</option>
             ))}
           </select>
         </label>
       </div>
-      <button className="primary-button full" type="submit">Сохранить клиента</button>
-      <button className="ghost-button full-button customer-assign-vehicle" disabled={!availableVehicles.length} onClick={onAssignVehicle} type="button">
-        Добавить к этому клиенту автомобиль
-      </button>
+      <button className="primary-button full" type="submit">{translate(locale, "common.save")}</button>
+      {availableVehicles.length ? (
+        <button className="ghost-button full-button customer-assign-vehicle" onClick={onAssignVehicle} type="button">
+          {translate(locale, "customer.assignVehicle")}
+        </button>
+      ) : (
+        <button className="ghost-button full-button customer-create-vehicle" onClick={onCreateVehicle} type="button">
+          {hasVehicles ? translate(locale, "customer.noAvailableVehicle") : translate(locale, "customer.createVehicleFirst")}
+        </button>
+      )}
     </form>
   );
 }
