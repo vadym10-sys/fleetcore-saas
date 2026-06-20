@@ -1,9 +1,9 @@
-import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
 import { createId } from "../lib/http.js";
-import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalContract, mapRentalContractEvent, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
+import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalChecklist, mapRentalContract, mapRentalContractEvent, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
 import type {
   customerInput,
   customerPatchInput,
@@ -18,6 +18,7 @@ import type {
   registerCompanyInput,
   rentalReturnInput,
   rentalContractInput,
+  rentalChecklistInput,
   rentalInput,
   rentalPatchInput,
   serviceRecordInput,
@@ -35,6 +36,7 @@ type CustomerInput = z.infer<typeof customerInput>;
 type CustomerPatchInput = z.infer<typeof customerPatchInput>;
 type RentalInput = z.infer<typeof rentalInput>;
 type RentalPatchInput = z.infer<typeof rentalPatchInput>;
+type RentalChecklistInput = z.infer<typeof rentalChecklistInput>;
 type InvoiceInput = z.infer<typeof invoiceInput>;
 type InvoicePatchInput = z.infer<typeof invoicePatchInput>;
 type PaymentInput = z.infer<typeof paymentInput>;
@@ -630,6 +632,61 @@ export async function createRental(scope: TenantScope, input: RentalInput): Prom
     ],
   );
   return mapRental(result.rows[0]);
+}
+
+export async function listRentalChecklists(scope: TenantScope, rentalId?: string): Promise<RentalChecklist[]> {
+  const result = await pool.query(
+    `select *
+     from rental_checklists
+     where tenant_id = $1
+       and company_id = $2
+       and ($3::text is null or rental_id = $3)
+     order by created_at desc`,
+    [scope.tenantId, scope.companyId, rentalId ?? null],
+  );
+  return result.rows.map(mapRentalChecklist);
+}
+
+export async function upsertRentalChecklist(scope: TenantScope, input: RentalChecklistInput): Promise<RentalChecklist | undefined> {
+  const rental = await getRental(scope, input.rentalId);
+  if (!rental) return undefined;
+
+  const result = await pool.query(
+    `insert into rental_checklists (
+      id, tenant_id, company_id, rental_id, vehicle_id, customer_id, phase,
+      odometer_km, fuel_level, exterior_ok, interior_ok, documents_ok, deposit_confirmed, notes, photo_urls
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)
+    on conflict (tenant_id, company_id, rental_id, phase)
+    do update set
+      odometer_km = excluded.odometer_km,
+      fuel_level = excluded.fuel_level,
+      exterior_ok = excluded.exterior_ok,
+      interior_ok = excluded.interior_ok,
+      documents_ok = excluded.documents_ok,
+      deposit_confirmed = excluded.deposit_confirmed,
+      notes = excluded.notes,
+      photo_urls = excluded.photo_urls,
+      updated_at = now()
+    returning *`,
+    [
+      createId("chk"),
+      scope.tenantId,
+      scope.companyId,
+      rental.id,
+      rental.vehicleId,
+      rental.customerId,
+      input.phase,
+      input.odometerKm,
+      input.fuelLevel,
+      input.exteriorOk,
+      input.interiorOk,
+      input.documentsOk,
+      input.depositConfirmed,
+      input.notes,
+      JSON.stringify(input.photoUrls),
+    ],
+  );
+  return mapRentalChecklist(result.rows[0]);
 }
 
 export async function updateRental(scope: TenantScope, rentalId: string, input: RentalPatchInput) {

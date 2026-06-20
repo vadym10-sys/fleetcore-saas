@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 type DbRow = Record<string, unknown>;
 
@@ -98,6 +98,28 @@ export function mapRental(row: DbRow): Rental {
     returnAt: iso(row.return_at),
     totalAmount: number(row.total_amount),
     depositAmount: number(row.deposit_amount),
+  };
+}
+
+export function mapRentalChecklist(row: DbRow): RentalChecklist {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    rentalId: String(row.rental_id),
+    vehicleId: String(row.vehicle_id),
+    customerId: String(row.customer_id),
+    phase: row.phase as RentalChecklist["phase"],
+    odometerKm: number(row.odometer_km),
+    fuelLevel: number(row.fuel_level),
+    exteriorOk: Boolean(row.exterior_ok),
+    interiorOk: Boolean(row.interior_ok),
+    documentsOk: Boolean(row.documents_ok),
+    depositConfirmed: Boolean(row.deposit_confirmed),
+    notes: String(row.notes),
+    photoUrls: Array.isArray(row.photo_urls) ? row.photo_urls.map(String) : [],
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
   };
 }
 

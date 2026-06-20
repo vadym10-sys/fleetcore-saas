@@ -212,6 +212,26 @@ export interface RentalContractEvent {
   createdAt: string;
 }
 
+export interface RentalChecklist {
+  id: string;
+  tenantId: TenantId;
+  companyId: string;
+  rentalId: string;
+  vehicleId: string;
+  customerId: string;
+  phase: "pickup" | "return";
+  odometerKm: number;
+  fuelLevel: number;
+  exteriorOk: boolean;
+  interiorOk: boolean;
+  documentsOk: boolean;
+  depositConfirmed: boolean;
+  notes: string;
+  photoUrls: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FileObject extends TenantScopedEntity {
   companyId: string;
   originalName: string;

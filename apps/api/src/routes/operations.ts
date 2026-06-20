@@ -8,15 +8,17 @@ import {
   getPublicRentalContract,
   listCustomerDocuments,
   listExpenses,
+  listRentalChecklists,
   listRentalContractEvents,
   listRentalContracts,
   listServiceRecords,
   signPublicRentalContract,
+  upsertRentalChecklist,
   writeAuditLog,
 } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
-import { customerDocumentInput, expenseInput, publicContractSignatureInput, rentalContractInput, serviceRecordInput } from "../schemas.js";
+import { customerDocumentInput, expenseInput, publicContractSignatureInput, rentalChecklistInput, rentalContractInput, serviceRecordInput } from "../schemas.js";
 
 function htmlEscape(value: string) {
   return value
@@ -161,6 +163,39 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   app.get("/operations/rental-contract-events", async (request) => {
     const { contractId } = request.query as { contractId?: string };
     return envelope(await listRentalContractEvents(getTenantScope(request), contractId));
+  });
+
+  app.get("/operations/rental-checklists", async (request) => {
+    const { rentalId } = request.query as { rentalId?: string };
+    return envelope(await listRentalChecklists(getTenantScope(request), rentalId));
+  });
+
+  app.post("/operations/rental-checklists", async (request, reply) => {
+    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;
+
+    const parsed = rentalChecklistInput.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid rental checklist payload", issues: parsed.error.flatten() });
+    }
+
+    const scope = getTenantScope(request);
+    const checklist = await upsertRentalChecklist(scope, parsed.data);
+    if (!checklist) {
+      return reply.code(422).send({ error: "Rental does not exist" });
+    }
+
+    const user = getRequestUser(request);
+    await writeAuditLog({
+      action: "rental.checklist.upserted",
+      actorEmail: user?.email,
+      companyId: scope.companyId,
+      entityId: checklist.id,
+      entityType: "rental_checklist",
+      metadata: { phase: checklist.phase, rentalId: checklist.rentalId, vehicleId: checklist.vehicleId },
+      tenantId: scope.tenantId,
+      userId: user?.id,
+    });
+    return reply.code(201).send(envelope(checklist));
   });
 
   app.get("/operations/rental-contracts/public/:contractId", async (request, reply) => {

@@ -548,6 +548,35 @@ test("authenticated API can manage business operations", async () => {
   assert.equal(customerDocument.statusCode, 201);
   assert.equal(customerDocument.json().data.customerId, customer.id);
 
+  const checklist = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      depositConfirmed: true,
+      documentsOk: true,
+      exteriorOk: true,
+      fuelLevel: 80,
+      interiorOk: true,
+      notes: "Pickup checklist",
+      odometerKm: vehicle.odometerKm,
+      phase: "pickup",
+      photoUrls: [],
+      rentalId: rental.id,
+    },
+    url: "/operations/rental-checklists",
+  });
+  assert.equal(checklist.statusCode, 201);
+  assert.equal(checklist.json().data.rentalId, rental.id);
+  assert.equal(checklist.json().data.phase, "pickup");
+
+  const checklists = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: `/operations/rental-checklists?rentalId=${rental.id}`,
+  });
+  assert.equal(checklists.statusCode, 200);
+  assert.ok(checklists.json().data.some((item: { phase: string }) => item.phase === "pickup"));
+
   const contract = await app.inject({
     headers: { authorization: `Bearer ${token}` },
     method: "POST",

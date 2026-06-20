@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -55,6 +55,7 @@ type AppData = {
   rentals: Rental[];
   customerDocuments: CustomerDocument[];
   expenses: Expense[];
+  rentalChecklists: RentalChecklist[];
   rentalContracts: RentalContract[];
   rentalContractEvents: RentalContractEvent[];
   serviceRecords: ServiceRecord[];
@@ -1164,6 +1165,7 @@ export default function DashboardClient() {
     rentals: [],
     customerDocuments: [],
     expenses: [],
+    rentalChecklists: [],
     rentalContracts: [],
     rentalContractEvents: [],
     serviceRecords: [],
@@ -1230,7 +1232,7 @@ export default function DashboardClient() {
     setLoading(true);
     try {
       const canManageTeam = session?.user.role === "owner" || session?.user.role === "admin";
-      const [company, metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents, teamUsers] = await Promise.all([
+      const [company, metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents, rentalChecklists, teamUsers] = await Promise.all([
         api<Company>(`/companies/${session?.companyId ?? ""}`, {}, currentToken),
         api<DashboardMetrics>("/dashboard", {}, currentToken),
         api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
@@ -1246,6 +1248,7 @@ export default function DashboardClient() {
         api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
         api<RentalContract[]>("/operations/rental-contracts", {}, currentToken),
         api<RentalContractEvent[]>("/operations/rental-contract-events", {}, currentToken),
+        api<RentalChecklist[]>("/operations/rental-checklists", {}, currentToken),
         canManageTeam ? api<User[]>("/auth/team", {}, currentToken) : Promise.resolve({ data: session?.user ? [session.user] : [] }),
       ]);
 
@@ -1261,6 +1264,7 @@ export default function DashboardClient() {
         rentals: rentals.data,
         customerDocuments: customerDocuments.data,
         expenses: expenses.data,
+        rentalChecklists: rentalChecklists.data,
         rentalContracts: rentalContracts.data,
         rentalContractEvents: rentalContractEvents.data,
         serviceRecords: serviceRecords.data,
@@ -2106,6 +2110,30 @@ export default function DashboardClient() {
     });
   }
 
+  async function createRentalChecklist(phase: RentalChecklist["phase"], rentalOverride?: Rental) {
+    await runAction(phase === "pickup" ? "Сохраняем чек-лист выдачи..." : "Сохраняем чек-лист возврата...", async () => {
+      const rental = rentalOverride ?? await ensureRental();
+      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+      await api<RentalChecklist>("/operations/rental-checklists", {
+        body: JSON.stringify({
+          depositConfirmed: true,
+          documentsOk: true,
+          exteriorOk: true,
+          fuelLevel: 100,
+          interiorOk: true,
+          notes: phase === "pickup" ? `Выдача ${vehicle.plateNumber}` : `Возврат ${vehicle.plateNumber}`,
+          odometerKm: vehicle.odometerKm,
+          phase,
+          photoUrls: vehicle.photoUrl ? [vehicle.photoUrl] : [],
+          rentalId: rental.id,
+        }),
+        method: "POST",
+      }, token);
+      await loadData();
+      setMessage(phase === "pickup" ? "Чек-лист выдачи сохранен" : "Чек-лист возврата сохранен");
+    });
+  }
+
   async function signContract() {
     await runAction("Подписываем договор...", async () => {
       await createContractRecord("signed", "manual");
@@ -2520,12 +2548,24 @@ export default function DashboardClient() {
               const contractEvents = contract
                 ? data.rentalContractEvents.filter((item) => item.contractId === contract.id).slice(0, 3)
                 : [];
+              const checklists = data.rentalChecklists.filter((item) => item.rentalId === rental.id);
+              const pickupChecklist = checklists.find((item) => item.phase === "pickup");
+              const returnChecklist = checklists.find((item) => item.phase === "return");
               return (
                 <article className="booking-card" key={rental.id}>
                   <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
                   <Badge value={rental.status} />
                   <span>Депозит {money.format(rental.depositAmount)}</span>
                   <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
+                  <div className="checklist-cell">
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createRentalChecklist("pickup", rental)} type="button">
+                      {pickupChecklist ? "Выдача OK" : "Чек-лист выдачи"}
+                    </button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createRentalChecklist("return", rental)} type="button">
+                      {returnChecklist ? "Возврат OK" : "Чек-лист возврата"}
+                    </button>
+                    {checklists.length ? <span>{checklists.length}/2 чек-листа</span> : null}
+                  </div>
                   <div className="contract-cell">
                     {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
                     {contractEvents.length ? (

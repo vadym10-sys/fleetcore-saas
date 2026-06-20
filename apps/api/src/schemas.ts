@@ -207,6 +207,19 @@ export const publicContractSignatureInput = z.object({
   signerName: z.string().trim().min(2),
 });
 
+export const rentalChecklistInput = z.object({
+  rentalId: z.string().min(1),
+  phase: z.enum(["pickup", "return"]),
+  odometerKm: z.number().int().nonnegative(),
+  fuelLevel: z.number().int().min(0).max(100).default(100),
+  exteriorOk: z.boolean().default(true),
+  interiorOk: z.boolean().default(true),
+  documentsOk: z.boolean().default(true),
+  depositConfirmed: z.boolean().default(true),
+  notes: z.string().max(1000).default(""),
+  photoUrls: z.array(z.string().url()).default([]),
+});
+
 export const fileUploadInput = z.object({
   base64: z.string().min(1),
   mimeType: z.string().min(1).max(120).default("application/octet-stream"),
