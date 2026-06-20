@@ -748,6 +748,12 @@ function saveStoredSession(session: AuthSession) {
   }
 }
 
+function requestProfileSetup(session: AuthSession) {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`, "1");
+  }
+}
+
 async function parseApiError(response: Response) {
   const body = await response.text();
   let message = body || `Request failed: ${response.status}`;
@@ -1092,6 +1098,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
       saveStoredSession(response.data);
       if (mode === "register") {
         localStorage.setItem(`fleetcore-onboarding-open:${response.data.companyId}`, "1");
+        requestProfileSetup(response.data);
       }
       onSession(response.data);
     } catch (error) {
@@ -1111,6 +1118,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
         method: "POST",
       });
       saveStoredSession(response.data);
+      requestProfileSetup(response.data);
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось открыть демо");
@@ -1387,6 +1395,10 @@ export default function DashboardClient() {
       });
       if (session && localStorage.getItem(`fleetcore-onboarding-open:${session.companyId}`) === "1") {
         setOnboardingOpen(true);
+      }
+      if (session && localStorage.getItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`) === "1") {
+        setProfileOpen(true);
+        localStorage.setItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`, "0");
       }
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
       setMessage("");

@@ -24,6 +24,7 @@ test("dashboard client keeps production account and document flows wired", () =>
     "FleetCore Command",
     "command-actions",
     "OwnerProfileDialog",
+    "fleetcore-profile-open",
     "/auth/team",
     "/auth/me",
     "saveProfilePhoto",
