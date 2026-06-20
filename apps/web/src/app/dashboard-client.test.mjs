@@ -68,6 +68,11 @@ test("dashboard client keeps production account and document flows wired", () =>
     "openEmail",
     "sidebar-signout-button",
     "mobile-drawer-signout",
+    "Файл не выбран",
+    "Фото профиля не выбрано",
+    "Нет активного Rental Flow",
+    "Rental Flow уже завершен",
+    "Сессия не найдена",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

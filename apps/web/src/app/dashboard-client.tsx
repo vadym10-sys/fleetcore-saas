@@ -1809,7 +1809,10 @@ export default function DashboardClient() {
   }
 
   async function runAction(label: string, action: () => Promise<void>) {
-    if (busyAction) return;
+    if (busyAction) {
+      setMessage(`Дождитесь завершения операции: ${busyAction}`);
+      return;
+    }
     setBusyAction(label);
     setMessage(label);
     try {
@@ -2015,7 +2018,10 @@ export default function DashboardClient() {
   }
 
   async function saveVehicleFiles(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length) {
+      setMessage("Файл не выбран. Нажмите кнопку еще раз и выберите PDF, фото или документ автомобиля.");
+      return;
+    }
     await runAction(`Загружаем документы авто: ${files.length}`, async () => {
       const vehicle = await ensureVehicle();
       await Promise.all(Array.from(files).map(async (file) => {
@@ -2038,7 +2044,10 @@ export default function DashboardClient() {
 
   async function saveVehiclePhoto(files: FileList | null) {
     const file = files?.[0];
-    if (!file) return;
+    if (!file) {
+      setMessage("Фото не выбрано. Нажмите кнопку еще раз и выберите фото автомобиля.");
+      return;
+    }
     await runAction("Обновляем фото автомобиля...", async () => {
       const vehicle = await ensureVehicle();
       const storedFile = await uploadFile(file);
@@ -2054,7 +2063,14 @@ export default function DashboardClient() {
 
   async function saveCompanyLogo(files: FileList | null) {
     const file = files?.[0];
-    if (!file || !session) return;
+    if (!file) {
+      setMessage("Логотип не выбран. Нажмите кнопку еще раз и выберите файл логотипа.");
+      return;
+    }
+    if (!session) {
+      setMessage("Сессия не найдена. Войдите в аккаунт еще раз.");
+      return;
+    }
     await runAction("Загружаем логотип компании...", async () => {
       const storedFile = await uploadFile(file);
       const response = await api<Company>(`/companies/${session.companyId}`, {
@@ -2068,7 +2084,10 @@ export default function DashboardClient() {
   }
 
   async function saveCompanyBranding() {
-    if (!session) return;
+    if (!session) {
+      setMessage("Сессия не найдена. Войдите в аккаунт еще раз.");
+      return;
+    }
     await runAction("Сохраняем бренд компании...", async () => {
       await api<Company>(`/companies/${session.companyId}`, {
         body: JSON.stringify({
@@ -2089,7 +2108,10 @@ export default function DashboardClient() {
   }
 
   async function removeCompanyLogo() {
-    if (!session) return;
+    if (!session) {
+      setMessage("Сессия не найдена. Войдите в аккаунт еще раз.");
+      return;
+    }
     await runAction("Убираем логотип компании...", async () => {
       await api<Company>(`/companies/${session.companyId}`, {
         body: JSON.stringify({ logoUrl: null }),
@@ -2113,7 +2135,10 @@ export default function DashboardClient() {
   }
 
   async function saveCustomerFiles(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length) {
+      setMessage("Файл клиента не выбран. Нажмите кнопку еще раз и выберите паспорт, ID или папку клиента.");
+      return;
+    }
     await runAction(`Загружаем документы клиента: ${files.length}`, async () => {
       const customer = await ensureCustomer();
       await Promise.all(Array.from(files).map(async (file) => {
@@ -2135,7 +2160,10 @@ export default function DashboardClient() {
   }
 
   async function saveDepositFiles(files: FileList | null) {
-    if (!files?.length) return;
+    if (!files?.length) {
+      setMessage("Документ депозита не выбран. Нажмите кнопку еще раз и выберите файл депозита или возврата.");
+      return;
+    }
     await runAction(`Загружаем документы депозита: ${files.length}`, async () => {
       const rental = await ensureRental();
       const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
@@ -2158,7 +2186,10 @@ export default function DashboardClient() {
   }
 
   async function saveRentalContractFiles(files: FileList | null, status: RentalContract["status"]) {
-    if (!files?.length) return;
+    if (!files?.length) {
+      setMessage("Договор не выбран. Выберите PDF/файл договора или создайте электронный договор.");
+      return;
+    }
     await runAction(`Загружаем договоры: ${files.length}`, async () => {
       const rental = await ensureRental();
       await Promise.all(Array.from(files).map(async (file) => {
@@ -2193,7 +2224,10 @@ export default function DashboardClient() {
 
   async function submitOperation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!operation) return;
+    if (!operation) {
+      setMessage("Операция не выбрана. Откройте действие еще раз.");
+      return;
+    }
 
     await runAction("Сохраняем операцию...", async () => {
       const vehicle = data.vehicles.find((item) => item.id === operationForm.vehicleId) ?? await ensureVehicle();
@@ -2636,7 +2670,10 @@ export default function DashboardClient() {
 
   async function openRentalContractPdf(flowOverride?: RentalFlow) {
     const flow = flowOverride ?? activeRentalFlow;
-    if (!flow) return;
+    if (!flow) {
+      setMessage("Нет активной аренды для PDF договора. Создайте бронь или выберите аренду.");
+      return;
+    }
     await runAction("Готовим PDF договор...", async () => {
       const response = await fetch(`${API_URL}${flow.contractPdfUrl}`, {
         headers: token ? { authorization: `Bearer ${token}` } : { "x-tenant-id": TENANT_ID },
@@ -2714,7 +2751,14 @@ export default function DashboardClient() {
 
   async function processFlowAction(flowOverride?: RentalFlow) {
     const flow = flowOverride ?? activeRentalFlow;
-    if (!flow?.nextAction) return;
+    if (!flow) {
+      setMessage("Нет активного Rental Flow. Создайте бронь или выберите аренду.");
+      return;
+    }
+    if (!flow.nextAction) {
+      setMessage("Rental Flow уже завершен. Следующих обязательных действий нет.");
+      return;
+    }
     await runAction(`Rental Flow: ${flow.nextAction.actionLabel ?? flow.nextAction.label}`, async () => {
       if (flow.nextAction?.key === "contract") {
         await createContractRecord("sent", "whatsapp", flow.rental);
@@ -2756,7 +2800,14 @@ export default function DashboardClient() {
   }
 
   async function saveProfilePhoto(file: File | undefined) {
-    if (!file || !session) return;
+    if (!file) {
+      setMessage("Фото профиля не выбрано. Нажмите кнопку еще раз и выберите изображение.");
+      return;
+    }
+    if (!session) {
+      setMessage("Сессия не найдена. Войдите в аккаунт еще раз.");
+      return;
+    }
     await runAction("Загружаем фото профиля...", async () => {
       const storedFile = await uploadFile(file);
       const response = await api<User>("/auth/me", {
@@ -2775,7 +2826,10 @@ export default function DashboardClient() {
   }
 
   async function saveOwnerProfile() {
-    if (!session) return;
+    if (!session) {
+      setMessage("Сессия не найдена. Войдите в аккаунт еще раз.");
+      return;
+    }
     await runAction("Сохраняем профиль...", async () => {
       const response = await api<User>("/auth/me", {
         body: JSON.stringify({ fullName: profileName }),
