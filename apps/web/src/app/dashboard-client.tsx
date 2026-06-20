@@ -2597,9 +2597,9 @@ export default function DashboardClient() {
     });
   }
 
-  async function shareRentalContract(channel: "email" | "telegram" | "whatsapp") {
+  async function shareRentalContract(channel: "email" | "telegram" | "whatsapp", rentalOverride?: Rental) {
     await runAction(`Готовим ссылку договора: ${channel}`, async () => {
-      const rental = await ensureRental();
+      const rental = rentalOverride ?? await ensureRental();
       const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
       const contract = await createContractRecord("sent", channel === "email" ? "email" : "whatsapp", rental);
       const contractUrl = contract.publicUrl ?? contract.documentUrl;
@@ -2755,10 +2755,27 @@ export default function DashboardClient() {
 
   async function completeFlowReturn(flow: RentalFlow) {
     await saveRentalChecklist("return", flow.rental);
+  }
+
+  async function finalizeRentalFlow(flow: RentalFlow) {
+    const hasReturnChecklist = flow.checklists.some((item) => item.phase === "return");
+    if (!hasReturnChecklist) {
+      await saveRentalChecklist("return", flow.rental);
+    }
     await api<Rental>(`/rentals/${flow.rental.id}/return`, {
       body: JSON.stringify({
         finalAmount: flow.rental.totalAmount,
         odometerKm: flow.vehicle.odometerKm + 25,
+      }),
+      method: "POST",
+    }, token);
+    await api<Expense>("/operations/expenses", {
+      body: JSON.stringify({
+        amount: flow.rental.depositAmount,
+        category: "other",
+        currency: data.company?.currency ?? "EUR",
+        note: `Deposit returned after final settlement for rental ${flow.rental.id}`,
+        vehicleId: flow.vehicle.id,
       }),
       method: "POST",
     }, token);
@@ -2786,19 +2803,26 @@ export default function DashboardClient() {
       } else if (flow.nextAction?.key === "return") {
         await completeFlowReturn(flow);
       } else if (flow.nextAction?.key === "deposit") {
-        await api<Expense>("/operations/expenses", {
-          body: JSON.stringify({
-            amount: flow.rental.depositAmount,
-            category: "other",
-            currency: data.company?.currency ?? "EUR",
-            note: `Deposit returned for rental ${flow.rental.id}`,
-            vehicleId: flow.vehicle.id,
-          }),
-          method: "POST",
-        }, token);
+        await finalizeRentalFlow(flow);
       }
       await loadData();
       setMessage("Rental Flow обновлен");
+    });
+  }
+
+  async function signRentalFlow(flow: RentalFlow) {
+    await runAction("Подписываем договор Rental Flow...", async () => {
+      await createContractRecord("signed", "manual", flow.rental);
+      await loadData();
+      setMessage("Договор подписан, Rental Flow обновлен");
+    });
+  }
+
+  async function finalizeRentalFlowAction(flow: RentalFlow) {
+    await runAction("Финальный расчет и возврат депозита...", async () => {
+      await finalizeRentalFlow(flow);
+      await loadData();
+      setMessage("Финальный расчет выполнен, аренда закрыта");
     });
   }
 
@@ -3075,8 +3099,12 @@ export default function DashboardClient() {
           <RentalFlowPanel
             busy={Boolean(busyAction)}
             flow={activeRentalFlow}
+            money={money}
             onOpenPdf={() => void openRentalContractPdf(activeRentalFlow)}
             onPrimaryAction={() => void processFlowAction(activeRentalFlow)}
+            onShare={(channel) => void shareRentalContract(channel, activeRentalFlow.rental)}
+            onSign={() => void signRentalFlow(activeRentalFlow)}
+            onSettle={() => void finalizeRentalFlowAction(activeRentalFlow)}
           />
         ) : null}
 
@@ -3800,9 +3828,33 @@ function BookingCalendar({ customers, rentals, vehicles }: { customers: Customer
   );
 }
 
-function RentalFlowPanel({ busy, flow, onOpenPdf, onPrimaryAction }: { busy: boolean; flow: RentalFlow; onOpenPdf: () => void; onPrimaryAction: () => void }) {
+function RentalFlowPanel({
+  busy,
+  flow,
+  money,
+  onOpenPdf,
+  onPrimaryAction,
+  onSettle,
+  onShare,
+  onSign,
+}: {
+  busy: boolean;
+  flow: RentalFlow;
+  money: Intl.NumberFormat;
+  onOpenPdf: () => void;
+  onPrimaryAction: () => void;
+  onSettle: () => void;
+  onShare: (channel: "email" | "telegram" | "whatsapp") => void;
+  onSign: () => void;
+}) {
   const completed = flow.steps.filter((step) => step.status === "done").length;
+  const progress = Math.round((completed / flow.steps.length) * 100);
   const nextLabel = flow.nextAction?.actionLabel ?? flow.nextAction?.label ?? "Flow complete";
+  const pickupDone = flow.checklists.some((item) => item.phase === "pickup");
+  const returnDone = flow.checklists.some((item) => item.phase === "return");
+  const paidAmount = flow.paidAmount;
+  const remaining = Math.max(0, (flow.invoice?.total ?? flow.rental.totalAmount) - paidAmount);
+  const canSettle = returnDone && flow.rental.status !== "closed";
 
   return (
     <section className="rental-flow-panel" aria-label="Rental workflow">
@@ -3816,6 +3868,41 @@ function RentalFlowPanel({ busy, flow, onOpenPdf, onPrimaryAction }: { busy: boo
           <button className="ghost-button" disabled={busy} onClick={onOpenPdf} type="button">PDF договор</button>
           <button className="primary-button" disabled={busy || !flow.nextAction || flow.nextAction.status === "blocked"} onClick={onPrimaryAction} type="button">{nextLabel}</button>
         </div>
+      </div>
+      <div className="flow-progress-row">
+        <div className="flow-progress-track" aria-label={`Rental Flow ${progress}%`}>
+          <span style={{ width: `${progress}%` }} />
+        </div>
+        <strong>{progress}%</strong>
+      </div>
+      <div className="flow-control-grid">
+        <article>
+          <span>Договор</span>
+          <strong>{flow.contract?.status ?? "not created"}</strong>
+          <small>{flow.contract?.publicUrl ? "public link ready" : "PDF available"}</small>
+        </article>
+        <article>
+          <span>Оплата</span>
+          <strong>{money.format(paidAmount)}</strong>
+          <small>{remaining ? `Осталось ${money.format(remaining)}` : "paid"}</small>
+        </article>
+        <article>
+          <span>Депозит</span>
+          <strong>{money.format(flow.rental.depositAmount)}</strong>
+          <small>{flow.rental.status === "closed" ? "settled" : "held / pending"}</small>
+        </article>
+        <article>
+          <span>Выдача / возврат</span>
+          <strong>{pickupDone ? "Выдача OK" : "Выдача ждёт"}</strong>
+          <small>{returnDone ? "Возврат OK" : "Возврат не закрыт"}</small>
+        </article>
+      </div>
+      <div className="flow-playbook">
+        <button className="ghost-button" disabled={busy} onClick={() => onShare("whatsapp")} type="button">WhatsApp</button>
+        <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram")} type="button">Telegram</button>
+        <button className="ghost-button" disabled={busy} onClick={() => onShare("email")} type="button">Email</button>
+        <button className="ghost-button" disabled={busy || flow.contract?.status === "signed"} onClick={onSign} type="button">Подписать</button>
+        <button className="ghost-button" disabled={busy || !canSettle} onClick={onSettle} type="button">Депозит и финальный расчёт</button>
       </div>
       <div className="flow-steps">
         {flow.steps.map((step, index) => (

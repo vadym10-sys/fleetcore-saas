@@ -2625,6 +2625,71 @@ h3 {
   justify-content: flex-end;
 }
 
+.flow-progress-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-progress-row strong {
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.flow-progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7ecf4;
+}
+
+.flow-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f9f6e, #2346d8);
+}
+
+.flow-control-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.flow-control-grid article {
+  display: grid;
+  gap: 5px;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid #e5eaf2;
+  border-radius: 8px;
+  background: white;
+}
+
+.flow-control-grid span,
+.flow-control-grid small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.flow-control-grid strong {
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.flow-playbook {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.flow-playbook .ghost-button {
+  min-height: 40px;
+}
+
 .flow-steps {
   display: grid;
   grid-template-columns: repeat(8, minmax(112px, 1fr));
@@ -3086,6 +3151,19 @@ h3 {
   .flow-actions .ghost-button {
     min-height: 46px;
     padding: 0 10px;
+  }
+
+  .flow-control-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flow-playbook {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .flow-playbook .ghost-button:last-child {
+    grid-column: 1 / -1;
   }
 
   .flow-steps {
