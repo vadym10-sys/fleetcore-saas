@@ -1775,6 +1775,11 @@ export default function DashboardClient() {
     setMessage("Выберите канал отправки договора клиенту.");
   }
 
+  function closeShareDialog() {
+    setShareDialogOpen(false);
+    setMessage("");
+  }
+
   function focusCreateForm(section: Section, formRef: RefObject<HTMLFormElement | null>, label: string) {
     setActiveSection(section);
     setMessage(label);
@@ -3437,7 +3442,7 @@ export default function DashboardClient() {
       {shareDialogOpen ? (
         <ShareContractDialog
           busy={Boolean(busyAction)}
-          onClose={() => setShareDialogOpen(false)}
+          onClose={closeShareDialog}
           onShare={(channel) => {
             setShareDialogOpen(false);
             void shareRentalContract(channel);
