@@ -1346,6 +1346,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
         setApiReady(await warmApi());
       }
       const response = await api<AuthSession>("/auth/demo", {
+        body: JSON.stringify({}),
         method: "POST",
       });
       saveStoredSession(response.data);
