@@ -977,9 +977,9 @@ function LanguageSelect({ locale, onChange }: { locale: Locale; onChange: (local
   );
 }
 
-function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onLocaleChange: (locale: Locale) => void; onSession: (session: AuthSession) => void }) {
+function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }: { initialMode?: "login" | "register"; locale: Locale; onLocaleChange: (locale: Locale) => void; onSession: (session: AuthSession) => void }) {
   const t = (key: string) => translate(locale, key);
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [apiReady, setApiReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(t("auth.message"));
@@ -1000,6 +1000,10 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
   useEffect(() => {
     if (!loading) setMessage(t("auth.message"));
   }, [locale, loading]);
+
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   useEffect(() => {
     let active = true;
@@ -1116,6 +1120,20 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
           </div>
         </div>
         <LanguageSelect locale={locale} onChange={onLocaleChange} />
+        <div className="auth-choice-grid">
+          <button className={mode === "login" ? "active" : ""} disabled={loading} onClick={() => setMode("login")} type="button">
+            <strong>Войти</strong>
+            <span>Для владельца или менеджера</span>
+          </button>
+          <button className={mode === "register" ? "active" : ""} disabled={loading} onClick={() => setMode("register")} type="button">
+            <strong>Создать компанию</strong>
+            <span>Новый B2B аккаунт</span>
+          </button>
+          <button disabled={loading} onClick={() => void loginDemo()} type="button">
+            <strong>Демо</strong>
+            <span>Посмотреть SaaS без регистрации</span>
+          </button>
+        </div>
         <div className="auth-tabs">
           <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")} type="button">{t("auth.login")}</button>
           <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")} type="button">{t("auth.newCompany")}</button>
@@ -1168,6 +1186,7 @@ function AuthScreen({ locale, onLocaleChange, onSession }: { locale: Locale; onL
 export default function DashboardClient() {
   const [locale, setLocale] = useState<Locale>("ru");
   const [session, setSession] = useState<AuthSession | undefined>();
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [activeSection, setActiveSection] = useState<Section>("Dashboard");
   const [search, setSearch] = useState("");
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
@@ -2366,7 +2385,7 @@ export default function DashboardClient() {
     });
   }
 
-  async function logout() {
+  async function logout(nextMode: "login" | "register" = "login") {
     const stored = readStoredSession();
     if (stored?.refreshToken) {
       try {
@@ -2379,11 +2398,12 @@ export default function DashboardClient() {
       }
     }
     localStorage.removeItem("fleetcore-session");
+    setAuthMode(nextMode);
     setSession(undefined);
   }
 
   if (!session) {
-    return <AuthScreen locale={locale} onLocaleChange={changeLocale} onSession={setSession} />;
+    return <AuthScreen initialMode={authMode} locale={locale} onLocaleChange={changeLocale} onSession={setSession} />;
   }
 
   return (
@@ -2527,6 +2547,16 @@ export default function DashboardClient() {
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
           </div>
         </header>
+
+        <section className="mobile-account-strip" aria-label="Mobile account actions">
+          <button className="mobile-account-main" onClick={() => setProfileOpen(true)} type="button">
+            <span className="avatar small">{profilePhoto ? <img alt="" src={profilePhoto} /> : session.user.fullName.slice(0, 1)}</span>
+            <strong>{session.user.fullName}</strong>
+            <small>{session.user.role}</small>
+          </button>
+          <button className="ghost-button" onClick={() => void logout("login")} type="button">Войти</button>
+          <button className="primary-button" onClick={() => void logout("register")} type="button">Регистрация</button>
+        </section>
 
         <section className="command-center" aria-label="FleetCore command center">
           <div className="command-copy">

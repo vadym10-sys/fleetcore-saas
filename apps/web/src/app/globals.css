@@ -1756,6 +1756,43 @@ h3 {
   margin: 22px 0;
 }
 
+.auth-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.auth-choice-grid button {
+  min-height: 86px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.05);
+}
+
+.auth-choice-grid button.active {
+  border-color: rgba(35, 70, 216, 0.42);
+  background: var(--primary-soft);
+}
+
+.auth-choice-grid strong {
+  font-size: 14px;
+}
+
+.auth-choice-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 .auth-tabs button,
 .filter-row button {
   min-height: 42px;
@@ -2443,6 +2480,10 @@ h3 {
   border-color: rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.1);
   color: white;
+}
+
+.mobile-account-strip {
+  display: none;
 }
 
 .rental-flow-panel {
@@ -3970,6 +4011,63 @@ h3 {
     grid-template-columns: minmax(0, 1fr) 76px 44px 88px;
   }
 
+  .mobile-account-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 78px 112px;
+    gap: 8px;
+    align-items: stretch;
+    margin: -4px 0 14px;
+    padding: 10px;
+    border: 1px solid rgba(221, 227, 236, 0.92);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 12px 30px rgba(17, 24, 39, 0.08);
+  }
+
+  .mobile-account-strip .ghost-button,
+  .mobile-account-strip .primary-button {
+    min-height: 48px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .mobile-account-main {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 9px;
+    align-items: center;
+    padding: 7px 9px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #f8fafc;
+    text-align: left;
+  }
+
+  .mobile-account-main .avatar {
+    grid-row: 1 / span 2;
+  }
+
+  .mobile-account-main strong,
+  .mobile-account-main small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-account-main strong {
+    color: var(--ink);
+    font-size: 13px;
+  }
+
+  .mobile-account-main small {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+
   .language-select {
     min-width: 0;
     padding-inline: 8px;
@@ -4010,15 +4108,53 @@ h3 {
 
   .auth-shell {
     min-height: 100vh;
-    padding: 12px;
+    display: block;
+    padding: 10px;
+    background:
+      radial-gradient(circle at top left, rgba(35, 70, 216, 0.14), transparent 34%),
+      linear-gradient(180deg, #f8fafc, #eef2f7);
   }
 
   .auth-panel {
-    padding: 22px;
+    min-height: calc(100vh - 20px);
+    display: grid;
+    align-content: start;
+    gap: 14px;
+    padding: 20px;
+    border-radius: 14px;
   }
 
   .auth-panel h1 {
-    font-size: 28px;
+    font-size: 31px;
+    line-height: 1.05;
+  }
+
+  .auth-choice-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .auth-choice-grid button {
+    min-height: 70px;
+    padding: 13px 14px;
+  }
+
+  .auth-tabs {
+    margin: 4px 0 8px;
+  }
+
+  .auth-form {
+    gap: 10px;
+  }
+
+  .auth-form input {
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .auth-preview {
+    display: none;
   }
 
   .mobile-app-nav {
