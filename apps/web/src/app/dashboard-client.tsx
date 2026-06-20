@@ -73,6 +73,12 @@ type UiNotification = {
   time: string;
 };
 
+type DocumentPreview = {
+  fileUrl: string;
+  meta?: string;
+  title: string;
+};
+
 const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
 const locales: Array<{ code: Locale; label: string }> = [
   { code: "en", label: "EN" },
@@ -1104,11 +1110,15 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function FilePreviewLink({ fileUrl, title }: { fileUrl: string; title: string }) {
+function FilePreviewLink({ fileUrl, onPreview, title }: { fileUrl: string; onPreview?: ((document: DocumentPreview) => void) | undefined; title: string }) {
+  if (onPreview) {
+    return <button className="document-link" onClick={() => onPreview({ fileUrl, title })} type="button">{title}</button>;
+  }
+
   return <a className="document-link" href={fileUrl} rel="noreferrer" target="_blank">{title}</a>;
 }
 
-function FileObjectRow({ file }: { file: FileObject }) {
+function FileObjectRow({ file, onPreview }: { file: FileObject; onPreview?: ((document: DocumentPreview) => void) | undefined }) {
   return (
     <article className="file-object-row">
       <div>
@@ -1116,7 +1126,7 @@ function FileObjectRow({ file }: { file: FileObject }) {
         <span>{file.mimeType} · {formatBytes(file.sizeBytes)} · {file.storageProvider}</span>
         {file.sha256 ? <small>SHA-256 {file.sha256.slice(0, 16)}...</small> : null}
       </div>
-      <a className="document-link" href={file.publicUrl} rel="noreferrer" target="_blank">Preview</a>
+      <FilePreviewLink fileUrl={file.publicUrl} onPreview={onPreview} title="Preview" />
     </article>
   );
 }
@@ -1463,7 +1473,9 @@ export default function DashboardClient() {
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const [operation, setOperation] = useState<OperationKind | undefined>();
+  const [documentPreview, setDocumentPreview] = useState<DocumentPreview | undefined>();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -1756,6 +1768,11 @@ export default function DashboardClient() {
     });
     setOperationFiles(null);
     setOperation(kind);
+  }
+
+  function openShareDialog() {
+    setShareDialogOpen(true);
+    setMessage("Выберите канал отправки договора клиенту.");
   }
 
   function focusCreateForm(section: Section, formRef: RefObject<HTMLFormElement | null>, label: string) {
@@ -3045,7 +3062,7 @@ export default function DashboardClient() {
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openShareDialog} type="button">WhatsApp</button>
           </div>
         </section>
 
@@ -3077,7 +3094,7 @@ export default function DashboardClient() {
             </div>
             <aside className="side-column">
               <NotificationsPanel locale={locale} notifications={notifications} />
-              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onPhoto={() => vehiclePhotoInputRef.current?.click()} onRemovePhoto={() => void removeVehiclePhoto(selectedVehicle)} onService={() => openOperation("service")} />
+              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onDocumentPreview={setDocumentPreview} onExpense={() => openOperation("expense")} onPhoto={() => vehiclePhotoInputRef.current?.click()} onRemovePhoto={() => void removeVehiclePhoto(selectedVehicle)} onService={() => openOperation("service")} />
             </aside>
           </section>
         ) : null}
@@ -3283,6 +3300,7 @@ export default function DashboardClient() {
               files={data.files}
               onCustomerFolder={requestCustomerFolderUpload}
               onDeposit={requestDepositUpload}
+              onDocumentPreview={setDocumentPreview}
               onService={() => openOperation("service")}
               onVehicleDocument={requestVehicleDocumentUpload}
               onVehicleFolder={requestVehicleFolderUpload}
@@ -3362,7 +3380,7 @@ export default function DashboardClient() {
               <h2>Document center</h2>
               <p className="history-row">Storage provider: database now, S3-ready metadata enabled</p>
               <div className="file-object-list">
-                {data.files.slice(0, 12).map((file) => <FileObjectRow file={file} key={file.id} />)}
+                {data.files.slice(0, 12).map((file) => <FileObjectRow file={file} key={file.id} onPreview={setDocumentPreview} />)}
                 {!data.files.length ? <p className="history-row">No uploaded files yet</p> : null}
               </div>
             </section>
@@ -3416,6 +3434,27 @@ export default function DashboardClient() {
         />
       ) : null}
 
+      {shareDialogOpen ? (
+        <ShareContractDialog
+          busy={Boolean(busyAction)}
+          onClose={() => setShareDialogOpen(false)}
+          onShare={(channel) => {
+            setShareDialogOpen(false);
+            void shareRentalContract(channel);
+          }}
+          rental={activeRental ?? data.rentals[0]}
+          customer={activeCustomer ?? data.customers[0]}
+          vehicle={selectedVehicle ?? data.vehicles[0]}
+        />
+      ) : null}
+
+      {documentPreview ? (
+        <DocumentPreviewDialog
+          document={documentPreview}
+          onClose={() => setDocumentPreview(undefined)}
+        />
+      ) : null}
+
       <button className="mobile-fab" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button" aria-label="Create booking">+</button>
 
       <MobileDrawer
@@ -3452,6 +3491,7 @@ function DocumentVault({
   files,
   onCustomerFolder,
   onDeposit,
+  onDocumentPreview,
   onService,
   onVehicleDocument,
   onVehicleFolder,
@@ -3464,6 +3504,7 @@ function DocumentVault({
   files: FileObject[];
   onCustomerFolder: () => void;
   onDeposit: () => void;
+  onDocumentPreview: (document: DocumentPreview) => void;
   onService: () => void;
   onVehicleDocument: () => void;
   onVehicleFolder: () => void;
@@ -3512,7 +3553,7 @@ function DocumentVault({
           <h2>Сроки документов</h2>
           {expiringDocuments.map((doc) => (
             <p className="history-row" key={doc.id}>
-              <FilePreviewLink fileUrl={doc.fileUrl} title={`${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} />
+              <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} />
             </p>
           ))}
           {!expiringDocuments.length ? <p className="history-row">Нет документов, которые истекают в ближайшие 30 дней.</p> : null}
@@ -3529,7 +3570,7 @@ function DocumentVault({
       <section className="table-panel">
         <h2>Последние файлы и ТО</h2>
         <div className="file-object-list">
-          {files.slice(0, 6).map((file) => <FileObjectRow file={file} key={file.id} />)}
+          {files.slice(0, 6).map((file) => <FileObjectRow file={file} key={file.id} onPreview={onDocumentPreview} />)}
           {serviceRecords.slice(0, 4).map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
           {!files.length && !serviceRecords.length ? <p className="history-row">Загрузите первый документ или создайте ТО.</p> : null}
         </div>
@@ -4010,7 +4051,74 @@ function NotificationsPanel({ locale, notifications }: { locale: Locale; notific
   );
 }
 
-function VehicleCard({ customer, documents, finance, locale, onDocument, onExpense, onPhoto, onRemovePhoto, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; locale: Locale; onDocument: () => void; onExpense: () => void; onPhoto: () => void; onRemovePhoto: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
+function ShareContractDialog({ busy, customer, onClose, onShare, rental, vehicle }: { busy: boolean; customer: Customer | undefined; onClose: () => void; onShare: (channel: "email" | "telegram" | "whatsapp") => void; rental: Rental | undefined; vehicle: Vehicle | undefined }) {
+  const title = rental && vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}` : "Договор аренды";
+  const customerLabel = customer ? `${customer.displayName} · ${customer.phone}` : "Клиент будет выбран автоматически";
+
+  return (
+    <div className="modal-backdrop">
+      <section className="operation-modal share-modal" role="dialog" aria-modal="true" aria-label="Отправка договора">
+        <div className="modal-title">
+          <div>
+            <span>Contract delivery</span>
+            <h2>Отправить договор клиенту</h2>
+          </div>
+          <button onClick={onClose} type="button">×</button>
+        </div>
+        <div className="share-hero">
+          <strong>{title}</strong>
+          <span>{customerLabel}</span>
+          <p>FleetCore создаст публичную ссылку договора и откроет выбранный канал отправки. Статус договора сохранится в системе.</p>
+        </div>
+        <div className="share-channel-grid">
+          <button disabled={busy} onClick={() => onShare("whatsapp")} type="button">
+            <strong>WhatsApp</strong>
+            <span>Открыть чат с готовой ссылкой</span>
+          </button>
+          <button disabled={busy} onClick={() => onShare("telegram")} type="button">
+            <strong>Telegram</strong>
+            <span>Открыть отправку ссылки</span>
+          </button>
+          <button disabled={busy} onClick={() => onShare("email")} type="button">
+            <strong>Email</strong>
+            <span>Создать письмо клиенту</span>
+          </button>
+        </div>
+        <div className="modal-actions">
+          <button className="ghost-button" disabled={busy} onClick={onClose} type="button">Отмена</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DocumentPreviewDialog({ document, onClose }: { document: DocumentPreview; onClose: () => void }) {
+  const isImage = /\.(png|jpe?g|webp|gif|avif)$/i.test(document.fileUrl);
+
+  return (
+    <div className="modal-backdrop">
+      <section className="operation-modal document-preview-modal" role="dialog" aria-modal="true" aria-label="Предпросмотр документа">
+        <div className="modal-title">
+          <div>
+            <span>Document preview</span>
+            <h2>{document.title}</h2>
+          </div>
+          <button onClick={onClose} type="button">×</button>
+        </div>
+        <div className="document-preview-frame">
+          {isImage ? <img alt={document.title} src={document.fileUrl} /> : <iframe src={document.fileUrl} title={document.title} />}
+        </div>
+        <div className="document-preview-actions">
+          <a className="primary-button" href={document.fileUrl} rel="noreferrer" target="_blank">Открыть в новой вкладке</a>
+          <a className="ghost-button" download href={document.fileUrl}>Скачать</a>
+          <button className="ghost-button" onClick={onClose} type="button">Закрыть</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function VehicleCard({ customer, documents, finance, locale, onDocument, onDocumentPreview, onExpense, onPhoto, onRemovePhoto, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; locale: Locale; onDocument: () => void; onDocumentPreview: (document: DocumentPreview) => void; onExpense: () => void; onPhoto: () => void; onRemovePhoto: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
   if (!vehicle) return <section className="table-panel"><h2>{translate(locale, "panel.vehicleCard")}</h2><p>{translate(locale, "vehicle.add")}</p></section>;
   const vehicleDocuments = documents.filter((doc) => doc.vehicleId === vehicle.id);
   const vehicleServiceRecords = serviceRecords.filter((record) => record.vehicleId === vehicle.id);
@@ -4032,7 +4140,7 @@ function VehicleCard({ customer, documents, finance, locale, onDocument, onExpen
       {vehicleDocuments.length ? (
         <div className="document-mini-list">
           {vehicleDocuments.slice(0, 3).map((doc) => (
-            <FilePreviewLink fileUrl={doc.fileUrl} key={doc.id} title={`${doc.title} · ${doc.type}`} />
+            <FilePreviewLink fileUrl={doc.fileUrl} key={doc.id} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.type}`} />
           ))}
         </div>
       ) : null}
