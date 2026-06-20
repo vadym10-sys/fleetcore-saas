@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -1174,7 +1174,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
               <label>{t("auth.passwordConfirm")}<input autoComplete="new-password" minLength={8} required type="password" value={register.passwordConfirm} onChange={(event) => setRegister({ ...register, passwordConfirm: event.target.value })} /></label>
             </>
           )}
-          <button className="primary-button full" disabled={loading}>{loading ? t("common.loading") : mode === "login" ? t("auth.login") : t("auth.register")}</button>
+          <button className="primary-button full" disabled={loading} type="submit">{loading ? t("common.loading") : mode === "login" ? t("auth.login") : t("auth.register")}</button>
           {mode === "login" ? (
             <>
               <button className="ghost-button full-button" disabled={loading} onClick={() => void loginDemo()} type="button">{t("auth.demo")}</button>
@@ -1231,6 +1231,8 @@ export default function DashboardClient() {
   const contractInputRef = useRef<HTMLInputElement>(null);
   const depositInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
+  const vehicleCreateRef = useRef<HTMLFormElement>(null);
+  const customerCreateRef = useRef<HTMLFormElement>(null);
   const [data, setData] = useState<AppData>({
     company: undefined,
     customers: [],
@@ -1491,6 +1493,23 @@ export default function DashboardClient() {
     });
     setOperationFiles(null);
     setOperation(kind);
+  }
+
+  function focusCreateForm(section: Section, formRef: RefObject<HTMLFormElement | null>, label: string) {
+    setActiveSection(section);
+    setMessage(label);
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      formRef.current?.querySelector("input")?.focus();
+    }, 80);
+  }
+
+  function openVehicleCreate() {
+    focusCreateForm("Vehicles", vehicleCreateRef, "Форма добавления автомобиля открыта");
+  }
+
+  function openCustomerCreate() {
+    focusCreateForm("Drivers/Clients", customerCreateRef, "Форма добавления клиента открыта");
   }
 
   async function runAction(label: string, action: () => Promise<void>) {
@@ -2268,6 +2287,24 @@ export default function DashboardClient() {
     });
   }
 
+  async function openRentalContractPdfForRental(rental: Rental) {
+    const flow = data.rentalFlows.find((item) => item.rental.id === rental.id);
+    if (flow) {
+      await openRentalContractPdf(flow);
+      return;
+    }
+
+    await runAction("Готовим PDF договор...", async () => {
+      const response = await fetch(`${API_URL}/rentals/${rental.id}/contract.pdf`, {
+        headers: token ? { authorization: `Bearer ${token}` } : { "x-tenant-id": TENANT_ID },
+      });
+      if (!response.ok) throw new Error(await parseApiError(response));
+      const fileUrl = URL.createObjectURL(await response.blob());
+      window.open(fileUrl, "_blank", "noreferrer");
+      setMessage("PDF договор открыт");
+    });
+  }
+
   async function payRentalInvoice(flow: RentalFlow) {
     const invoice = flow.invoice ?? (await api<Invoice>("/finance/invoices", {
       body: JSON.stringify({
@@ -2583,7 +2620,8 @@ export default function DashboardClient() {
           </div>
           <div className="command-actions">
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Новая бронь</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("Vehicles")} type="button">Автомобиль</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">Автомобиль</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">Клиент</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Документ</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Расход</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">ТО</button>
@@ -2692,7 +2730,7 @@ export default function DashboardClient() {
                 })}
               </div>
             </div>
-            <VehicleForm form={vehicleForm} setForm={setVehicleForm} onSubmit={submitVehicle} />
+            <VehicleForm form={vehicleForm} formRef={vehicleCreateRef} setForm={setVehicleForm} onSubmit={submitVehicle} />
           </section>
         ) : null}
 
@@ -2708,7 +2746,7 @@ export default function DashboardClient() {
               ))}
             </div>
             <aside className="side-column">
-              <CustomerForm form={customerForm} setForm={setCustomerForm} onSubmit={submitCustomer} />
+              <CustomerForm form={customerForm} formRef={customerCreateRef} setForm={setCustomerForm} onSubmit={submitCustomer} />
               <div className="table-panel">
                 <h2>CRM история</h2>
                 <button className="ghost-button full-button" onClick={requestCustomerDocumentUpload} type="button">Загрузить паспорт/ID</button>
@@ -2728,7 +2766,7 @@ export default function DashboardClient() {
           <section className="table-panel bookings-board">
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Создать быструю бронь</button>
             <div className="quick-actions-grid">
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Создать электронный договор</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать электронный договор</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор аренды</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">Отправить ссылку WhatsApp</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Загрузить подпись</button>
@@ -2761,7 +2799,7 @@ export default function DashboardClient() {
                   </div>
                   <div className="contract-cell">
                     {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void openRentalContractPdf(data.rentalFlows.find((flow) => flow.rental.id === rental.id))} type="button">PDF</button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void openRentalContractPdfForRental(rental)} type="button">PDF</button>
                     {contractEvents.length ? (
                       <div className="contract-timeline">
                         {contractEvents.map((event) => (
@@ -2893,6 +2931,7 @@ export default function DashboardClient() {
           onClose={() => setOperation(undefined)}
           onFiles={setOperationFiles}
           onSubmit={submitOperation}
+          saving={Boolean(busyAction)}
         />
       ) : null}
 
@@ -3487,6 +3526,7 @@ function OperationDialog({
   onClose,
   onFiles,
   onSubmit,
+  saving,
 }: {
   data: AppData;
   files: FileList | null;
@@ -3497,6 +3537,7 @@ function OperationDialog({
   onClose: () => void;
   onFiles: (files: FileList | null) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  saving: boolean;
 }) {
   const titleByKind: Record<OperationKind, string> = {
     booking: "Создать бронь",
@@ -3690,38 +3731,38 @@ function OperationDialog({
         </div>
 
         <div className="modal-actions">
-          <button className="ghost-button" onClick={onClose} type="button">{translate(locale, "common.cancel")}</button>
-          <button className="primary-button" type="submit">{translate(locale, "common.save")}</button>
+          <button className="ghost-button" disabled={saving} onClick={onClose} type="button">{translate(locale, "common.cancel")}</button>
+          <button className="primary-button" disabled={saving} type="submit">{saving ? translate(locale, "common.loading") : translate(locale, "common.save")}</button>
         </div>
       </form>
     </div>
   );
 }
 
-function VehicleForm({ form, onSubmit, setForm }: { form: Record<string, string>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
+function VehicleForm({ form, formRef, onSubmit, setForm }: { form: Record<string, string>; formRef: RefObject<HTMLFormElement | null>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
   return (
-    <form className="live-form" onSubmit={onSubmit}>
+    <form className="live-form" onSubmit={onSubmit} ref={formRef}>
       <h2>Добавить автомобиль</h2>
       <div className="form-grid single">
         {(["make", "model", "year", "plateNumber", "vin", "location", "odometerKm", "dailyRate"] as const).map((key) => (
           <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
         ))}
       </div>
-      <button className="primary-button full">Сохранить авто</button>
+      <button className="primary-button full" type="submit">Сохранить авто</button>
     </form>
   );
 }
 
-function CustomerForm({ form, onSubmit, setForm }: { form: Record<string, string>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
+function CustomerForm({ form, formRef, onSubmit, setForm }: { form: Record<string, string>; formRef: RefObject<HTMLFormElement | null>; onSubmit: (event: FormEvent<HTMLFormElement>) => void; setForm: (form: any) => void }) {
   return (
-    <form className="live-form" onSubmit={onSubmit}>
+    <form className="live-form" onSubmit={onSubmit} ref={formRef}>
       <h2>Добавить клиента</h2>
       <div className="form-grid single">
         {(["displayName", "email", "phone"] as const).map((key) => (
           <label key={key}>{key}<input value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>
         ))}
       </div>
-      <button className="primary-button full">Сохранить клиента</button>
+      <button className="primary-button full" type="submit">Сохранить клиента</button>
     </form>
   );
 }

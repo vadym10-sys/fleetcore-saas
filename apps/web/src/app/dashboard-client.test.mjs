@@ -48,7 +48,23 @@ test("dashboard client keeps production account and document flows wired", () =>
     "MobileDrawer",
     "mobile-drawer",
     "mobile-menu-button",
+    "openVehicleCreate",
+    "openCustomerCreate",
+    "openRentalContractPdfForRental",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
+});
+
+test("dashboard client does not ship inert buttons", () => {
+  const buttonTags = source.match(/<button\b[\s\S]*?>/g) ?? [];
+
+  assert.ok(buttonTags.length > 20, "expected dashboard buttons to be present");
+
+  for (const tag of buttonTags) {
+    const hasAction = /onClick=/.test(tag) || /type="submit"/.test(tag);
+    assert.ok(hasAction, `button without click handler or submit type: ${tag}`);
+  }
+
+  assert.doesNotMatch(source, /MobileAppNav|mobile-app-nav|mobile-account-strip/);
 });
