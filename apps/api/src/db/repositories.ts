@@ -7,6 +7,7 @@ import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject
 import type {
   customerInput,
   customerPatchInput,
+  companyBrandingInput,
   customerDocumentInput,
   expenseInput,
   fileUploadInput,
@@ -29,6 +30,7 @@ import type { z } from "zod";
 
 type VehicleInput = z.infer<typeof vehicleInput>;
 type VehiclePatchInput = z.infer<typeof vehiclePatchInput>;
+type CompanyBrandingInput = z.infer<typeof companyBrandingInput>;
 type CustomerInput = z.infer<typeof customerInput>;
 type CustomerPatchInput = z.infer<typeof customerPatchInput>;
 type RentalInput = z.infer<typeof rentalInput>;
@@ -337,6 +339,41 @@ export async function getCompany(scope: TenantScope, companyId: string) {
   const result = await pool.query(
     "select * from companies where tenant_id = $1 and id = $2",
     [scope.tenantId, companyId],
+  );
+  return result.rows[0] ? mapCompany(result.rows[0]) : undefined;
+}
+
+export async function updateCompanyBranding(scope: TenantScope, companyId: string, input: CompanyBrandingInput) {
+  const patch = patchSet(
+    {
+      tradingName: input.tradingName,
+      legalName: input.legalName,
+      logoUrl: input.logoUrl,
+      brandColor: input.brandColor,
+      billingEmail: input.billingEmail,
+      taxId: input.taxId,
+      iban: input.iban,
+      businessAddress: input.businessAddress,
+      contractFooter: input.contractFooter,
+    },
+    {
+      tradingName: "trading_name",
+      legalName: "legal_name",
+      logoUrl: "logo_url",
+      brandColor: "brand_color",
+      billingEmail: "billing_email",
+      taxId: "tax_id",
+      iban: "iban",
+      businessAddress: "business_address",
+      contractFooter: "contract_footer",
+    },
+    4,
+  );
+  if (!patch.sql) return getCompany(scope, companyId);
+
+  const result = await pool.query(
+    `update companies set ${patch.sql}, updated_at = now() where tenant_id = $1 and id = $2 and id = $3 returning *`,
+    [scope.tenantId, scope.companyId, companyId, ...patch.values],
   );
   return result.rows[0] ? mapCompany(result.rows[0]) : undefined;
 }

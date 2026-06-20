@@ -258,6 +258,36 @@ test("owner can update profile and add a manager account", async () => {
   assert.equal(managerLogin.json().data.user.role, "fleet_manager");
 });
 
+test("owner can update company branding and billing profile", async () => {
+  const companies = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/companies",
+  });
+  assert.equal(companies.statusCode, 200);
+  const company = companies.json().data[0];
+
+  const updated = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "PATCH",
+    payload: {
+      billingEmail: "billing@atlas.example",
+      brandColor: "#123abc",
+      businessAddress: "Marbella HQ, Spain",
+      contractFooter: "Thank you for choosing Atlas Rentals.",
+      iban: "PL61109010140000071219812874",
+      logoUrl: "https://example.com/logo.png",
+      taxId: "PL1234567890",
+      tradingName: "Atlas Premium Rentals",
+    },
+    url: `/companies/${company.id}`,
+  });
+  assert.equal(updated.statusCode, 200);
+  assert.equal(updated.json().data.brandColor, "#123abc");
+  assert.equal(updated.json().data.billingEmail, "billing@atlas.example");
+  assert.equal(updated.json().data.logoUrl, "https://example.com/logo.png");
+});
+
 test("authenticated API can create an invoice payment", async () => {
   const invoices = await app.inject({
     headers: { authorization: `Bearer ${token}` },

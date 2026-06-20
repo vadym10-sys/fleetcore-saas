@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -44,6 +44,7 @@ type OperationKind =
   | "vehicleDocument";
 
 type AppData = {
+  company: Company | undefined;
   customers: Customer[];
   documents: VehicleDocument[];
   files: FileObject[];
@@ -1145,12 +1146,14 @@ export default function DashboardClient() {
   const vehicleDocumentInputRef = useRef<HTMLInputElement>(null);
   const vehicleFolderInputRef = useRef<HTMLInputElement>(null);
   const vehiclePhotoInputRef = useRef<HTMLInputElement>(null);
+  const companyLogoInputRef = useRef<HTMLInputElement>(null);
   const customerDocumentInputRef = useRef<HTMLInputElement>(null);
   const customerFolderInputRef = useRef<HTMLInputElement>(null);
   const contractInputRef = useRef<HTMLInputElement>(null);
   const depositInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<AppData>({
+    company: undefined,
     customers: [],
     documents: [],
     files: [],
@@ -1181,6 +1184,17 @@ export default function DashboardClient() {
     displayName: "Новый клиент",
     email: `client-${Date.now().toString().slice(-5)}@example.com`,
     phone: "+48 600 111 222",
+  });
+  const [companyForm, setCompanyForm] = useState({
+    billingEmail: "",
+    brandColor: "#2346d8",
+    businessAddress: "",
+    contractFooter: "",
+    iban: "",
+    legalName: "",
+    logoUrl: "",
+    taxId: "",
+    tradingName: "",
   });
 
   const token = session?.accessToken;
@@ -1216,7 +1230,8 @@ export default function DashboardClient() {
     setLoading(true);
     try {
       const canManageTeam = session?.user.role === "owner" || session?.user.role === "admin";
-      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents, teamUsers] = await Promise.all([
+      const [company, metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents, teamUsers] = await Promise.all([
+        api<Company>(`/companies/${session?.companyId ?? ""}`, {}, currentToken),
         api<DashboardMetrics>("/dashboard", {}, currentToken),
         api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
         api<Customer[]>("/customers", {}, currentToken),
@@ -1235,6 +1250,7 @@ export default function DashboardClient() {
       ]);
 
       setData({
+        company: company.data,
         customers: customers.data,
         documents: documents.data,
         files: files.data,
@@ -1250,6 +1266,17 @@ export default function DashboardClient() {
         serviceRecords: serviceRecords.data,
         teamUsers: teamUsers.data,
         vehicles: vehicles.data,
+      });
+      setCompanyForm({
+        billingEmail: company.data.billingEmail ?? "",
+        brandColor: company.data.brandColor ?? "#2346d8",
+        businessAddress: company.data.businessAddress ?? "",
+        contractFooter: company.data.contractFooter ?? "",
+        iban: company.data.iban ?? "",
+        legalName: company.data.legalName,
+        logoUrl: company.data.logoUrl ?? "",
+        taxId: company.data.taxId ?? "",
+        tradingName: company.data.tradingName,
       });
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
       setMessage("");
@@ -1572,6 +1599,54 @@ export default function DashboardClient() {
       setSelectedVehicleId(response.data.id);
       await loadData();
       setMessage("Фото автомобиля сохранено");
+    });
+  }
+
+  async function saveCompanyLogo(files: FileList | null) {
+    const file = files?.[0];
+    if (!file || !session) return;
+    await runAction("Загружаем логотип компании...", async () => {
+      const storedFile = await uploadFile(file);
+      const response = await api<Company>(`/companies/${session.companyId}`, {
+        body: JSON.stringify({ logoUrl: storedFile.publicUrl }),
+        method: "PATCH",
+      }, token);
+      setCompanyForm((current) => ({ ...current, logoUrl: response.data.logoUrl ?? "" }));
+      await loadData();
+      setMessage("Логотип компании сохранен");
+    });
+  }
+
+  async function saveCompanyBranding() {
+    if (!session) return;
+    await runAction("Сохраняем бренд компании...", async () => {
+      await api<Company>(`/companies/${session.companyId}`, {
+        body: JSON.stringify({
+          billingEmail: companyForm.billingEmail || null,
+          brandColor: companyForm.brandColor || "#2346d8",
+          businessAddress: companyForm.businessAddress || null,
+          contractFooter: companyForm.contractFooter || null,
+          iban: companyForm.iban || null,
+          legalName: companyForm.legalName,
+          taxId: companyForm.taxId || null,
+          tradingName: companyForm.tradingName,
+        }),
+        method: "PATCH",
+      }, token);
+      await loadData();
+      setMessage("Брендинг и реквизиты компании сохранены");
+    });
+  }
+
+  async function removeCompanyLogo() {
+    if (!session) return;
+    await runAction("Убираем логотип компании...", async () => {
+      await api<Company>(`/companies/${session.companyId}`, {
+        body: JSON.stringify({ logoUrl: null }),
+        method: "PATCH",
+      }, token);
+      await loadData();
+      setMessage("Логотип компании убран");
     });
   }
 
@@ -2173,6 +2248,16 @@ export default function DashboardClient() {
         type="file"
       />
       <input
+        accept=".jpg,.jpeg,.png,.webp,.svg"
+        className="hidden-file-input"
+        onChange={(event) => {
+          void saveCompanyLogo(event.currentTarget.files);
+          event.currentTarget.value = "";
+        }}
+        ref={companyLogoInputRef}
+        type="file"
+      />
+      <input
         accept=".pdf,.jpg,.jpeg,.png,.webp"
         className="hidden-file-input"
         multiple
@@ -2427,6 +2512,7 @@ export default function DashboardClient() {
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">Отправить ссылку WhatsApp</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Загрузить подпись</button>
             </div>
+            <BookingCalendar customers={data.customers} rentals={data.rentals} vehicles={data.vehicles} />
             {data.rentals.map((rental) => {
               const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
               const customer = data.customers.find((item) => item.id === rental.customerId);
@@ -2495,6 +2581,36 @@ export default function DashboardClient() {
 
         {activeSection === "Settings" ? (
           <section className="settings-grid">
+            <section className="table-panel settings-panel company-branding-panel">
+              <div className="section-title compact-title">
+                <h2>Company branding</h2>
+                <Badge value="Premium" />
+              </div>
+              <div className="brand-preview" style={{ borderColor: companyForm.brandColor }}>
+                <div className="brand-logo" style={{ background: companyForm.brandColor }}>
+                  {companyForm.logoUrl ? <img alt="" src={companyForm.logoUrl} /> : companyForm.tradingName.slice(0, 1)}
+                </div>
+                <div>
+                  <strong>{companyForm.tradingName || data.company?.tradingName}</strong>
+                  <span>{companyForm.legalName || data.company?.legalName}</span>
+                </div>
+              </div>
+              <div className="brand-actions">
+                <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => companyLogoInputRef.current?.click()} type="button">{companyForm.logoUrl ? "Заменить логотип" : "Загрузить логотип"}</button>
+                {companyForm.logoUrl ? <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void removeCompanyLogo()} type="button">Убрать логотип</button> : null}
+              </div>
+              <div className="branding-form">
+                <label>Trading name<input value={companyForm.tradingName} onChange={(event) => setCompanyForm({ ...companyForm, tradingName: event.target.value })} /></label>
+                <label>Legal name<input value={companyForm.legalName} onChange={(event) => setCompanyForm({ ...companyForm, legalName: event.target.value })} /></label>
+                <label>Brand color<input type="color" value={companyForm.brandColor} onChange={(event) => setCompanyForm({ ...companyForm, brandColor: event.target.value })} /></label>
+                <label>Billing email<input inputMode="email" type="email" value={companyForm.billingEmail} onChange={(event) => setCompanyForm({ ...companyForm, billingEmail: event.target.value })} /></label>
+                <label>VAT / NIP<input value={companyForm.taxId} onChange={(event) => setCompanyForm({ ...companyForm, taxId: event.target.value })} /></label>
+                <label>IBAN<input value={companyForm.iban} onChange={(event) => setCompanyForm({ ...companyForm, iban: event.target.value })} /></label>
+                <label className="wide-field">Business address<textarea value={companyForm.businessAddress} onChange={(event) => setCompanyForm({ ...companyForm, businessAddress: event.target.value })} /></label>
+                <label className="wide-field">Contract footer<textarea value={companyForm.contractFooter} onChange={(event) => setCompanyForm({ ...companyForm, contractFooter: event.target.value })} /></label>
+              </div>
+              <button className="primary-button full" disabled={Boolean(busyAction)} onClick={() => void saveCompanyBranding()} type="button">Сохранить бренд компании</button>
+            </section>
             <section className="table-panel settings-panel">
               <h2>{t("settings.account")}</h2>
               <p className="history-row">{session.user.fullName} · {session.user.email}</p>
@@ -2666,6 +2782,59 @@ function OwnerProfileDialog({
         </div>
       </section>
     </div>
+  );
+}
+
+function BookingCalendar({ customers, rentals, vehicles }: { customers: Customer[]; rentals: Rental[]; vehicles: Vehicle[] }) {
+  const days = Array.from({ length: 14 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + index);
+    return date;
+  });
+
+  function rentalForDay(vehicle: Vehicle, day: Date) {
+    const start = day.getTime();
+    const end = start + 24 * 60 * 60 * 1000;
+    return rentals.find((rental) => {
+      if (rental.vehicleId !== vehicle.id || rental.status === "closed") return false;
+      const pickup = new Date(rental.pickupAt).getTime();
+      const dropoff = new Date(rental.returnAt).getTime();
+      return pickup < end && dropoff >= start;
+    });
+  }
+
+  return (
+    <section className="booking-calendar">
+      <div className="section-title compact-title">
+        <h2>Booking calendar</h2>
+        <Badge value={`${vehicles.length} авто`} />
+      </div>
+      <div className="calendar-scroll">
+        <div className="calendar-grid" style={{ gridTemplateColumns: `180px repeat(${days.length}, minmax(78px, 1fr))` }}>
+          <div className="calendar-head">Автомобиль</div>
+          {days.map((day) => <div className="calendar-head" key={day.toISOString()}>{day.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</div>)}
+          {vehicles.map((vehicle) => (
+            <Fragment key={vehicle.id}>
+              <div className="calendar-car" key={`${vehicle.id}-car`}>
+                <strong>{vehicle.make} {vehicle.model}</strong>
+                <span>{vehicle.plateNumber}</span>
+              </div>
+              {days.map((day) => {
+                const rental = rentalForDay(vehicle, day);
+                const customer = customers.find((item) => item.id === rental?.customerId);
+                return (
+                  <div className={`calendar-slot ${rental ? rental.status : "free"}`} key={`${vehicle.id}-${day.toISOString()}`}>
+                    <strong>{rental ? rental.status.replaceAll("_", " ") : "free"}</strong>
+                    <span>{customer?.displayName ?? ""}</span>
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -36,6 +36,13 @@ export interface Company extends TenantScopedEntity {
   currency: string;
   plan: "starter" | "growth" | "enterprise";
   fleetSizeLimit: number;
+  logoUrl?: string;
+  brandColor: string;
+  billingEmail?: string;
+  taxId?: string;
+  iban?: string;
+  businessAddress?: string;
+  contractFooter?: string;
 }
 
 export type VehicleStatus = "available" | "rented" | "maintenance" | "offline";

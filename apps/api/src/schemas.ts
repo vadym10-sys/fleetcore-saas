@@ -57,6 +57,18 @@ export const teamMemberInput = z.object({
   role: z.enum(["admin", "fleet_manager", "finance_manager", "support"]).default("fleet_manager"),
 });
 
+export const companyBrandingInput = z.object({
+  tradingName: z.string().trim().min(2).max(160).optional(),
+  legalName: z.string().trim().min(2).max(220).optional(),
+  logoUrl: z.string().url().nullable().optional(),
+  brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  billingEmail: z.string().trim().toLowerCase().email().nullable().optional(),
+  taxId: z.string().trim().max(80).nullable().optional(),
+  iban: z.string().trim().max(80).nullable().optional(),
+  businessAddress: z.string().trim().max(500).nullable().optional(),
+  contractFooter: z.string().trim().max(800).nullable().optional(),
+});
+
 export const vehicleInput = z.object({
   vin: z.string().min(6),
   plateNumber: z.string().min(2),

@@ -26,6 +26,13 @@ export function mapCompany(row: DbRow): Company {
     currency: String(row.currency).trim(),
     plan: row.plan as Company["plan"],
     fleetSizeLimit: number(row.fleet_size_limit),
+    ...(row.logo_url ? { logoUrl: String(row.logo_url) } : {}),
+    brandColor: row.brand_color ? String(row.brand_color) : "#2346d8",
+    ...(row.billing_email ? { billingEmail: String(row.billing_email) } : {}),
+    ...(row.tax_id ? { taxId: String(row.tax_id) } : {}),
+    ...(row.iban ? { iban: String(row.iban) } : {}),
+    ...(row.business_address ? { businessAddress: String(row.business_address) } : {}),
+    ...(row.contract_footer ? { contractFooter: String(row.contract_footer) } : {}),
   };
 }
 

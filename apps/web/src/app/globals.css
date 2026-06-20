@@ -2530,6 +2530,169 @@ h3 {
   border-top: 1px solid var(--line);
 }
 
+.company-branding-panel {
+  grid-column: 1 / -1;
+}
+
+.brand-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 2px solid var(--primary);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.brand-logo {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  color: white;
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.brand-preview strong,
+.brand-preview span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-preview span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.brand-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.branding-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.branding-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.branding-form input,
+.branding-form textarea {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.branding-form textarea {
+  min-height: 76px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.wide-field {
+  grid-column: span 3;
+}
+
+.booking-calendar {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.calendar-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 6px;
+  min-width: 1260px;
+}
+
+.calendar-head,
+.calendar-car,
+.calendar-slot {
+  min-height: 54px;
+  padding: 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: white;
+}
+
+.calendar-head {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.calendar-car strong,
+.calendar-car span,
+.calendar-slot strong,
+.calendar-slot span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-car span,
+.calendar-slot span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.calendar-slot {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.calendar-slot.reserved,
+.calendar-slot.active {
+  border-color: rgba(35, 70, 216, 0.28);
+  background: #edf1ff;
+  color: var(--primary);
+}
+
+.calendar-slot.return_due {
+  border-color: rgba(242, 155, 56, 0.32);
+  background: var(--orange-soft);
+  color: #b45309;
+}
+
 @media (max-width: 1180px) {
   .command-center {
     grid-template-columns: 1fr;
@@ -2600,6 +2763,25 @@ h3 {
     width: 104px;
     height: 104px;
     font-size: 34px;
+  }
+
+  .branding-form,
+  .wide-field {
+    grid-template-columns: 1fr;
+    grid-column: auto;
+  }
+
+  .brand-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .booking-calendar {
+    padding: 10px;
+  }
+
+  .calendar-grid {
+    min-width: 1040px;
   }
 }
 
