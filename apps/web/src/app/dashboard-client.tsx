@@ -89,6 +89,20 @@ type RentalDocumentFolder = {
   vehicle: Vehicle | undefined;
 };
 
+type RentalDetailContext = RentalDocumentFolder & {
+  contractEvents: RentalContractEvent[];
+  flow: RentalFlow | undefined;
+  paidAmount: number;
+  remainingAmount: number;
+};
+
+type OperationsIssue = {
+  action: () => void;
+  label: string;
+  meta: string;
+  tone: "red" | "orange" | "blue" | "green" | "black";
+};
+
 type GlobalSearchResult = {
   id: string;
   kind: "vehicle" | "customer" | "rental" | "document";
@@ -97,6 +111,7 @@ type GlobalSearchResult = {
   section: Section;
   vehicleId?: string;
   customerId?: string;
+  rentalId?: string;
   preview?: DocumentPreview;
 };
 
@@ -1493,6 +1508,7 @@ export default function DashboardClient() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
+  const [selectedRentalId, setSelectedRentalId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<string | undefined>();
@@ -1742,6 +1758,7 @@ export default function DashboardClient() {
         kind: "rental",
         label: `${vehicle?.make ?? "Авто"} ${vehicle?.model ?? ""}`.trim(),
         meta: `${customer?.displayName ?? "Клиент"} · ${vehicle?.plateNumber ?? "без номера"} · возврат ${dateFmt.format(new Date(rental.returnAt))}`,
+        rentalId: rental.id,
         section: "Bookings",
       }));
 
@@ -1785,6 +1802,9 @@ export default function DashboardClient() {
   function openSearchResult(result: GlobalSearchResult) {
     if (result.vehicleId) {
       setSelectedVehicleId(result.vehicleId);
+    }
+    if (result.rentalId) {
+      setSelectedRentalId(result.rentalId);
     }
     if (result.kind === "vehicle" && result.vehicleId) {
       const vehicle = data.vehicles.find((item) => item.id === result.vehicleId);
@@ -1872,6 +1892,103 @@ export default function DashboardClient() {
     { label: t("command.documents"), value: data.documents.length + data.customerDocuments.length, tone: "blue" },
     { label: t("command.contracts"), value: data.rentalContracts.length, tone: "green" },
   ];
+
+  const operations = useMemo(() => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const activeRentals = data.rentals.filter((rental) => rental.status !== "closed");
+    const dueToday = activeRentals.filter((rental) => Math.abs(new Date(rental.returnAt).getTime() - now) < dayMs);
+    const overdueRentals = activeRentals.filter((rental) => new Date(rental.returnAt).getTime() < now);
+    const unpaidInvoices = data.invoices.filter((invoice) => invoice.status === "issued" || invoice.status === "overdue");
+    const expiringDocs = data.documents.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * dayMs);
+    const offlineGps = data.gpsDevices.filter((device) => device.status === "offline" || now - new Date(device.lastSignalAt).getTime() > 2 * 60 * 60 * 1000);
+    const missingVehicleDocs = data.vehicles.filter((vehicle) => !data.documents.some((doc) => doc.vehicleId === vehicle.id));
+    const serviceDue = data.vehicles.filter((vehicle) => vehicle.odometerKm >= 40_000 || data.serviceRecords.some((record) => record.vehicleId === vehicle.id && record.status !== "completed"));
+    const openContracts = data.rentalContracts.filter((contract) => contract.status !== "signed");
+    const issues: OperationsIssue[] = [
+      ...overdueRentals.slice(0, 3).map<OperationsIssue>((rental) => {
+        const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+        const customer = data.customers.find((item) => item.id === rental.customerId);
+        return {
+          action: () => {
+            setSelectedRentalId(rental.id);
+            setSelectedVehicleId(rental.vehicleId);
+            setActiveSection("Bookings");
+          },
+          label: "Просрочен возврат",
+          meta: `${vehicle?.plateNumber ?? "Авто"} · ${customer?.displayName ?? "Клиент"} · ${dateFmt.format(new Date(rental.returnAt))}`,
+          tone: "red",
+        };
+      }),
+      ...unpaidInvoices.slice(0, 3).map<OperationsIssue>((invoice) => ({
+        action: () => {
+          setActiveSection("Finance");
+          openOperation("payment");
+        },
+        label: invoice.status === "overdue" ? "Просрочен платеж" : "Ожидает оплаты",
+        meta: `${invoice.invoiceNumber} · ${money.format(invoice.total)} · ${dateFmt.format(new Date(invoice.dueAt))}`,
+        tone: invoice.status === "overdue" ? "red" : "orange",
+      })),
+      ...expiringDocs.slice(0, 2).map<OperationsIssue>((doc) => ({
+        action: () => {
+          setSelectedVehicleId(doc.vehicleId);
+          setActiveSection("Service");
+        },
+        label: "Срок документа",
+        meta: `${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`,
+        tone: "orange",
+      })),
+      ...offlineGps.slice(0, 2).map<OperationsIssue>((device) => {
+        const vehicle = data.vehicles.find((item) => item.id === device.vehicleId);
+        return {
+          action: () => {
+            setSelectedVehicleId(device.vehicleId);
+            setActiveSection("GPS");
+          },
+          label: "GPS без сигнала",
+          meta: `${vehicle?.plateNumber ?? "Авто"} · ${device.provider} · ${dateFmt.format(new Date(device.lastSignalAt))}`,
+          tone: "black",
+        };
+      }),
+    ].slice(0, 8);
+
+    return {
+      activeRentals,
+      dueToday,
+      expiringDocs,
+      issues,
+      missingVehicleDocs,
+      offlineGps,
+      openContracts,
+      overdueRentals,
+      serviceDue,
+      unpaidInvoices,
+    };
+  }, [data.customers, data.documents, data.gpsDevices, data.invoices, data.rentalContracts, data.rentals, data.serviceRecords, data.vehicles]);
+
+  const selectedRental = data.rentals.find((rental) => rental.id === selectedRentalId)
+    ?? data.rentals.find((rental) => rental.id === activeRental?.id)
+    ?? data.rentals.find((rental) => rental.status !== "closed")
+    ?? data.rentals[0];
+  const selectedRentalDetail = useMemo<RentalDetailContext | undefined>(() => {
+    if (!selectedRental) return undefined;
+    const contract = data.rentalContracts.find((item) => item.rentalId === selectedRental.id);
+    const invoice = data.invoices.find((item) => item.rentalId === selectedRental.id);
+    const paidAmount = invoice ? data.payments.filter((payment) => payment.invoiceId === invoice.id).reduce((sum, payment) => sum + payment.amount, 0) : 0;
+    return {
+      checklists: data.rentalChecklists.filter((item) => item.rentalId === selectedRental.id),
+      contract,
+      contractEvents: contract ? data.rentalContractEvents.filter((event) => event.contractId === contract.id) : [],
+      customer: data.customers.find((customer) => customer.id === selectedRental.customerId),
+      flow: data.rentalFlows.find((flow) => flow.rental.id === selectedRental.id),
+      invoice,
+      paidAmount,
+      paymentTotal: paidAmount,
+      remainingAmount: Math.max(0, (invoice?.total ?? selectedRental.totalAmount) - paidAmount),
+      rental: selectedRental,
+      vehicle: data.vehicles.find((vehicle) => vehicle.id === selectedRental.vehicleId),
+    };
+  }, [data.customers, data.invoices, data.payments, data.rentalChecklists, data.rentalContractEvents, data.rentalContracts, data.rentalFlows, data.vehicles, selectedRental]);
 
   function openOperation(kind: OperationKind) {
     const vehicle = selectedVehicle ?? data.vehicles[0];
@@ -3279,27 +3396,28 @@ export default function DashboardClient() {
         ) : null}
 
         {activeSection === "Dashboard" ? (
-          <section className="workspace-grid">
-            <div className="main-column">
-              <div className="dashboard-grid">
-                {dashboardCards.map(([label, value, tone]) => (
-                  <article className="metric-card" key={label}>
-                    <span>{label}</span>
-                    <strong className={tone}>{value}</strong>
-                  </article>
-                ))}
-              </div>
-              <MapPanel gpsDevices={data.gpsDevices} locale={locale} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
-              <section className="split-panels">
-                <UpcomingReturns customers={data.customers} locale={locale} rentals={data.rentals} vehicles={data.vehicles} />
-                <LatestRequests customers={data.customers} invoices={data.invoices} locale={locale} />
-              </section>
-            </div>
-            <aside className="side-column">
-              <NotificationsPanel locale={locale} notifications={notifications} />
-              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onDocumentPreview={setDocumentPreview} onExpense={() => openOperation("expense")} onPhoto={() => vehiclePhotoInputRef.current?.click()} onRemovePhoto={() => void removeVehiclePhoto(selectedVehicle)} onService={() => openOperation("service")} />
-            </aside>
-          </section>
+          <TodayOperationsDashboard
+            cards={dashboardCards}
+            finance={finance}
+            gpsDevices={data.gpsDevices}
+            locale={locale}
+            notifications={notifications}
+            onCreateBooking={() => openOperation("booking")}
+            onCreateService={() => openOperation("service")}
+            onOpenDocuments={() => setActiveSection("Service")}
+            onOpenFinance={() => setActiveSection("Finance")}
+            onOpenRental={(rental) => {
+              setSelectedRentalId(rental.id);
+              setSelectedVehicleId(rental.vehicleId);
+              setActiveSection("Bookings");
+            }}
+            onSelectVehicle={setSelectedVehicleId}
+            operations={operations}
+            rentals={data.rentals}
+            selectedRental={selectedRentalDetail}
+            selectedVehicleId={selectedVehicle?.id}
+            vehicles={filteredVehicles}
+          />
         ) : null}
 
         {activeSection === "GPS" ? (
@@ -3417,16 +3535,42 @@ export default function DashboardClient() {
 
         {activeSection === "Bookings" ? (
           <section className="table-panel bookings-board">
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Создать быструю бронь</button>
-            <div className="quick-actions-grid">
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать электронный договор</button>
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор аренды</button>
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("telegram")} type="button">Telegram</button>
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("email")} type="button">Email</button>
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Загрузить подпись</button>
+            <div className="section-title compact-title">
+              <div>
+                <h2>Rental Details</h2>
+                <p>Бронь, договор, ссылка клиенту, подпись, депозит, выдача, возврат и финальный расчёт.</p>
+              </div>
+              <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Новая бронь</button>
             </div>
-            <BookingCalendar customers={data.customers} rentals={data.rentals} vehicles={data.vehicles} />
+            <div className="rental-details-layout">
+              <RentalDetailPanel
+                busy={Boolean(busyAction)}
+                detail={selectedRentalDetail}
+                locale={locale}
+                money={money}
+                onCreateContract={() => void createDraftContract()}
+                onCreatePickup={(rental) => void createRentalChecklist("pickup", rental)}
+                onCreateReturn={(rental) => void createRentalChecklist("return", rental)}
+                onOpenPdf={(detail) => detail.flow ? void openRentalContractPdf(detail.flow) : void openRentalContractPdfForRental(detail.rental)}
+                onPay={() => openOperation("payment")}
+                onRequestContractUpload={requestContractUpload}
+                onRequestSignature={requestSignatureUpload}
+                onSettle={(detail) => detail.flow ? void finalizeRentalFlowAction(detail.flow) : openOperation("depositReturn")}
+                onShare={(channel, rental) => void shareRentalContract(channel, rental)}
+                onSign={(detail) => detail.flow ? void signRentalFlow(detail.flow) : requestSignatureUpload()}
+              />
+              <aside className="rental-details-side">
+                <div className="quick-actions-grid compact-actions">
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать договор</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("whatsapp", selectedRental) : void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("telegram", selectedRental) : void shareRentalContract("telegram")} type="button">Telegram</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("email", selectedRental) : void shareRentalContract("email")} type="button">Email</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Подпись</button>
+                </div>
+                <BookingCalendar customers={data.customers} rentals={data.rentals} vehicles={data.vehicles} />
+              </aside>
+            </div>
             {data.rentals.map((rental) => {
               const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
               const customer = data.customers.find((item) => item.id === rental.customerId);
@@ -3438,7 +3582,7 @@ export default function DashboardClient() {
               const pickupChecklist = checklists.find((item) => item.phase === "pickup");
               const returnChecklist = checklists.find((item) => item.phase === "return");
               return (
-                <article className="booking-card" key={rental.id}>
+                <article className={`booking-card ${selectedRental?.id === rental.id ? "selected" : ""}`} key={rental.id} onClick={() => setSelectedRentalId(rental.id)}>
                   <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
                   <Badge value={rental.status} />
                   <span>Депозит {money.format(rental.depositAmount)}</span>
@@ -3695,6 +3839,298 @@ export default function DashboardClient() {
   );
 }
 
+function TodayOperationsDashboard({
+  cards,
+  finance,
+  gpsDevices,
+  locale,
+  notifications,
+  onCreateBooking,
+  onCreateService,
+  onOpenDocuments,
+  onOpenFinance,
+  onOpenRental,
+  onSelectVehicle,
+  operations,
+  rentals,
+  selectedRental,
+  selectedVehicleId,
+  vehicles,
+}: {
+  cards: readonly (readonly [string, string | number, string])[];
+  finance: { expenses: number; incomeByVehicle: Array<{ expenses: number; income: number; roi: number; vehicle: Vehicle }>; netProfit: number; totalIncome: number };
+  gpsDevices: GpsDevice[];
+  locale: Locale;
+  notifications: UiNotification[];
+  onCreateBooking: () => void;
+  onCreateService: () => void;
+  onOpenDocuments: () => void;
+  onOpenFinance: () => void;
+  onOpenRental: (rental: Rental) => void;
+  onSelectVehicle: (vehicleId: string) => void;
+  operations: {
+    activeRentals: Rental[];
+    dueToday: Rental[];
+    expiringDocs: VehicleDocument[];
+    issues: OperationsIssue[];
+    missingVehicleDocs: Vehicle[];
+    offlineGps: GpsDevice[];
+    openContracts: RentalContract[];
+    overdueRentals: Rental[];
+    serviceDue: Vehicle[];
+    unpaidInvoices: Invoice[];
+  };
+  rentals: Rental[];
+  selectedRental: RentalDetailContext | undefined;
+  selectedVehicleId: string | undefined;
+  vehicles: Vehicle[];
+}) {
+  const readiness = [
+    { done: operations.overdueRentals.length === 0, label: "Возвраты под контролем" },
+    { done: operations.unpaidInvoices.filter((invoice) => invoice.status === "overdue").length === 0, label: "Нет просроченных оплат" },
+    { done: operations.expiringDocs.length === 0, label: "Сроки документов чистые" },
+    { done: operations.offlineGps.length === 0, label: "GPS online" },
+  ];
+  const priorityRentals = [...operations.overdueRentals, ...operations.dueToday, ...operations.activeRentals]
+    .filter((rental, index, list) => list.findIndex((item) => item.id === rental.id) === index)
+    .slice(0, 5);
+
+  return (
+    <section className="today-operations-board">
+      <div className="operations-hero">
+        <div>
+          <span className="eyebrow">Today Operations</span>
+          <h2>Рабочий центр автопарка</h2>
+          <p>Самые важные возвраты, оплаты, документы, GPS-сигналы и действия на сегодня.</p>
+        </div>
+        <div className="operations-hero-actions">
+          <button className="primary-button" onClick={onCreateBooking} type="button">Новая бронь</button>
+          <button className="ghost-button" onClick={onOpenFinance} type="button">Финансы</button>
+          <button className="ghost-button" onClick={onOpenDocuments} type="button">Документы</button>
+        </div>
+      </div>
+
+      <div className="operations-kpi-grid">
+        {cards.map(([label, value, tone]) => (
+          <article className="metric-card" key={label}>
+            <span>{label}</span>
+            <strong className={tone}>{value}</strong>
+          </article>
+        ))}
+        <article className="metric-card priority">
+          <span>Операционные риски</span>
+          <strong className={operations.issues.length ? "red" : "green"}>{operations.issues.length}</strong>
+        </article>
+        <article className="metric-card priority">
+          <span>Чистая прибыль</span>
+          <strong className="green">{money.format(finance.netProfit)}</strong>
+        </article>
+      </div>
+
+      <div className="operations-main-grid">
+        <section className="operations-map-panel">
+          <MapPanel gpsDevices={gpsDevices} locale={locale} vehicles={vehicles} rentals={rentals} selectedVehicleId={selectedVehicleId} onSelect={onSelectVehicle} />
+        </section>
+        <aside className="operations-queue">
+          <div className="section-title compact-title">
+            <h2>Очередь действий</h2>
+            <Badge value={String(operations.issues.length)} />
+          </div>
+          {operations.issues.map((issue) => (
+            <button className={`operation-issue ${issue.tone}`} key={`${issue.label}-${issue.meta}`} onClick={issue.action} type="button">
+              <strong>{issue.label}</strong>
+              <span>{issue.meta}</span>
+            </button>
+          ))}
+          {!operations.issues.length ? (
+            <div className="operation-empty">
+              <strong>Срочных проблем нет</strong>
+              <span>Можно создать новую бронь, проверить документы или открыть финансы.</span>
+            </div>
+          ) : null}
+          <div className="operations-fast-actions">
+            <button className="ghost-button" onClick={onCreateBooking} type="button">Бронь</button>
+            <button className="ghost-button" onClick={onCreateService} type="button">ТО</button>
+            <button className="ghost-button" onClick={onOpenDocuments} type="button">Документ</button>
+          </div>
+        </aside>
+      </div>
+
+      <div className="operations-lower-grid">
+        <section className="table-panel active-rentals-panel">
+          <div className="section-title compact-title">
+            <h2>Активные аренды</h2>
+            <Badge value={`${operations.activeRentals.length} open`} />
+          </div>
+          {priorityRentals.map((rental) => {
+            const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+            const dueInHours = Math.round((new Date(rental.returnAt).getTime() - Date.now()) / (60 * 60 * 1000));
+            return (
+              <button className="active-rental-row" key={rental.id} onClick={() => onOpenRental(rental)} type="button">
+                <div>
+                  <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль"}</strong>
+                  <span>{vehicle?.plateNumber ?? "без номера"} · {rental.status}</span>
+                </div>
+                <Badge value={dueInHours < 0 ? "overdue" : `${dueInHours}h`} />
+              </button>
+            );
+          })}
+          {!priorityRentals.length ? <p className="history-row">Нет активных аренд. Создайте новую бронь.</p> : null}
+        </section>
+
+        <section className="table-panel operations-readiness">
+          <h2>Готовность к работе</h2>
+          {readiness.map((item) => (
+            <p className={item.done ? "done" : "attention"} key={item.label}>
+              <span>{item.done ? "✓" : "!"}</span>
+              <strong>{item.label}</strong>
+            </p>
+          ))}
+          <small>{operations.missingVehicleDocs.length} авто без документов · {operations.openContracts.length} договоров в работе · {operations.serviceDue.length} задач ТО</small>
+        </section>
+
+        <section className="table-panel operations-selected-rental">
+          <h2>Аренда в фокусе</h2>
+          {selectedRental ? (
+            <>
+              <strong>{selectedRental.vehicle ? `${selectedRental.vehicle.make} ${selectedRental.vehicle.model}` : "Автомобиль"} · {selectedRental.customer?.displayName ?? "Клиент"}</strong>
+              <span>{selectedRental.vehicle?.plateNumber ?? "без номера"} · возврат {dateFmt.format(new Date(selectedRental.rental.returnAt))}</span>
+              <button className="primary-button" onClick={() => onOpenRental(selectedRental.rental)} type="button">Открыть Rental Details</button>
+            </>
+          ) : <p className="history-row">Создайте первую аренду.</p>}
+        </section>
+
+        <NotificationsPanel locale={locale} notifications={notifications} />
+      </div>
+    </section>
+  );
+}
+
+function RentalDetailPanel({
+  busy,
+  detail,
+  locale,
+  money: rentalMoney,
+  onCreateContract,
+  onCreatePickup,
+  onCreateReturn,
+  onOpenPdf,
+  onPay,
+  onRequestContractUpload,
+  onRequestSignature,
+  onSettle,
+  onShare,
+  onSign,
+}: {
+  busy: boolean;
+  detail: RentalDetailContext | undefined;
+  locale: Locale;
+  money: Intl.NumberFormat;
+  onCreateContract: () => void;
+  onCreatePickup: (rental: Rental) => void;
+  onCreateReturn: (rental: Rental) => void;
+  onOpenPdf: (detail: RentalDetailContext) => void;
+  onPay: () => void;
+  onRequestContractUpload: () => void;
+  onRequestSignature: () => void;
+  onSettle: (detail: RentalDetailContext) => void;
+  onShare: (channel: "whatsapp" | "telegram" | "email", rental: Rental) => void;
+  onSign: (detail: RentalDetailContext) => void;
+}) {
+  if (!detail) {
+    return (
+      <section className="rental-detail-panel empty">
+        <span className="eyebrow">Rental Details</span>
+        <h2>Аренда не выбрана</h2>
+        <p>Создайте первую бронь или выберите аренду из списка ниже.</p>
+        <button className="primary-button" onClick={onCreateContract} type="button">Создать договор</button>
+      </section>
+    );
+  }
+
+  const pickup = detail.checklists.some((item) => item.phase === "pickup");
+  const returned = detail.checklists.some((item) => item.phase === "return");
+  const contractSigned = detail.contract?.status === "signed";
+  const paymentReady = detail.remainingAmount <= 0;
+  const steps = [
+    { done: true, label: "Бронь", meta: detail.rental.status },
+    { done: Boolean(detail.contract), label: "Договор", meta: detail.contract?.status ?? "not created" },
+    { done: paymentReady, label: "Оплата", meta: `${rentalMoney.format(detail.paidAmount)} / ${rentalMoney.format(detail.invoice?.total ?? detail.rental.totalAmount)}` },
+    { done: pickup, label: "Выдача", meta: pickup ? "акт готов" : "нужен акт" },
+    { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
+    { done: detail.rental.status === "closed", label: "Финал", meta: detail.rental.status === "closed" ? "закрыто" : "в работе" },
+  ];
+
+  return (
+    <section className="rental-detail-panel" data-testid="rental-detail-panel">
+      <div className="rental-detail-hero">
+        <div>
+          <span className="eyebrow">Rental Detail</span>
+          <h2>{detail.vehicle ? `${detail.vehicle.make} ${detail.vehicle.model}` : "Автомобиль"} · {detail.vehicle?.plateNumber ?? "без номера"}</h2>
+          <p>{detail.customer?.displayName ?? "Клиент"} · {dateFmt.format(new Date(detail.rental.pickupAt))} - {dateFmt.format(new Date(detail.rental.returnAt))}</p>
+        </div>
+        <Badge value={detail.rental.status} />
+      </div>
+
+      <div className="rental-detail-timeline" data-testid="rental-detail-timeline">
+        {steps.map((step) => (
+          <article className={step.done ? "done" : ""} key={step.label}>
+            <span>{step.done ? "✓" : "•"}</span>
+            <strong>{step.label}</strong>
+            <small>{step.meta}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="rental-detail-grid">
+        <article>
+          <span>Сумма аренды</span>
+          <strong>{rentalMoney.format(detail.rental.totalAmount)}</strong>
+        </article>
+        <article>
+          <span>Депозит</span>
+          <strong>{rentalMoney.format(detail.rental.depositAmount)}</strong>
+        </article>
+        <article>
+          <span>Оплачено</span>
+          <strong>{rentalMoney.format(detail.paidAmount)}</strong>
+        </article>
+        <article className={detail.remainingAmount > 0 ? "attention" : "done"}>
+          <span>К оплате</span>
+          <strong>{rentalMoney.format(detail.remainingAmount)}</strong>
+        </article>
+      </div>
+
+      <div className="rental-document-strip">
+        <div>
+          <strong>Договор</strong>
+          {detail.contract ? <FilePreviewLink fileUrl={detail.contract.documentUrl} title={detail.contract.status} /> : <span>не создан</span>}
+          <small>{contractSigned ? "Подписан клиентом" : "Создайте, отправьте и получите подпись"}</small>
+        </div>
+        <div>
+          <strong>История</strong>
+          {detail.contractEvents.slice(0, 3).map((event) => <span key={event.id}>{contractEventLabel(locale, event)} · {event.channel}</span>)}
+          {!detail.contractEvents.length ? <span>Событий пока нет</span> : null}
+        </div>
+      </div>
+
+      <div className="rental-action-bar">
+        <button className="primary-button" disabled={busy} onClick={() => detail.contract ? onOpenPdf(detail) : onCreateContract()} type="button">{detail.contract ? "Открыть PDF" : "Создать договор"}</button>
+        <button className="ghost-button" disabled={busy} onClick={onRequestContractUpload} type="button">Загрузить договор</button>
+        <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
+        <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
+        <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
+        <button className="ghost-button" disabled={busy} onClick={() => onSign(detail)} type="button">{contractSigned ? "Подписано" : "Подписать"}</button>
+        <button className="ghost-button" disabled={busy} onClick={() => onCreatePickup(detail.rental)} type="button">{pickup ? "Выдача OK" : "Акт выдачи"}</button>
+        <button className="ghost-button" disabled={busy} onClick={() => onCreateReturn(detail.rental)} type="button">{returned ? "Возврат OK" : "Акт возврата"}</button>
+        <button className="ghost-button" disabled={busy || paymentReady} onClick={onPay} type="button">Провести оплату</button>
+        <button className="primary-button" disabled={busy || !returned} onClick={() => onSettle(detail)} type="button">Финальный расчёт</button>
+        <button className="ghost-button" disabled={busy} onClick={onRequestSignature} type="button">Загрузить подпись</button>
+      </div>
+    </section>
+  );
+}
+
 function DocumentVault({
   checklists,
   customerDocuments,
@@ -3763,6 +4199,16 @@ function DocumentVault({
   const signedContracts = rentalContracts.filter((contract) => contract.status === "signed").length;
   const sentContracts = rentalContracts.filter((contract) => contract.status === "sent" || contract.status === "viewed").length;
   const openReturnActs = checklists.filter((item) => item.phase === "return").length;
+  const overdueDocuments = expiringDocuments.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now);
+  const verifiedCustomerDocs = customerDocuments.filter((doc) => doc.verified).length;
+  const activeRentalFolders = rentalFolders.filter((folder) => folder.rental.status !== "closed").length;
+  const documentStatusCards = [
+    { label: "Авто", meta: "страховка, техосмотр, регистрация", status: `${vehicleDocuments.length} файлов`, tone: vehicleDocuments.length ? "green" : "orange" },
+    { label: "Клиент", meta: "паспорт, ID, права, KYC", status: `${verifiedCustomerDocs}/${customerDocuments.length} verified`, tone: customerDocuments.length && verifiedCustomerDocs === customerDocuments.length ? "green" : "orange" },
+    { label: "Аренда", meta: "договор, акты, депозит", status: `${activeRentalFolders} активных папок`, tone: activeRentalFolders ? "blue" : "black" },
+    { label: "Сроки", meta: "истекающие и просроченные документы", status: `${overdueDocuments.length} overdue · ${expiringDocuments.length} soon`, tone: overdueDocuments.length ? "red" : expiringDocuments.length ? "orange" : "green" },
+    { label: "Статус", meta: "создан, отправлен, открыт, подписан", status: `${signedContracts}/${rentalContracts.length} signed`, tone: rentalContracts.length && signedContracts === rentalContracts.length ? "green" : "blue" },
+  ];
 
   return (
     <div className="document-vault">
@@ -3776,6 +4222,16 @@ function DocumentVault({
           <button className="primary-button" onClick={onVehicleDocument} type="button">Загрузить документ</button>
           <button className="ghost-button" onClick={onService} type="button">Создать ТО</button>
         </div>
+      </section>
+
+      <section className="document-status-board" aria-label="Document status matrix">
+        {documentStatusCards.map((card) => (
+          <article className={card.tone} key={card.label}>
+            <span>{card.label}</span>
+            <strong>{card.status}</strong>
+            <small>{card.meta}</small>
+          </article>
+        ))}
       </section>
 
       <section className="document-center-board" aria-label="Document center">
