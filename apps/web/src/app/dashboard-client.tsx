@@ -803,6 +803,14 @@ function vehicleVisualVariant(vehicle?: Pick<Vehicle, "make" | "model">) {
 
 function VehicleVisual({ tone = "light", vehicle }: { tone?: "light" | "dark"; vehicle?: Pick<Vehicle, "make" | "model"> }) {
   const variant = vehicleVisualVariant(vehicle);
+  if ("photoUrl" in (vehicle ?? {}) && (vehicle as Vehicle).photoUrl) {
+    return (
+      <div className={`vehicle-photo-shell ${tone}`}>
+        <img alt={`${(vehicle as Vehicle).make} ${(vehicle as Vehicle).model}`} src={(vehicle as Vehicle).photoUrl} />
+      </div>
+    );
+  }
+
   return (
     <div className={`vehicle-art vehicle-visual ${tone} vehicle-${variant}`}>
       <span className="car-shadow" />
@@ -1136,6 +1144,7 @@ export default function DashboardClient() {
   const [operationFiles, setOperationFiles] = useState<FileList | null>(null);
   const vehicleDocumentInputRef = useRef<HTMLInputElement>(null);
   const vehicleFolderInputRef = useRef<HTMLInputElement>(null);
+  const vehiclePhotoInputRef = useRef<HTMLInputElement>(null);
   const customerDocumentInputRef = useRef<HTMLInputElement>(null);
   const customerFolderInputRef = useRef<HTMLInputElement>(null);
   const contractInputRef = useRef<HTMLInputElement>(null);
@@ -1547,6 +1556,34 @@ export default function DashboardClient() {
       }));
       await loadData();
       setMessage(`Загружено документов авто: ${files.length}`);
+    });
+  }
+
+  async function saveVehiclePhoto(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    await runAction("Обновляем фото автомобиля...", async () => {
+      const vehicle = await ensureVehicle();
+      const storedFile = await uploadFile(file);
+      const response = await api<Vehicle>(`/fleet/vehicles/${vehicle.id}`, {
+        body: JSON.stringify({ photoUrl: storedFile.publicUrl }),
+        method: "PATCH",
+      }, token);
+      setSelectedVehicleId(response.data.id);
+      await loadData();
+      setMessage("Фото автомобиля сохранено");
+    });
+  }
+
+  async function removeVehiclePhoto(vehicleOverride?: Vehicle) {
+    await runAction("Убираем фото автомобиля...", async () => {
+      const vehicle = vehicleOverride ?? await ensureVehicle();
+      await api<Vehicle>(`/fleet/vehicles/${vehicle.id}`, {
+        body: JSON.stringify({ photoUrl: null }),
+        method: "PATCH",
+      }, token);
+      await loadData();
+      setMessage("Фото убрано. Показываем встроенный визуал по марке.");
     });
   }
 
@@ -2126,6 +2163,16 @@ export default function DashboardClient() {
         {...folderPickerProps}
       />
       <input
+        accept=".jpg,.jpeg,.png,.webp"
+        className="hidden-file-input"
+        onChange={(event) => {
+          void saveVehiclePhoto(event.currentTarget.files);
+          event.currentTarget.value = "";
+        }}
+        ref={vehiclePhotoInputRef}
+        type="file"
+      />
+      <input
         accept=".pdf,.jpg,.jpeg,.png,.webp"
         className="hidden-file-input"
         multiple
@@ -2266,7 +2313,7 @@ export default function DashboardClient() {
             </div>
             <aside className="side-column">
               <NotificationsPanel locale={locale} notifications={notifications} />
-              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onService={() => openOperation("service")} />
+              <VehicleCard locale={locale} vehicle={selectedVehicle} rental={activeRental} customer={activeCustomer} documents={data.documents} finance={finance.incomeByVehicle.find((item) => item.vehicle.id === selectedVehicle?.id)} serviceRecords={data.serviceRecords} onDocument={requestVehicleDocumentUpload} onExpense={() => openOperation("expense")} onPhoto={() => vehiclePhotoInputRef.current?.click()} onRemovePhoto={() => void removeVehiclePhoto(selectedVehicle)} onService={() => openOperation("service")} />
             </aside>
           </section>
         ) : null}
@@ -2309,6 +2356,8 @@ export default function DashboardClient() {
               locale={locale}
               onDocument={requestVehicleDocumentUpload}
               onExpense={() => openOperation("expense")}
+              onPhoto={() => vehiclePhotoInputRef.current?.click()}
+              onRemovePhoto={() => void removeVehiclePhoto(selectedVehicle)}
               onService={() => openOperation("service")}
               rental={activeRental}
               serviceCount={data.serviceRecords.filter((record) => record.vehicleId === selectedVehicle?.id).length}
@@ -2734,7 +2783,7 @@ function NotificationsPanel({ locale, notifications }: { locale: Locale; notific
   );
 }
 
-function VehicleCard({ customer, documents, finance, locale, onDocument, onExpense, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; locale: Locale; onDocument: () => void; onExpense: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
+function VehicleCard({ customer, documents, finance, locale, onDocument, onExpense, onPhoto, onRemovePhoto, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; locale: Locale; onDocument: () => void; onExpense: () => void; onPhoto: () => void; onRemovePhoto: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
   if (!vehicle) return <section className="table-panel"><h2>{translate(locale, "panel.vehicleCard")}</h2><p>{translate(locale, "vehicle.add")}</p></section>;
   const vehicleDocuments = documents.filter((doc) => doc.vehicleId === vehicle.id);
   const vehicleServiceRecords = serviceRecords.filter((record) => record.vehicleId === vehicle.id);
@@ -2760,6 +2809,10 @@ function VehicleCard({ customer, documents, finance, locale, onDocument, onExpen
           ))}
         </div>
       ) : null}
+      <div className="vehicle-photo-actions">
+        <button className="ghost-button full-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? "Заменить фото" : "Добавить фото авто"}</button>
+        {vehicle.photoUrl ? <button className="ghost-button full-button" onClick={onRemovePhoto} type="button">Убрать фото</button> : null}
+      </div>
       <button className="ghost-button full-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
       <button className="ghost-button full-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
       <button className="ghost-button full-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>
@@ -2774,6 +2827,8 @@ function VehicleHero({
   locale,
   onDocument,
   onExpense,
+  onPhoto,
+  onRemovePhoto,
   onService,
   rental,
   serviceCount,
@@ -2785,6 +2840,8 @@ function VehicleHero({
   locale: Locale;
   onDocument: () => void;
   onExpense: () => void;
+  onPhoto: () => void;
+  onRemovePhoto: () => void;
   onService: () => void;
   rental: Rental | undefined;
   serviceCount: number;
@@ -2809,6 +2866,8 @@ function VehicleHero({
         <h2>{vehicle.make} {vehicle.model}</h2>
         <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
         <div className="vehicle-hero-actions">
+          <button className="primary-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? "Заменить фото" : "Фото авто"}</button>
+          {vehicle.photoUrl ? <button className="ghost-button" onClick={onRemovePhoto} type="button">Убрать фото</button> : null}
           <button className="primary-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
           <button className="ghost-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
           <button className="ghost-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>

@@ -58,6 +58,7 @@ export function mapVehicle(row: DbRow): Vehicle {
     location: String(row.location),
     odometerKm: number(row.odometer_km),
     dailyRate: number(row.daily_rate),
+    ...(row.photo_url ? { photoUrl: String(row.photo_url) } : {}),
   };
 }
 

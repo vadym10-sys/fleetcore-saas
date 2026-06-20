@@ -51,6 +51,7 @@ export interface Vehicle extends TenantScopedEntity {
   location: string;
   odometerKm: number;
   dailyRate: number;
+  photoUrl?: string;
 }
 
 export type RentalStatus = "quote" | "reserved" | "active" | "return_due" | "closed";

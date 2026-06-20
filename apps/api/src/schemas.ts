@@ -67,6 +67,7 @@ export const vehicleInput = z.object({
   location: z.string().min(1),
   odometerKm: z.number().int().nonnegative().default(0),
   dailyRate: z.number().nonnegative(),
+  photoUrl: z.string().url().nullable().optional(),
 });
 
 export const vehiclePatchInput = vehicleInput.partial();

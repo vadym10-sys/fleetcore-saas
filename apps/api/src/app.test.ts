@@ -363,6 +363,45 @@ test("authenticated API can delete a vehicle without rental history", async () =
   assert.equal(readDeleted.statusCode, 404);
 });
 
+test("authenticated API can attach and remove a custom vehicle photo", async () => {
+  const create = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      dailyRate: 95,
+      location: "Marbella",
+      make: "Tesla",
+      model: "Model Y",
+      odometerKm: 2200,
+      plateNumber: `PHOTO-${Date.now()}`,
+      status: "available",
+      vin: `VINPHOTO${Date.now()}`,
+      year: 2025,
+    },
+    url: "/fleet/vehicles",
+  });
+  assert.equal(create.statusCode, 201);
+  const vehicle = create.json().data;
+
+  const withPhoto = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "PATCH",
+    payload: { photoUrl: "https://example.com/vehicles/tesla-model-y.jpg" },
+    url: `/fleet/vehicles/${vehicle.id}`,
+  });
+  assert.equal(withPhoto.statusCode, 200);
+  assert.equal(withPhoto.json().data.photoUrl, "https://example.com/vehicles/tesla-model-y.jpg");
+
+  const withoutPhoto = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "PATCH",
+    payload: { photoUrl: null },
+    url: `/fleet/vehicles/${vehicle.id}`,
+  });
+  assert.equal(withoutPhoto.statusCode, 200);
+  assert.equal(withoutPhoto.json().data.photoUrl, undefined);
+});
+
 test("authenticated API stores and serves uploaded files", async () => {
   const content = "FleetCore upload smoke test";
   const upload = await app.inject({

@@ -27,6 +27,9 @@ test("dashboard client keeps production account and document flows wired", () =>
     "/auth/me",
     "VehicleVisual",
     "vehicleVisualVariant",
+    "saveVehiclePhoto",
+    "removeVehiclePhoto",
+    "photoUrl",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

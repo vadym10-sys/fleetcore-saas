@@ -60,7 +60,7 @@ export type AuditLogInput = {
   userId?: string | undefined;
 };
 
-type PatchValue = string | number | undefined;
+type PatchValue = null | number | string | undefined;
 
 function patchSet(
   patch: Record<string, PatchValue>,
@@ -409,8 +409,8 @@ export async function createVehicle(scope: TenantScope, input: VehicleInput): Pr
   const result = await pool.query(
     `insert into vehicles (
       id, tenant_id, company_id, vin, plate_number, make, model, year,
-      status, location, odometer_km, daily_rate
-    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      status, location, odometer_km, daily_rate, photo_url
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
     returning *`,
     [
       createId("veh"),
@@ -425,6 +425,7 @@ export async function createVehicle(scope: TenantScope, input: VehicleInput): Pr
       input.location,
       input.odometerKm,
       input.dailyRate,
+      input.photoUrl ?? null,
     ],
   );
   return mapVehicle(result.rows[0]);
@@ -442,6 +443,7 @@ export async function updateVehicle(scope: TenantScope, vehicleId: string, input
       location: input.location,
       odometerKm: input.odometerKm,
       dailyRate: input.dailyRate,
+      photoUrl: input.photoUrl,
     },
     {
       vin: "vin",
@@ -453,6 +455,7 @@ export async function updateVehicle(scope: TenantScope, vehicleId: string, input
       location: "location",
       odometerKm: "odometer_km",
       dailyRate: "daily_rate",
+      photoUrl: "photo_url",
     },
     4,
   );
