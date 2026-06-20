@@ -79,6 +79,16 @@ type DocumentPreview = {
   title: string;
 };
 
+type RentalDocumentFolder = {
+  checklists: RentalChecklist[];
+  contract: RentalContract | undefined;
+  customer: Customer | undefined;
+  invoice: Invoice | undefined;
+  paymentTotal: number;
+  rental: Rental;
+  vehicle: Vehicle | undefined;
+};
+
 const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
 const locales: Array<{ code: Locale; label: string }> = [
   { code: "en", label: "EN" },
@@ -3098,7 +3108,9 @@ export default function DashboardClient() {
         {activeRentalFlow ? (
           <RentalFlowPanel
             busy={Boolean(busyAction)}
+            events={activeRentalFlow.contract ? data.rentalContractEvents.filter((event) => event.contractId === activeRentalFlow.contract?.id) : []}
             flow={activeRentalFlow}
+            locale={locale}
             money={money}
             onOpenPdf={() => void openRentalContractPdf(activeRentalFlow)}
             onPrimaryAction={() => void processFlowAction(activeRentalFlow)}
@@ -3331,6 +3343,8 @@ export default function DashboardClient() {
               checklists={data.rentalChecklists}
               customerDocuments={data.customerDocuments}
               files={data.files}
+              invoices={data.invoices}
+              locale={locale}
               onCustomerFolder={requestCustomerFolderUpload}
               onDeposit={requestDepositUpload}
               onDocumentPreview={setDocumentPreview}
@@ -3338,7 +3352,12 @@ export default function DashboardClient() {
               onVehicleDocument={requestVehicleDocumentUpload}
               onVehicleFolder={requestVehicleFolderUpload}
               rentalContracts={data.rentalContracts}
+              rentalContractEvents={data.rentalContractEvents}
+              rentals={data.rentals}
+              customers={data.customers}
+              payments={data.payments}
               serviceRecords={data.serviceRecords}
+              vehicles={data.vehicles}
               vehicleDocuments={data.documents}
             />
           </section>
@@ -3521,28 +3540,42 @@ export default function DashboardClient() {
 function DocumentVault({
   checklists,
   customerDocuments,
+  customers,
   files,
+  invoices,
+  locale,
   onCustomerFolder,
   onDeposit,
   onDocumentPreview,
   onService,
   onVehicleDocument,
   onVehicleFolder,
+  payments,
+  rentalContractEvents,
   rentalContracts,
+  rentals,
   serviceRecords,
+  vehicles,
   vehicleDocuments,
 }: {
   checklists: RentalChecklist[];
   customerDocuments: CustomerDocument[];
+  customers: Customer[];
   files: FileObject[];
+  invoices: Invoice[];
+  locale: Locale;
   onCustomerFolder: () => void;
   onDeposit: () => void;
   onDocumentPreview: (document: DocumentPreview) => void;
   onService: () => void;
   onVehicleDocument: () => void;
   onVehicleFolder: () => void;
+  payments: Payment[];
+  rentalContractEvents: RentalContractEvent[];
   rentalContracts: RentalContract[];
+  rentals: Rental[];
   serviceRecords: ServiceRecord[];
+  vehicles: Vehicle[];
   vehicleDocuments: VehicleDocument[];
 }) {
   const now = Date.now();
@@ -3556,6 +3589,22 @@ function DocumentVault({
     { action: onDeposit, count: customerDocuments.filter((doc) => doc.title.toLowerCase().includes("депозит")).length, label: "Депозит / возврат", text: "Чеки, подтверждения и документы возврата." },
     { action: onVehicleDocument, count: rentalContracts.length, label: "Договоры", text: "PDF, публичная ссылка, статус и история действий." },
   ];
+  const rentalFolders: RentalDocumentFolder[] = rentals.slice(0, 8).map((rental) => {
+    const invoice = invoices.find((item) => item.rentalId === rental.id);
+    const paymentTotal = invoice ? payments.filter((payment) => payment.invoiceId === invoice.id).reduce((sum, payment) => sum + payment.amount, 0) : 0;
+    return {
+      checklists: checklists.filter((item) => item.rentalId === rental.id),
+      contract: rentalContracts.find((contract) => contract.rentalId === rental.id),
+      customer: customers.find((customer) => customer.id === rental.customerId),
+      invoice,
+      paymentTotal,
+      rental,
+      vehicle: vehicles.find((vehicle) => vehicle.id === rental.vehicleId),
+    };
+  });
+  const signedContracts = rentalContracts.filter((contract) => contract.status === "signed").length;
+  const sentContracts = rentalContracts.filter((contract) => contract.status === "sent" || contract.status === "viewed").length;
+  const openReturnActs = checklists.filter((item) => item.phase === "return").length;
 
   return (
     <div className="document-vault">
@@ -3571,6 +3620,29 @@ function DocumentVault({
         </div>
       </section>
 
+      <section className="document-center-board" aria-label="Document center">
+        <article>
+          <span>Договоры</span>
+          <strong>{rentalContracts.length}</strong>
+          <small>{signedContracts} подписано · {sentContracts} в работе</small>
+        </article>
+        <article>
+          <span>Акты</span>
+          <strong>{checklists.length}</strong>
+          <small>{openReturnActs} актов возврата · выдача и возврат</small>
+        </article>
+        <article>
+          <span>Файлы</span>
+          <strong>{files.length + vehicleDocuments.length + customerDocuments.length}</strong>
+          <small>Авто, клиент, депозит, PDF</small>
+        </article>
+        <article>
+          <span>История</span>
+          <strong>{rentalContractEvents.length}</strong>
+          <small>Создан, отправлен, открыт, подписан</small>
+        </article>
+      </section>
+
       <section className="vault-folder-grid">
         {folders.map((folder) => (
           <button className="vault-folder" key={folder.label} onClick={folder.action} type="button">
@@ -3579,6 +3651,46 @@ function DocumentVault({
             <small>{folder.text}</small>
           </button>
         ))}
+      </section>
+
+      <section className="table-panel rental-folder-panel">
+        <div className="section-title compact-title">
+          <h2>Папки аренды</h2>
+          <Badge value={`${rentalFolders.length} активных`} />
+        </div>
+        <div className="rental-folder-grid">
+          {rentalFolders.map((folder) => {
+            const paid = folder.paymentTotal >= (folder.invoice?.total ?? folder.rental.totalAmount);
+            const pickup = folder.checklists.some((item) => item.phase === "pickup");
+            const returned = folder.checklists.some((item) => item.phase === "return");
+            return (
+              <article className="rental-folder-card" key={folder.rental.id}>
+                <div>
+                  <strong>{folder.vehicle ? `${folder.vehicle.make} ${folder.vehicle.model}` : "Автомобиль"}</strong>
+                  <span>{folder.vehicle?.plateNumber ?? "без номера"} · {folder.customer?.displayName ?? "Клиент"}</span>
+                </div>
+                <Badge value={folder.rental.status} />
+                <div className="document-center-row">
+                  <span>Договор</span>
+                  {folder.contract ? (
+                    <FilePreviewLink fileUrl={folder.contract.documentUrl} onPreview={onDocumentPreview} title={folder.contract.status} />
+                  ) : <strong>не создан</strong>}
+                </div>
+                <div className="document-center-row">
+                  <span>Оплата</span>
+                  <strong>{money.format(folder.paymentTotal)} / {money.format(folder.invoice?.total ?? folder.rental.totalAmount)}</strong>
+                </div>
+                <div className="rental-folder-statuses">
+                  <span className={folder.contract?.status === "signed" ? "done" : ""}>PDF</span>
+                  <span className={paid ? "done" : ""}>Оплата</span>
+                  <span className={pickup ? "done" : ""}>Выдача</span>
+                  <span className={returned ? "done" : ""}>Возврат</span>
+                </div>
+              </article>
+            );
+          })}
+          {!rentalFolders.length ? <p className="history-row">Создайте первую бронь, и здесь появится полная папка аренды.</p> : null}
+        </div>
       </section>
 
       <section className="split-panels">
@@ -3597,6 +3709,25 @@ function DocumentVault({
             <p className="history-row" key={item.id}>{item.phase === "pickup" ? "Акт выдачи" : "Акт возврата"} · {item.odometerKm.toLocaleString()} км · топливо {item.fuelLevel}%</p>
           ))}
           {!checklists.length ? <p className="history-row">Акты выдачи/возврата появятся после первого rental flow.</p> : null}
+        </div>
+      </section>
+
+      <section className="split-panels">
+        <div className="table-panel">
+          <h2>Документы клиентов</h2>
+          {customerDocuments.slice(0, 6).map((doc) => (
+            <p className="history-row" key={doc.id}>
+              <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.verified ? "verified" : "pending"}`} />
+            </p>
+          ))}
+          {!customerDocuments.length ? <p className="history-row">Загрузите паспорт, ID или водительское удостоверение клиента.</p> : null}
+        </div>
+        <div className="table-panel">
+          <h2>История договоров</h2>
+          {rentalContractEvents.slice(0, 7).map((event) => (
+            <p className="history-row" key={event.id}>{contractEventLabel(locale, event)} · {event.channel} · {dateFmt.format(new Date(event.createdAt))}</p>
+          ))}
+          {!rentalContractEvents.length ? <p className="history-row">История появится после создания и отправки первого договора.</p> : null}
         </div>
       </section>
 
@@ -3830,7 +3961,9 @@ function BookingCalendar({ customers, rentals, vehicles }: { customers: Customer
 
 function RentalFlowPanel({
   busy,
+  events,
   flow,
+  locale,
   money,
   onOpenPdf,
   onPrimaryAction,
@@ -3839,7 +3972,9 @@ function RentalFlowPanel({
   onSign,
 }: {
   busy: boolean;
+  events: RentalContractEvent[];
   flow: RentalFlow;
+  locale: Locale;
   money: Intl.NumberFormat;
   onOpenPdf: () => void;
   onPrimaryAction: () => void;
@@ -3904,6 +4039,10 @@ function RentalFlowPanel({
         <button className="ghost-button" disabled={busy || flow.contract?.status === "signed"} onClick={onSign} type="button">Подписать</button>
         <button className="ghost-button" disabled={busy || !canSettle} onClick={onSettle} type="button">Депозит и финальный расчёт</button>
       </div>
+      <div className="flow-operations-grid">
+        <RentalFlowHistoryPanel events={events} flow={flow} locale={locale} />
+        <FinalSettlementPanel busy={busy} canSettle={canSettle} flow={flow} money={money} onSettle={onSettle} />
+      </div>
       <div className="flow-steps">
         {flow.steps.map((step, index) => (
           <article className={`flow-step ${step.status}`} key={step.key}>
@@ -3913,6 +4052,75 @@ function RentalFlowPanel({
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function RentalFlowHistoryPanel({ events, flow, locale }: { events: RentalContractEvent[]; flow: RentalFlow; locale: Locale }) {
+  const history = [
+    { at: flow.rental.createdAt, done: true, label: "Бронь создана", meta: `${flow.customer.displayName} · ${flow.vehicle.plateNumber}` },
+    ...events.map((event) => ({
+      at: event.createdAt,
+      done: true,
+      label: contractEventLabel(locale, event),
+      meta: `${event.channel}${event.actorLabel ? ` · ${event.actorLabel}` : ""}`,
+    })),
+    ...flow.checklists.map((checklist) => ({
+      at: checklist.createdAt,
+      done: true,
+      label: checklist.phase === "pickup" ? "Акт выдачи создан" : "Акт возврата создан",
+      meta: `${checklist.odometerKm.toLocaleString()} км · топливо ${checklist.fuelLevel}%`,
+    })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
+  return (
+    <section className="flow-history-panel" aria-label="Rental Flow history">
+      <div className="section-title compact-title">
+        <h3>История Rental Flow</h3>
+        <Badge value={`${history.length} событий`} />
+      </div>
+      <div className="flow-history-list">
+        {history.map((item, index) => (
+          <article className={item.done ? "done" : ""} key={`${item.label}-${item.at}-${index}`}>
+            <span>{item.done ? "✓" : index + 1}</span>
+            <div>
+              <strong>{item.label}</strong>
+              <small>{item.meta}</small>
+            </div>
+            <time>{dateFmt.format(new Date(item.at))}</time>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FinalSettlementPanel({ busy, canSettle, flow, money, onSettle }: { busy: boolean; canSettle: boolean; flow: RentalFlow; money: Intl.NumberFormat; onSettle: () => void }) {
+  const invoiceTotal = flow.invoice?.total ?? flow.rental.totalAmount;
+  const paidAmount = flow.paidAmount;
+  const remaining = Math.max(0, invoiceTotal - paidAmount);
+  const deposit = flow.rental.depositAmount;
+  const depositReturn = flow.rental.status === "closed" ? 0 : Math.max(0, deposit - remaining);
+  const finalDue = Math.max(0, remaining - deposit);
+  const closed = flow.rental.status === "closed";
+
+  return (
+    <section className="settlement-panel" aria-label="Final rental settlement">
+      <div className="section-title compact-title">
+        <h3>Финальный расчёт</h3>
+        <Badge value={closed ? "закрыто" : canSettle ? "готов" : "ожидает возврат"} />
+      </div>
+      <div className="settlement-grid">
+        <article><span>Стоимость аренды</span><strong>{money.format(invoiceTotal)}</strong></article>
+        <article><span>Оплачено</span><strong>{money.format(paidAmount)}</strong></article>
+        <article><span>Остаток</span><strong>{money.format(remaining)}</strong></article>
+        <article><span>Депозит</span><strong>{money.format(deposit)}</strong></article>
+        <article><span>К возврату клиенту</span><strong>{money.format(depositReturn)}</strong></article>
+        <article><span>Доплата клиента</span><strong>{money.format(finalDue)}</strong></article>
+      </div>
+      <button className="primary-button full-button" disabled={busy || !canSettle} onClick={onSettle} type="button">
+        {closed ? "Аренда закрыта" : canSettle ? "Закрыть аренду и депозит" : "Сначала создайте акт возврата"}
+      </button>
     </section>
   );
 }

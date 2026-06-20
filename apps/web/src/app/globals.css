@@ -2690,6 +2690,113 @@ h3 {
   min-height: 40px;
 }
 
+.flow-operations-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  gap: 12px;
+}
+
+.flow-history-panel,
+.settlement-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5eaf2;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(246, 248, 252, 0.92)),
+    #ffffff;
+}
+
+.flow-history-panel h3,
+.settlement-panel h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.flow-history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 238px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.flow-history-list article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(221, 227, 236, 0.82);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.flow-history-list article > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.flow-history-list article.done > span {
+  background: #0f9f6e;
+  color: white;
+}
+
+.flow-history-list strong,
+.flow-history-list small,
+.flow-history-list time {
+  display: block;
+  min-width: 0;
+}
+
+.flow-history-list strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.flow-history-list small,
+.flow-history-list time {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.settlement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settlement-grid article {
+  display: grid;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid rgba(221, 227, 236, 0.88);
+  border-radius: 8px;
+  background: white;
+}
+
+.settlement-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.settlement-grid strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
 .flow-steps {
   display: grid;
   grid-template-columns: repeat(8, minmax(112px, 1fr));
@@ -3164,6 +3271,26 @@ h3 {
 
   .flow-playbook .ghost-button:last-child {
     grid-column: 1 / -1;
+  }
+
+  .flow-operations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .flow-history-list {
+    max-height: 220px;
+  }
+
+  .flow-history-list article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .flow-history-list time {
+    grid-column: 2;
+  }
+
+  .settlement-grid {
+    grid-template-columns: 1fr;
   }
 
   .flow-steps {
@@ -4809,6 +4936,37 @@ h3 {
   gap: 14px;
 }
 
+.document-center-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.document-center-board article {
+  display: grid;
+  gap: 5px;
+  min-height: 104px;
+  padding: 14px;
+  border: 1px solid rgba(221, 227, 236, 0.9);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)),
+    #ffffff;
+  box-shadow: 0 14px 32px rgba(17, 24, 39, 0.06);
+}
+
+.document-center-board span,
+.document-center-board small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.document-center-board strong {
+  color: var(--ink);
+  font-size: 25px;
+}
+
 .vault-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -4838,6 +4996,79 @@ h3 {
   color: white;
   font-size: 16px;
   font-weight: 900;
+}
+
+.rental-folder-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.rental-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.rental-folder-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(221, 227, 236, 0.9);
+  border-radius: 8px;
+  background: white;
+}
+
+.rental-folder-card > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.rental-folder-card strong {
+  color: var(--ink);
+}
+
+.rental-folder-card span,
+.document-center-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.document-center-row {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.document-center-row .file-preview-link {
+  min-width: 0;
+}
+
+.rental-folder-statuses {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.rental-folder-statuses span {
+  display: inline-flex;
+  justify-content: center;
+  min-height: 30px;
+  padding: 7px 8px;
+  border: 1px solid #e5eaf2;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.rental-folder-statuses span.done {
+  border-color: rgba(15, 159, 110, 0.24);
+  background: rgba(15, 159, 110, 0.08);
+  color: #0f7a55;
 }
 
 .map-action-bar {
@@ -4877,6 +5108,8 @@ h3 {
 
 @media (max-width: 760px) {
   .onboarding-grid,
+  .document-center-board,
+  .rental-folder-grid,
   .vault-folder-grid,
   .vault-hero {
     grid-template-columns: 1fr;
@@ -4897,6 +5130,15 @@ h3 {
   .vault-actions button,
   .map-action-bar button {
     flex: 1;
+  }
+
+  .document-center-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .rental-folder-statuses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .share-channel-grid {
