@@ -89,6 +89,17 @@ type RentalDocumentFolder = {
   vehicle: Vehicle | undefined;
 };
 
+type GlobalSearchResult = {
+  id: string;
+  kind: "vehicle" | "customer" | "rental" | "document";
+  label: string;
+  meta: string;
+  section: Section;
+  vehicleId?: string;
+  customerId?: string;
+  preview?: DocumentPreview;
+};
+
 const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
 const locales: Array<{ code: Locale; label: string }> = [
   { code: "en", label: "EN" },
@@ -1479,6 +1490,7 @@ export default function DashboardClient() {
   const [activeSection, setActiveSection] = useState<Section>("Dashboard");
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -1679,6 +1691,116 @@ export default function DashboardClient() {
   const activeRentalFlow = data.rentalFlows.find((flow) => flow.rental.id === activeRental?.id)
     ?? data.rentalFlows.find((flow) => flow.rental.status !== "closed")
     ?? data.rentalFlows[0];
+
+  const globalSearchResults = useMemo<GlobalSearchResult[]>(() => {
+    const query = search.trim().toLowerCase();
+    if (query.length < 2) return [];
+    const compactQuery = query.replace(/\s+/g, "");
+    const matches = (...values: Array<string | number | undefined>) => values
+      .filter((value): value is string | number => value !== undefined && value !== null)
+      .some((value) => {
+        const normalized = String(value).toLowerCase();
+        return normalized.includes(query) || normalized.replace(/\s+/g, "").includes(compactQuery);
+      });
+
+    const vehicleResults = data.vehicles
+      .filter((vehicle) => matches(vehicle.plateNumber, vehicle.vin, vehicle.make, vehicle.model, vehicle.location, vehicle.year))
+      .slice(0, 5)
+      .map<GlobalSearchResult>((vehicle) => ({
+        id: `vehicle-${vehicle.id}`,
+        kind: "vehicle",
+        label: `${vehicle.make} ${vehicle.model}`,
+        meta: `${vehicle.plateNumber} · VIN ${vehicle.vin} · ${vehicle.status}`,
+        section: "Vehicles",
+        vehicleId: vehicle.id,
+      }));
+
+    const customerResults = data.customers
+      .filter((customer) => matches(customer.displayName, customer.phone, customer.email, customer.type, customer.riskLevel))
+      .slice(0, 5)
+      .map<GlobalSearchResult>((customer) => ({
+        customerId: customer.id,
+        id: `customer-${customer.id}`,
+        kind: "customer",
+        label: customer.displayName,
+        meta: `${customer.phone} · ${customer.email}`,
+        section: "Drivers/Clients",
+      }));
+
+    const rentalResults = data.rentals
+      .map((rental) => ({
+        customer: data.customers.find((customer) => customer.id === rental.customerId),
+        rental,
+        vehicle: data.vehicles.find((vehicle) => vehicle.id === rental.vehicleId),
+      }))
+      .filter(({ customer, rental, vehicle }) => matches(rental.status, rental.totalAmount, rental.depositAmount, vehicle?.plateNumber, vehicle?.vin, vehicle?.make, vehicle?.model, customer?.displayName, customer?.phone, customer?.email))
+      .slice(0, 5)
+      .map<GlobalSearchResult>(({ customer, rental, vehicle }) => ({
+        ...(customer?.id ? { customerId: customer.id } : {}),
+        ...(vehicle?.id ? { vehicleId: vehicle.id } : {}),
+        id: `rental-${rental.id}`,
+        kind: "rental",
+        label: `${vehicle?.make ?? "Авто"} ${vehicle?.model ?? ""}`.trim(),
+        meta: `${customer?.displayName ?? "Клиент"} · ${vehicle?.plateNumber ?? "без номера"} · возврат ${dateFmt.format(new Date(rental.returnAt))}`,
+        section: "Bookings",
+      }));
+
+    const vehicleDocumentResults = data.documents
+      .map((doc) => ({
+        doc,
+        vehicle: data.vehicles.find((vehicle) => vehicle.id === doc.vehicleId),
+      }))
+      .filter(({ doc, vehicle }) => matches(doc.title, doc.type, vehicle?.plateNumber, vehicle?.vin, vehicle?.make, vehicle?.model))
+      .slice(0, 4)
+      .map<GlobalSearchResult>(({ doc, vehicle }) => ({
+        ...(vehicle?.id ? { vehicleId: vehicle.id } : {}),
+        id: `vehicle-document-${doc.id}`,
+        kind: "document",
+        label: doc.title,
+        meta: `${vehicle?.plateNumber ?? "Авто"} · ${doc.type}${doc.expiresAt ? ` · до ${dateFmt.format(new Date(doc.expiresAt))}` : ""}`,
+        preview: { fileUrl: doc.fileUrl, title: doc.title, meta: doc.type },
+        section: "Service",
+      }));
+
+    const customerDocumentResults = data.customerDocuments
+      .map((doc) => ({
+        customer: data.customers.find((customer) => customer.id === doc.customerId),
+        doc,
+      }))
+      .filter(({ customer, doc }) => matches(doc.title, doc.type, customer?.displayName, customer?.phone, customer?.email))
+      .slice(0, 4)
+      .map<GlobalSearchResult>(({ customer, doc }) => ({
+        ...(customer?.id ? { customerId: customer.id } : {}),
+        id: `customer-document-${doc.id}`,
+        kind: "document",
+        label: doc.title,
+        meta: `${customer?.displayName ?? "Клиент"} · ${doc.type}`,
+        preview: { fileUrl: doc.fileUrl, title: doc.title, meta: doc.type },
+        section: "Service",
+      }));
+
+    return [...vehicleResults, ...customerResults, ...rentalResults, ...vehicleDocumentResults, ...customerDocumentResults].slice(0, 10);
+  }, [data.customerDocuments, data.customers, data.documents, data.rentals, data.vehicles, search]);
+
+  function openSearchResult(result: GlobalSearchResult) {
+    if (result.vehicleId) {
+      setSelectedVehicleId(result.vehicleId);
+    }
+    if (result.kind === "vehicle" && result.vehicleId) {
+      const vehicle = data.vehicles.find((item) => item.id === result.vehicleId);
+      setSearch(vehicle?.plateNumber ?? result.label);
+    } else if (result.kind === "customer" && result.customerId) {
+      const customer = data.customers.find((item) => item.id === result.customerId);
+      setSearch(customer?.displayName ?? result.label);
+    } else {
+      setSearch(result.label);
+    }
+    setActiveSection(result.section);
+    setSearchOpen(false);
+    if (result.preview) {
+      setDocumentPreview(result.preview);
+    }
+  }
 
   const filteredVehicles = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -3072,10 +3194,44 @@ export default function DashboardClient() {
             </div>
           </div>
           <div className="header-actions">
-            <label className="global-search">
+            <div className={`global-search ${searchOpen && search.trim().length >= 2 ? "is-open" : ""}`} role="search">
               <span>⌕</span>
-              <input placeholder={t("common.search")} value={search} onChange={(event) => setSearch(event.target.value)} />
-            </label>
+              <input
+                aria-label={t("common.search")}
+                placeholder={t("common.search")}
+                value={search}
+                onBlur={() => window.setTimeout(() => setSearchOpen(false), 160)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+              />
+              {search ? <button aria-label="Очистить поиск" className="search-clear-button" onClick={() => { setSearch(""); setSearchOpen(false); }} onMouseDown={(event) => event.preventDefault()} type="button">×</button> : null}
+              {searchOpen && search.trim().length >= 2 ? (
+                <div className="global-search-results" data-testid="global-search-results">
+                  <div className="search-results-head">
+                    <strong>Результаты поиска</strong>
+                    <span>{globalSearchResults.length ? `${globalSearchResults.length}` : "0"}</span>
+                  </div>
+                  {globalSearchResults.map((result) => (
+                    <button className="search-result-row" key={result.id} onClick={() => openSearchResult(result)} onMouseDown={(event) => { event.preventDefault(); openSearchResult(result); }} type="button">
+                      <span>{result.kind === "vehicle" ? "Авто" : result.kind === "customer" ? "Клиент" : result.kind === "rental" ? "Бронь" : "Документ"}</span>
+                      <div>
+                        <strong>{result.label}</strong>
+                        <small>{result.meta}</small>
+                      </div>
+                    </button>
+                  ))}
+                  {!globalSearchResults.length ? (
+                    <div className="search-empty-state">
+                      <strong>Ничего не найдено</strong>
+                      <span>Попробуйте номер авто, VIN, имя клиента, телефон или email.</span>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             <LanguageSelect locale={locale} onChange={changeLocale} />
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void loadData()} title={t("common.refresh")} type="button">↻</button>
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
