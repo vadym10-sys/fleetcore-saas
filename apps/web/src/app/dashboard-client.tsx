@@ -153,8 +153,8 @@ const uiCopy = {
     "gps.notConnected": "GPS not connected",
     "gps.platform": "Platform",
     "gps.speed": "Speed, km/h",
-    "gps.supported": "Supported GPS platforms",
-    "gps.supportedHint": "Choose any major telematics provider or connect by API/webhook.",
+    "gps.supported": "Manual GPS connection",
+    "gps.supportedHint": "Add a device manually with coordinates, speed and last signal. Provider history can be expanded later.",
     "finance.expenses": "Expenses",
     "finance.income": "Income",
     "finance.net": "Net profit",
@@ -266,8 +266,8 @@ const uiCopy = {
     "gps.notConnected": "GPS не подключен",
     "gps.platform": "Платформа",
     "gps.speed": "Скорость, км/ч",
-    "gps.supported": "Поддерживаемые GPS-платформы",
-    "gps.supportedHint": "Выберите популярного телематического провайдера или подключите API/webhook.",
+    "gps.supported": "Ручное подключение GPS",
+    "gps.supportedHint": "Добавьте устройство вручную: координаты, скорость и последний сигнал. Историю провайдеров можно расширить позже.",
     "finance.expenses": "Расходы",
     "finance.income": "Доход",
     "finance.net": "Чистая прибыль",
@@ -379,8 +379,8 @@ const uiCopy = {
     "gps.notConnected": "GPS no conectado",
     "gps.platform": "Plataforma",
     "gps.speed": "Velocidad, km/h",
-    "gps.supported": "Plataformas GPS compatibles",
-    "gps.supportedHint": "Elige un proveedor telemático popular o conecta API/webhook.",
+    "gps.supported": "Conexión GPS manual",
+    "gps.supportedHint": "Añade el dispositivo manualmente con coordenadas, velocidad y última señal.",
     "finance.expenses": "Gastos",
     "finance.income": "Ingresos",
     "finance.net": "Beneficio neto",
@@ -492,8 +492,8 @@ const uiCopy = {
     "gps.notConnected": "GPS non connecté",
     "gps.platform": "Plateforme",
     "gps.speed": "Vitesse, km/h",
-    "gps.supported": "Plateformes GPS compatibles",
-    "gps.supportedHint": "Choisissez un fournisseur télématique ou connectez API/webhook.",
+    "gps.supported": "Connexion GPS manuelle",
+    "gps.supportedHint": "Ajoutez un appareil manuellement avec coordonnées, vitesse et dernier signal.",
     "finance.expenses": "Dépenses",
     "finance.income": "Revenus",
     "finance.net": "Profit net",
@@ -605,8 +605,8 @@ const uiCopy = {
     "gps.notConnected": "GPS nicht verbunden",
     "gps.platform": "Plattform",
     "gps.speed": "Geschwindigkeit, km/h",
-    "gps.supported": "Unterstützte GPS-Plattformen",
-    "gps.supportedHint": "Telematik-Anbieter wählen oder API/Webhook verbinden.",
+    "gps.supported": "Manuelle GPS-Verbindung",
+    "gps.supportedHint": "Gerät manuell mit Koordinaten, Geschwindigkeit und letztem Signal hinzufügen.",
     "finance.expenses": "Kosten",
     "finance.income": "Umsatz",
     "finance.net": "Nettogewinn",
@@ -949,6 +949,22 @@ function openWhatsApp(phone: string, text: string) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+function openTelegram(text: string, url: string) {
+  window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+}
+
+function openEmail(email: string, subject: string, body: string) {
+  window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank", "noopener,noreferrer");
+}
+
+function openExternalMap(provider: "apple" | "google", gps: GpsDevice | undefined) {
+  const query = gps ? `${gps.latitude},${gps.longitude}` : "Warsaw, Poland";
+  const url = provider === "apple"
+    ? `https://maps.apple.com/?q=${encodeURIComponent(query)}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 let googleMapsPromise: Promise<GoogleMapsNamespace | undefined> | undefined;
 
 function loadGoogleMaps(apiKey: string) {
@@ -1074,6 +1090,9 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
             method: "POST",
           });
       saveStoredSession(response.data);
+      if (mode === "register") {
+        localStorage.setItem(`fleetcore-onboarding-open:${response.data.companyId}`, "1");
+      }
       onSession(response.data);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось войти");
@@ -1203,6 +1222,7 @@ export default function DashboardClient() {
   const [session, setSession] = useState<AuthSession | undefined>();
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [activeSection, setActiveSection] = useState<Section>("Dashboard");
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
@@ -1218,7 +1238,7 @@ export default function DashboardClient() {
     email: `manager-${Date.now().toString().slice(-5)}@example.com`,
     fullName: "Fleet Manager",
     password: "manager-pass-123",
-    role: "fleet_manager" as Exclude<UserRole, "owner">,
+    role: "manager" as Exclude<UserRole, "owner">,
   });
   const [operationForm, setOperationForm] = useState(defaultOperationForm);
   const [operationFiles, setOperationFiles] = useState<FileList | null>(null);
@@ -1312,7 +1332,7 @@ export default function DashboardClient() {
   async function loadData(currentToken = token) {
     setLoading(true);
     try {
-      const canManageTeam = session?.user.role === "owner" || session?.user.role === "admin";
+      const canManageTeam = session?.user.role === "owner";
       const [company, metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents, rentalChecklists, teamUsers] = await Promise.all([
         api<Company>(`/companies/${session?.companyId ?? ""}`, {}, currentToken),
         api<DashboardMetrics>("/dashboard", {}, currentToken),
@@ -1366,6 +1386,9 @@ export default function DashboardClient() {
         taxId: company.data.taxId ?? "",
         tradingName: company.data.tradingName,
       });
+      if (session && localStorage.getItem(`fleetcore-onboarding-open:${session.companyId}`) === "1") {
+        setOnboardingOpen(true);
+      }
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
       setMessage("");
     } catch (error) {
@@ -1428,6 +1451,8 @@ export default function DashboardClient() {
     const expenses = incomeByVehicle.reduce((sum, item) => sum + item.expenses, 0);
     return { expenses, incomeByVehicle, netProfit: totalIncome - expenses, totalIncome };
   }, [data.expenses, data.invoices, data.rentals, data.vehicles]);
+  const totalDeposits = data.rentals.reduce((sum, rental) => sum + rental.depositAmount, 0);
+  const overdueInvoices = data.invoices.filter((invoice) => invoice.status === "overdue");
 
   const notifications = useMemo<UiNotification[]>(() => {
     const now = Date.now();
@@ -1510,6 +1535,32 @@ export default function DashboardClient() {
 
   function openCustomerCreate() {
     focusCreateForm("Drivers/Clients", customerCreateRef, "Форма добавления клиента открыта");
+  }
+
+  function closeOnboarding() {
+    if (session) {
+      localStorage.setItem(`fleetcore-onboarding-open:${session.companyId}`, "0");
+    }
+    setOnboardingOpen(false);
+  }
+
+  function runOnboardingAction(action: "company" | "vehicle" | "customer" | "gps" | "contract" | "manager") {
+    if (action === "company") {
+      setActiveSection("Settings");
+    } else if (action === "vehicle") {
+      openVehicleCreate();
+    } else if (action === "customer") {
+      openCustomerCreate();
+    } else if (action === "gps") {
+      setActiveSection("GPS");
+      openOperation("gps");
+    } else if (action === "contract") {
+      setActiveSection("Bookings");
+      void createDraftContract();
+    } else if (action === "manager") {
+      setProfileOpen(true);
+    }
+    closeOnboarding();
   }
 
   async function runAction(label: string, action: () => Promise<void>) {
@@ -2206,6 +2257,25 @@ export default function DashboardClient() {
     });
   }
 
+  async function shareRentalContract(channel: "email" | "telegram" | "whatsapp") {
+    await runAction(`Готовим ссылку договора: ${channel}`, async () => {
+      const rental = await ensureRental();
+      const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
+      const contract = await createContractRecord("sent", channel === "email" ? "email" : "whatsapp", rental);
+      const contractUrl = contract.publicUrl ?? contract.documentUrl;
+      const text = `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore: ${contractUrl}`;
+      await loadData();
+      if (channel === "whatsapp") {
+        openWhatsApp(customer.phone, text);
+      } else if (channel === "telegram") {
+        openTelegram(`Договор аренды FleetCore для ${customer.displayName}`, contractUrl);
+      } else {
+        openEmail(customer.email, "FleetCore rental contract", text);
+      }
+      setMessage(`Ссылка договора открыта для отправки: ${channel}`);
+    });
+  }
+
   async function createDraftContract() {
     await runAction("Создаем электронный договор...", async () => {
       await createContractRecord("draft", "manual");
@@ -2625,7 +2695,7 @@ export default function DashboardClient() {
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Документ</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Расход</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">ТО</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">WhatsApp</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
           </div>
         </section>
 
@@ -2671,10 +2741,13 @@ export default function DashboardClient() {
                 <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void connectGps()} type="button">{t("gps.fastConnect")}</button>
               </div>
               <div className="table-panel gps-platform-panel">
-                <div className="section-title compact-title"><h2>{t("gps.supported")}</h2><Badge value={`${gpsProviderOptions.length}`} /></div>
+                <div className="section-title compact-title"><h2>{t("gps.supported")}</h2><Badge value="Manual" /></div>
                 <p>{t("gps.supportedHint")}</p>
                 <div className="provider-grid">
-                  {gpsProviderOptions.map((provider) => <span key={provider.value}>{provider.label}</span>)}
+                  <span>Google Maps</span>
+                  <span>Apple Maps</span>
+                  <span>Manual device</span>
+                  <span>API-ready later</span>
                 </div>
               </div>
             </div>
@@ -2768,7 +2841,9 @@ export default function DashboardClient() {
             <div className="quick-actions-grid">
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать электронный договор</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор аренды</button>
-              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">Отправить ссылку WhatsApp</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("telegram")} type="button">Telegram</button>
+              <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void shareRentalContract("email")} type="button">Email</button>
               <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Загрузить подпись</button>
             </div>
             <BookingCalendar customers={data.customers} rentals={data.rentals} vehicles={data.vehicles} />
@@ -2819,6 +2894,8 @@ export default function DashboardClient() {
             <article className="metric-card"><span>{t("finance.income")}</span><strong className="green">{money.format(finance.totalIncome)}</strong></article>
             <article className="metric-card"><span>{t("finance.expenses")}</span><strong className="red">{money.format(finance.expenses)}</strong></article>
             <article className="metric-card"><span>{t("finance.net")}</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
+            <article className="metric-card"><span>Депозиты</span><strong className="green">{money.format(totalDeposits)}</strong></article>
+            <article className="metric-card"><span>Просрочено</span><strong className="red">{overdueInvoices.length}</strong></article>
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("payment")} type="button">Провести оплату</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Добавить расход</button>
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestDepositUpload} type="button">Загрузить депозит/возврат</button>
@@ -2840,14 +2917,19 @@ export default function DashboardClient() {
         {activeSection === "Service" ? (
           <section className="workspace-grid">
             <NotificationsPanel locale={locale} notifications={notifications} />
-            <div className="table-panel">
-              <h2>Документы и ТО</h2>
-              {data.documents.map((doc) => <p className="history-row" key={doc.id}><FilePreviewLink fileUrl={doc.fileUrl} title={`${doc.title} · ${doc.type} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} /></p>)}
-              {data.serviceRecords.map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
-              <button className="primary-button full" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Загрузить PDF документ</button>
-              <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={requestVehicleFolderUpload} type="button">Загрузить папку авто</button>
-              <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">Создать ТО</button>
-            </div>
+            <DocumentVault
+              checklists={data.rentalChecklists}
+              customerDocuments={data.customerDocuments}
+              files={data.files}
+              onCustomerFolder={requestCustomerFolderUpload}
+              onDeposit={requestDepositUpload}
+              onService={() => openOperation("service")}
+              onVehicleDocument={requestVehicleDocumentUpload}
+              onVehicleFolder={requestVehicleFolderUpload}
+              rentalContracts={data.rentalContracts}
+              serviceRecords={data.serviceRecords}
+              vehicleDocuments={data.documents}
+            />
           </section>
         ) : null}
 
@@ -2888,6 +2970,7 @@ export default function DashboardClient() {
               <p className="history-row">{session.user.fullName} · {session.user.email}</p>
               <p className="history-row">{t("settings.role")}: {session.user.role}</p>
               <p className="history-row">{t("settings.companyId")}: {session.companyId}</p>
+              <button className="primary-button full" onClick={() => setOnboardingOpen(true)} type="button">Открыть мастер настройки</button>
               <button className="ghost-button full-button" onClick={() => void requestEmailVerification()} type="button">Verify email</button>
               <button className="ghost-button full-button" onClick={() => void logout()} type="button">{t("common.signOut")}</button>
             </section>
@@ -2897,6 +2980,13 @@ export default function DashboardClient() {
               <p className="history-row">{t("settings.maps")}: {GOOGLE_MAPS_API_KEY ? t("settings.mapsActive") : t("settings.mapsPreview")}</p>
               <p className="history-row">{t("settings.platform")}</p>
               <button className="primary-button full" onClick={() => openOperation("gps")} type="button">{t("gps.connect")}</button>
+            </section>
+
+            <section className="table-panel settings-panel">
+              <h2>Subscription</h2>
+              <p className="history-row">Business plan: €499 / {t("tariff.month")}</p>
+              <p className="history-row">Automatic monthly billing: Stripe-ready</p>
+              <button className="ghost-button full-button" onClick={() => setMessage("Stripe billing готов к подключению. Следующий шаг: добавить Stripe keys и webhook.")} type="button">Подключить Stripe позже</button>
             </section>
 
             <section className="table-panel settings-panel">
@@ -2919,6 +3009,19 @@ export default function DashboardClient() {
           </section>
         ) : null}
       </section>
+
+      {onboardingOpen ? (
+        <OnboardingWizard
+          company={data.company}
+          customersCount={data.customers.length}
+          gpsCount={data.gpsDevices.length}
+          onAction={runOnboardingAction}
+          onClose={closeOnboarding}
+          rentalsCount={data.rentals.length}
+          teamCount={data.teamUsers.length}
+          vehiclesCount={data.vehicles.length}
+        />
+      ) : null}
 
       {operation ? (
         <OperationDialog
@@ -2953,6 +3056,8 @@ export default function DashboardClient() {
         />
       ) : null}
 
+      <button className="mobile-fab" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button" aria-label="Create booking">+</button>
+
       <MobileDrawer
         activeSection={activeSection}
         locale={locale}
@@ -2977,6 +3082,162 @@ export default function DashboardClient() {
         switchAccountLabel={t("drawer.switchAccount")}
       />
     </main>
+  );
+}
+
+function DocumentVault({
+  checklists,
+  customerDocuments,
+  files,
+  onCustomerFolder,
+  onDeposit,
+  onService,
+  onVehicleDocument,
+  onVehicleFolder,
+  rentalContracts,
+  serviceRecords,
+  vehicleDocuments,
+}: {
+  checklists: RentalChecklist[];
+  customerDocuments: CustomerDocument[];
+  files: FileObject[];
+  onCustomerFolder: () => void;
+  onDeposit: () => void;
+  onService: () => void;
+  onVehicleDocument: () => void;
+  onVehicleFolder: () => void;
+  rentalContracts: RentalContract[];
+  serviceRecords: ServiceRecord[];
+  vehicleDocuments: VehicleDocument[];
+}) {
+  const now = Date.now();
+  const expiringDocuments = vehicleDocuments
+    .filter((doc) => doc.expiresAt)
+    .filter((doc) => new Date(doc.expiresAt ?? "").getTime() - now < 30 * 24 * 60 * 60 * 1000)
+    .slice(0, 5);
+  const folders = [
+    { action: onVehicleFolder, count: vehicleDocuments.length, label: "Папка авто", text: "Страховка, регистрация, техосмотр, PDF и фото." },
+    { action: onCustomerFolder, count: customerDocuments.length, label: "Папка клиента", text: "Паспорт, ID, водительские права и KYC." },
+    { action: onDeposit, count: customerDocuments.filter((doc) => doc.title.toLowerCase().includes("депозит")).length, label: "Депозит / возврат", text: "Чеки, подтверждения и документы возврата." },
+    { action: onVehicleDocument, count: rentalContracts.length, label: "Договоры", text: "PDF, публичная ссылка, статус и история действий." },
+  ];
+
+  return (
+    <div className="document-vault">
+      <section className="table-panel vault-hero">
+        <div>
+          <span className="eyebrow">Document Vault</span>
+          <h2>Документы, сроки и операционные акты</h2>
+          <p>Одна рабочая зона для авто, клиента, договора, депозита, выдачи, возврата и ТО.</p>
+        </div>
+        <div className="vault-actions">
+          <button className="primary-button" onClick={onVehicleDocument} type="button">Загрузить документ</button>
+          <button className="ghost-button" onClick={onService} type="button">Создать ТО</button>
+        </div>
+      </section>
+
+      <section className="vault-folder-grid">
+        {folders.map((folder) => (
+          <button className="vault-folder" key={folder.label} onClick={folder.action} type="button">
+            <span>{folder.count}</span>
+            <strong>{folder.label}</strong>
+            <small>{folder.text}</small>
+          </button>
+        ))}
+      </section>
+
+      <section className="split-panels">
+        <div className="table-panel">
+          <h2>Сроки документов</h2>
+          {expiringDocuments.map((doc) => (
+            <p className="history-row" key={doc.id}>
+              <FilePreviewLink fileUrl={doc.fileUrl} title={`${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} />
+            </p>
+          ))}
+          {!expiringDocuments.length ? <p className="history-row">Нет документов, которые истекают в ближайшие 30 дней.</p> : null}
+        </div>
+        <div className="table-panel">
+          <h2>Выдача и возврат</h2>
+          {checklists.slice(0, 6).map((item) => (
+            <p className="history-row" key={item.id}>{item.phase === "pickup" ? "Акт выдачи" : "Акт возврата"} · {item.odometerKm.toLocaleString()} км · топливо {item.fuelLevel}%</p>
+          ))}
+          {!checklists.length ? <p className="history-row">Акты выдачи/возврата появятся после первого rental flow.</p> : null}
+        </div>
+      </section>
+
+      <section className="table-panel">
+        <h2>Последние файлы и ТО</h2>
+        <div className="file-object-list">
+          {files.slice(0, 6).map((file) => <FileObjectRow file={file} key={file.id} />)}
+          {serviceRecords.slice(0, 4).map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
+          {!files.length && !serviceRecords.length ? <p className="history-row">Загрузите первый документ или создайте ТО.</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function OnboardingWizard({
+  company,
+  customersCount,
+  gpsCount,
+  onAction,
+  onClose,
+  rentalsCount,
+  teamCount,
+  vehiclesCount,
+}: {
+  company: Company | undefined;
+  customersCount: number;
+  gpsCount: number;
+  onAction: (action: "company" | "vehicle" | "customer" | "gps" | "contract" | "manager") => void;
+  onClose: () => void;
+  rentalsCount: number;
+  teamCount: number;
+  vehiclesCount: number;
+}) {
+  const steps = [
+    { action: "company" as const, done: Boolean(company?.billingEmail || company?.businessAddress || company?.taxId), label: "Данные компании", text: "Страна, валюта, реквизиты, логотип и шаблон договора." },
+    { action: "vehicle" as const, done: vehiclesCount > 0, label: "Первый автомобиль", text: "Добавьте марку, VIN, пробег, ставку аренды и фото." },
+    { action: "customer" as const, done: customersCount > 0, label: "Первый клиент", text: "Создайте CRM-карточку клиента и загрузите паспорт/ID." },
+    { action: "gps" as const, done: gpsCount > 0, label: "GPS вручную", text: "Подключите устройство, скорость, последний сигнал и координаты." },
+    { action: "contract" as const, done: rentalsCount > 0, label: "Договор аренды", text: "Создайте PDF, публичную ссылку и историю статусов." },
+    { action: "manager" as const, done: teamCount > 1, label: "Менеджер", text: "Пригласите менеджера с доступом к рабочей системе." },
+  ];
+  const completed = steps.filter((step) => step.done).length;
+
+  return (
+    <div className="modal-backdrop onboarding-backdrop" role="dialog" aria-modal="true">
+      <section className="onboarding-modal">
+        <div className="modal-title">
+          <div>
+            <span>FleetCore setup</span>
+            <h2>Мастер запуска SaaS</h2>
+          </div>
+          <button onClick={onClose} type="button">×</button>
+        </div>
+        <div className="onboarding-progress">
+          <strong>{completed}/{steps.length}</strong>
+          <span>готово для полноценной работы</span>
+          <i style={{ width: `${Math.round((completed / steps.length) * 100)}%` }} />
+        </div>
+        <div className="onboarding-grid">
+          {steps.map((step) => (
+            <article className={step.done ? "done" : ""} key={step.action}>
+              <span>{step.done ? "✓" : "•"}</span>
+              <div>
+                <strong>{step.label}</strong>
+                <p>{step.text}</p>
+              </div>
+              <button className={step.done ? "ghost-button" : "primary-button"} onClick={() => onAction(step.action)} type="button">
+                {step.done ? "Открыть" : "Настроить"}
+              </button>
+            </article>
+          ))}
+        </div>
+        <button className="ghost-button full-button" onClick={onClose} type="button">Продолжить в FleetCore</button>
+      </section>
+    </div>
   );
 }
 
@@ -3009,7 +3270,7 @@ function OwnerProfileDialog({
   session: AuthSession;
   teamUsers: User[];
 }) {
-  const canManageTeam = session.user.role === "owner" || session.user.role === "admin";
+  const canManageTeam = session.user.role === "owner";
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -3061,17 +3322,14 @@ function OwnerProfileDialog({
                 <label>Email<input inputMode="email" type="email" value={form.email} onChange={(event) => onFormChange({ ...form, email: event.target.value })} /></label>
                 <label>Роль
                   <select value={form.role} onChange={(event) => onFormChange({ ...form, role: event.target.value as Exclude<UserRole, "owner"> })}>
-                    <option value="fleet_manager">Fleet manager</option>
-                    <option value="finance_manager">Finance manager</option>
-                    <option value="support">Support</option>
-                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
                   </select>
                 </label>
                 <label>Пароль<input minLength={8} type="password" value={form.password} onChange={(event) => onFormChange({ ...form, password: event.target.value })} /></label>
                 <button className="primary-button full" disabled={busy} onClick={onAddTeamMember} type="button">Добавить менеджера</button>
               </div>
             ) : (
-              <p className="history-row">Управление командой доступно owner/admin.</p>
+              <p className="history-row">Управление командой доступно только owner.</p>
             )}
           </section>
         </div>
@@ -3320,6 +3578,11 @@ function MapPanel({ gpsDevices, locale, onSelect, selectedVehicleId, vehicles, r
         />
       ) : null}
       <div className="map-provider-badge">{GOOGLE_MAPS_API_KEY && googleMapsReady ? "Google Maps API" : "Google Maps preview"}</div>
+      <div className="map-action-bar">
+        <button className="ghost-button" onClick={() => openExternalMap("google", selectedGps)} type="button">Google Maps</button>
+        <button className="ghost-button" onClick={() => openExternalMap("apple", selectedGps)} type="button">Apple Maps</button>
+        <span>{selectedGps ? `${selectedGps.status} · ${selectedGps.speedKph} км/ч · ${dateFmt.format(new Date(selectedGps.lastSignalAt))}` : translate(locale, "gps.notConnected")}</span>
+      </div>
       {vehicles.slice(0, 8).map((vehicle, index) => {
         const rental = rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
         const gps = gpsDevices.find((item) => item.vehicleId === vehicle.id);

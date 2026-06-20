@@ -234,12 +234,12 @@ test("owner can update profile and add a manager account", async () => {
       email: managerEmail,
       fullName: "Rental Manager",
       password: "manager-pass-123",
-      role: "fleet_manager",
+      role: "manager",
     },
     url: "/auth/team",
   });
   assert.equal(createdManager.statusCode, 201);
-  assert.equal(createdManager.json().data.role, "fleet_manager");
+  assert.equal(createdManager.json().data.role, "manager");
 
   const team = await app.inject({
     headers: { authorization: `Bearer ${ownerToken}` },
@@ -255,7 +255,7 @@ test("owner can update profile and add a manager account", async () => {
     url: "/auth/login",
   });
   assert.equal(managerLogin.statusCode, 200);
-  assert.equal(managerLogin.json().data.user.role, "fleet_manager");
+  assert.equal(managerLogin.json().data.user.role, "manager");
 });
 
 test("owner can update company branding and billing profile", async () => {

@@ -101,7 +101,7 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/rentals", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = rentalInput.safeParse(request.body);
     if (!parsed.success) {
@@ -119,7 +119,7 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch("/rentals/:rentalId", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { rentalId } = request.params as { rentalId: string };
     const parsed = rentalPatchInput.safeParse(request.body);
@@ -141,7 +141,7 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/rentals/:rentalId/return", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { rentalId } = request.params as { rentalId: string };
     const parsed = rentalReturnInput.safeParse(request.body);

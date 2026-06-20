@@ -18,7 +18,7 @@ export const fleetRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/fleet/vehicles", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = vehicleInput.safeParse(request.body);
     if (!parsed.success) {
@@ -31,7 +31,7 @@ export const fleetRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch("/fleet/vehicles/:vehicleId", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { vehicleId } = request.params as { vehicleId: string };
     const parsed = vehiclePatchInput.safeParse(request.body);
@@ -48,7 +48,7 @@ export const fleetRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.delete("/fleet/vehicles/:vehicleId", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { vehicleId } = request.params as { vehicleId: string };
     let result: Awaited<ReturnType<typeof deleteVehicle>>;

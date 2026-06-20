@@ -250,7 +250,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(404).send({ error: "User not found" });
     }
 
-    if (currentUser && currentUser.id !== user.id && !["owner", "admin"].includes(currentUser.role)) {
+    if (currentUser && currentUser.id !== user.id && !["owner"].includes(currentUser.role)) {
       return reply.code(403).send({ error: "Insufficient permissions" });
     }
 
@@ -308,7 +308,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/auth/audit-log", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin"])) return;
+    if (!requireRoles(request, reply, ["owner"])) return;
     const scope = getTenantScope(request);
     return envelope(await listAuditLogs(scope, 100));
   });
@@ -340,12 +340,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/auth/team", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin"])) return;
+    if (!requireRoles(request, reply, ["owner"])) return;
     return envelope(await listTeamUsers(getTenantScope(request)));
   });
 
   app.post("/auth/team", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin"])) return;
+    if (!requireRoles(request, reply, ["owner"])) return;
 
     const parsed = teamMemberInput.safeParse(request.body ?? {});
     if (!parsed.success) {

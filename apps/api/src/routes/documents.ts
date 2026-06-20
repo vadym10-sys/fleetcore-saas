@@ -11,7 +11,7 @@ export const documentRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/documents/vehicles", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = vehicleDocumentInput.safeParse(request.body);
     if (!parsed.success) {

@@ -24,7 +24,7 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/uploads", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "finance_manager", "support"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = fileUploadInput.safeParse(request.body);
     if (!parsed.success) {

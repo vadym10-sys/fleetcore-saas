@@ -51,6 +51,15 @@ test("dashboard client keeps production account and document flows wired", () =>
     "openVehicleCreate",
     "openCustomerCreate",
     "openRentalContractPdfForRental",
+    "OnboardingWizard",
+    "fleetcore-onboarding-open",
+    "DocumentVault",
+    "document-vault",
+    "openExternalMap",
+    "mobile-fab",
+    "shareRentalContract",
+    "openTelegram",
+    "openEmail",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

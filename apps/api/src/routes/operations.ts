@@ -65,7 +65,7 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   app.get("/operations/expenses", async (request) => envelope(await listExpenses(getTenantScope(request))));
 
   app.post("/operations/expenses", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "finance_manager", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = expenseInput.safeParse(request.body);
     if (!parsed.success) {
@@ -98,7 +98,7 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/operations/service-records", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = serviceRecordInput.safeParse(request.body);
     if (!parsed.success) {
@@ -131,7 +131,7 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/operations/customer-documents", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "support", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = customerDocumentInput.safeParse(request.body);
     if (!parsed.success) {
@@ -171,7 +171,7 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/operations/rental-checklists", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = rentalChecklistInput.safeParse(request.body);
     if (!parsed.success) {
@@ -269,7 +269,7 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/operations/rental-contracts", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = rentalContractInput.safeParse(request.body);
     if (!parsed.success) {

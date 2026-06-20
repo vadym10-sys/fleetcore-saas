@@ -18,7 +18,7 @@ export const companyRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch("/companies/:companyId", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin"])) return;
+    if (!requireRoles(request, reply, ["owner"])) return;
 
     const { companyId } = request.params as { companyId: string };
     const parsed = companyBrandingInput.safeParse(request.body ?? {});

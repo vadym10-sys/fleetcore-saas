@@ -54,7 +54,7 @@ export const teamMemberInput = z.object({
   email: z.string().trim().toLowerCase().email(),
   fullName: z.string().trim().min(2).max(120),
   password: z.string().min(8),
-  role: z.enum(["admin", "fleet_manager", "finance_manager", "support"]).default("fleet_manager"),
+  role: z.enum(["manager"]).default("manager"),
 });
 
 export const companyBrandingInput = z.object({

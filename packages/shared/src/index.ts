@@ -20,7 +20,7 @@ export interface TenantScopedEntity {
   updatedAt: string;
 }
 
-export type UserRole = "owner" | "admin" | "fleet_manager" | "finance_manager" | "support";
+export type UserRole = "owner" | "manager";
 
 export interface User extends TenantScopedEntity {
   email: string;

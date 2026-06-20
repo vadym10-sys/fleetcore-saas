@@ -18,7 +18,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/customers", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = customerInput.safeParse(request.body);
     if (!parsed.success) {
@@ -31,7 +31,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch("/customers/:customerId", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager", "support"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { customerId } = request.params as { customerId: string };
     const parsed = customerPatchInput.safeParse(request.body);

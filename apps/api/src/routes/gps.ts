@@ -8,7 +8,7 @@ export const gpsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/gps/devices", async (request) => envelope(await listGpsDevices(getTenantScope(request))));
 
   app.post("/gps/devices", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "fleet_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = gpsDeviceInput.safeParse(request.body);
     if (!parsed.success) {

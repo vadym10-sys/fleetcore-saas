@@ -19,7 +19,7 @@ export const financeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/finance/invoices", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "finance_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const parsed = invoiceInput.safeParse(request.body);
     if (!parsed.success) {
@@ -37,7 +37,7 @@ export const financeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.patch("/finance/invoices/:invoiceId", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "finance_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { invoiceId } = request.params as { invoiceId: string };
     const parsed = invoicePatchInput.safeParse(request.body);
@@ -59,7 +59,7 @@ export const financeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/finance/invoices/:invoiceId/payments", async (request, reply) => {
-    if (!requireRoles(request, reply, ["owner", "admin", "finance_manager"])) return;
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
 
     const { invoiceId } = request.params as { invoiceId: string };
     const parsed = paymentInput.safeParse(request.body);
