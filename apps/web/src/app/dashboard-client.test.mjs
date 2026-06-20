@@ -61,7 +61,9 @@ test("dashboard client keeps production account and document flows wired", () =>
     "fleetcore-onboarding-open",
     "DocumentVault",
     "document-vault",
-    "openExternalMap",
+    "mapProvider",
+    "apple-map-panel",
+    "apple-map-canvas",
     "mobile-fab",
     "shareRentalContract",
     "openTelegram",
@@ -89,4 +91,5 @@ test("dashboard client does not ship inert buttons", () => {
   }
 
   assert.doesNotMatch(source, /MobileAppNav|mobile-app-nav|mobile-account-strip/);
+  assert.doesNotMatch(source, /openExternalMap|maps\.apple\.com|google\.com\/maps\/search/);
 });

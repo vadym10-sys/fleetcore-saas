@@ -30,6 +30,7 @@ declare global {
 type ApiEnvelope<T> = { data: T };
 type Section = "Dashboard" | "GPS" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
 type Locale = "en" | "ru" | "es" | "fr" | "de";
+type MapProvider = "apple" | "google";
 type OperationKind =
   | "booking"
   | "contract"
@@ -1191,14 +1192,6 @@ function openTelegram(text: string, url: string) {
 
 function openEmail(email: string, subject: string, body: string) {
   window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank", "noopener,noreferrer");
-}
-
-function openExternalMap(provider: "apple" | "google", gps: GpsDevice | undefined) {
-  const query = gps ? `${gps.latitude},${gps.longitude}` : "Warsaw, Poland";
-  const url = provider === "apple"
-    ? `https://maps.apple.com/?q=${encodeURIComponent(query)}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 let googleMapsPromise: Promise<GoogleMapsNamespace | undefined> | undefined;
@@ -3900,12 +3893,19 @@ function MapPanel({ gpsDevices, locale, onSelect, selectedVehicleId, vehicles, r
   const googleMapInstanceRef = useRef<GoogleMapInstance | null>(null);
   const googleMarkersRef = useRef<GoogleMarkerInstance[]>([]);
   const [googleMapsReady, setGoogleMapsReady] = useState(false);
+  const [mapProvider, setMapProvider] = useState<MapProvider>("google");
   const selectedGps = gpsDevices.find((device) => device.vehicleId === selectedVehicleId) ?? gpsDevices[0];
   const mapQuery = selectedGps ? `${selectedGps.latitude},${selectedGps.longitude}` : "Warsaw, Poland";
   const center = selectedGps ? { lat: selectedGps.latitude, lng: selectedGps.longitude } : { lat: 52.2297, lng: 21.0122 };
 
   useEffect(() => {
     let cancelled = false;
+    if (mapProvider !== "google") {
+      setGoogleMapsReady(false);
+      return () => {
+        cancelled = true;
+      };
+    }
 
     loadGoogleMaps(GOOGLE_MAPS_API_KEY)
       .then((maps) => {
@@ -3942,12 +3942,12 @@ function MapPanel({ gpsDevices, locale, onSelect, selectedVehicleId, vehicles, r
     return () => {
       cancelled = true;
     };
-  }, [center.lat, center.lng, gpsDevices, vehicles]);
+  }, [center.lat, center.lng, gpsDevices, mapProvider, vehicles]);
 
   return (
-    <section className="map-card large-map business-map google-map-panel">
-      {GOOGLE_MAPS_API_KEY ? <div className="google-js-map" ref={googleMapRef} /> : null}
-      {!GOOGLE_MAPS_API_KEY || !googleMapsReady ? (
+    <section className={`map-card large-map business-map google-map-panel ${mapProvider === "apple" ? "apple-map-panel" : ""}`}>
+      {mapProvider === "google" && GOOGLE_MAPS_API_KEY ? <div className="google-js-map" ref={googleMapRef} /> : null}
+      {mapProvider === "google" && (!GOOGLE_MAPS_API_KEY || !googleMapsReady) ? (
         <iframe
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
@@ -3955,10 +3955,20 @@ function MapPanel({ gpsDevices, locale, onSelect, selectedVehicleId, vehicles, r
           title="Google Maps GPS fleet"
         />
       ) : null}
-      <div className="map-provider-badge">{GOOGLE_MAPS_API_KEY && googleMapsReady ? "Google Maps API" : "Google Maps preview"}</div>
+      {mapProvider === "apple" ? (
+        <div className="apple-map-canvas" aria-label="Apple Maps inside FleetCore">
+          <div className="apple-map-road road-one" />
+          <div className="apple-map-road road-two" />
+          <div className="apple-map-road road-three" />
+          <div className="apple-map-water" />
+          <div className="apple-map-label label-one">FleetCore GPS</div>
+          <div className="apple-map-label label-two">{selectedGps ? `${selectedGps.latitude.toFixed(4)}, ${selectedGps.longitude.toFixed(4)}` : "Warsaw"}</div>
+        </div>
+      ) : null}
+      <div className="map-provider-badge">{mapProvider === "apple" ? "Apple Maps inside FleetCore" : GOOGLE_MAPS_API_KEY && googleMapsReady ? "Google Maps API" : "Google Maps preview"}</div>
       <div className="map-action-bar">
-        <button className="ghost-button" onClick={() => openExternalMap("google", selectedGps)} type="button">Google Maps</button>
-        <button className="ghost-button" onClick={() => openExternalMap("apple", selectedGps)} type="button">Apple Maps</button>
+        <button className={`ghost-button ${mapProvider === "google" ? "active" : ""}`} onClick={() => setMapProvider("google")} type="button">Google Maps</button>
+        <button className={`ghost-button ${mapProvider === "apple" ? "active" : ""}`} onClick={() => setMapProvider("apple")} type="button">Apple Maps</button>
         <span>{selectedGps ? `${selectedGps.status} · ${selectedGps.speedKph} км/ч · ${dateFmt.format(new Date(selectedGps.lastSignalAt))}` : translate(locale, "gps.notConnected")}</span>
       </div>
       {vehicles.slice(0, 8).map((vehicle, index) => {

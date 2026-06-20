@@ -526,6 +526,118 @@ h3 {
   z-index: 1;
 }
 
+.apple-map-panel {
+  background:
+    linear-gradient(90deg, rgba(190, 200, 214, 0.42) 1px, transparent 1px),
+    linear-gradient(rgba(190, 200, 214, 0.38) 1px, transparent 1px),
+    radial-gradient(circle at 76% 62%, rgba(114, 187, 255, 0.34) 0 18%, transparent 19%),
+    radial-gradient(circle at 20% 28%, rgba(62, 199, 126, 0.16), transparent 18%),
+    #f4f7f6;
+  background-size: 78px 78px, 78px 78px, auto, auto, auto;
+}
+
+.apple-map-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.apple-map-canvas:before,
+.apple-map-canvas:after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.apple-map-canvas:before {
+  left: -8%;
+  right: -10%;
+  top: 38%;
+  height: 38px;
+  transform: rotate(-15deg);
+  background: rgba(255, 208, 92, 0.62);
+  box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.72);
+}
+
+.apple-map-canvas:after {
+  left: 44%;
+  right: -18%;
+  top: 0;
+  bottom: -8%;
+  width: 46px;
+  transform: rotate(24deg);
+  background: rgba(255, 208, 92, 0.52);
+  box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.74);
+}
+
+.apple-map-road {
+  position: absolute;
+  z-index: 1;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+}
+
+.apple-map-road.road-one {
+  left: -8%;
+  right: -12%;
+  top: 24%;
+  height: 22px;
+  transform: rotate(11deg);
+}
+
+.apple-map-road.road-two {
+  left: 18%;
+  right: -8%;
+  top: 64%;
+  height: 24px;
+  transform: rotate(-24deg);
+}
+
+.apple-map-road.road-three {
+  left: 12%;
+  width: 26px;
+  top: -6%;
+  bottom: -8%;
+  transform: rotate(6deg);
+}
+
+.apple-map-water {
+  position: absolute;
+  right: -12%;
+  bottom: -18%;
+  z-index: 0;
+  width: 42%;
+  height: 46%;
+  border-radius: 48% 52% 0 0;
+  background: linear-gradient(145deg, rgba(96, 165, 250, 0.42), rgba(186, 230, 253, 0.68));
+}
+
+.apple-map-label {
+  position: absolute;
+  z-index: 2;
+  padding: 6px 9px;
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+.apple-map-label.label-one {
+  left: 24px;
+  top: 78px;
+}
+
+.apple-map-label.label-two {
+  right: 24px;
+  top: 72px;
+}
+
 .map-provider-badge {
   position: absolute;
   right: 16px;
@@ -4510,6 +4622,13 @@ h3 {
   color: var(--ink);
   font-size: 12px;
   font-weight: 900;
+}
+
+.map-action-bar button.active {
+  border-color: rgba(35, 70, 216, 0.42);
+  background: #2346d8;
+  color: white;
+  box-shadow: 0 12px 28px rgba(35, 70, 216, 0.2);
 }
 
 .mobile-fab {
