@@ -2149,6 +2149,167 @@ h3 {
   text-align: right;
 }
 
+.command-center {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.15fr) minmax(260px, 0.95fr) minmax(320px, 1.4fr);
+  gap: 14px;
+  align-items: stretch;
+  margin: -10px 0 22px;
+  padding: 14px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(38, 45, 65, 0.94) 48%, rgba(35, 70, 216, 0.86)),
+    #111827;
+  box-shadow: 0 18px 44px rgba(17, 24, 39, 0.16);
+}
+
+.command-copy {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+  color: white;
+}
+
+.command-copy .eyebrow {
+  color: #f2c879;
+}
+
+.command-copy strong {
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.command-copy p {
+  max-width: 520px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.workflow-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflow-chip {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.workflow-chip span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.workflow-chip strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.workflow-chip.green strong { color: #6ee7b7; }
+.workflow-chip.blue strong { color: #93c5fd; }
+.workflow-chip.orange strong { color: #fbbf24; }
+.workflow-chip.red strong { color: #fda4af; }
+
+.command-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  align-content: center;
+}
+
+.command-actions .primary-button,
+.command-actions .ghost-button {
+  width: 100%;
+  min-width: 0;
+}
+
+.command-actions .ghost-button {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.api-status.has-message {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(20, 163, 109, 0.18);
+  border-radius: 8px;
+  background: rgba(232, 248, 241, 0.9);
+  color: #0f7a55;
+}
+
+@media (max-width: 1180px) {
+  .command-center {
+    grid-template-columns: 1fr;
+  }
+
+  .command-actions {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .command-center {
+    margin: 0 0 14px;
+    padding: 12px;
+  }
+
+  .command-copy strong {
+    font-size: 18px;
+  }
+
+  .workflow-stats {
+    grid-template-columns: repeat(4, minmax(72px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .workflow-chip {
+    min-height: 64px;
+    padding: 10px;
+  }
+
+  .workflow-chip strong {
+    font-size: 21px;
+  }
+
+  .command-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-actions .primary-button,
+  .command-actions .ghost-button {
+    min-height: 46px;
+    padding: 0 10px;
+  }
+
+  .contract-cell {
+    justify-items: stretch;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .contract-timeline span {
+    text-align: left;
+  }
+}
+
 .document-link {
   display: inline-flex;
   min-height: 38px;

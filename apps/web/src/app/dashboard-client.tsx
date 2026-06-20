@@ -1298,6 +1298,12 @@ export default function DashboardClient() {
     [t("dashboard.monthlyRevenue"), money.format(data.metrics.monthlyRevenue), "green"],
     [t("dashboard.todayRevenue"), money.format(incomeToday), "green"],
   ] as const;
+  const workflowStats = [
+    { label: "Возвраты", value: data.rentals.filter((rental) => rental.status === "return_due").length, tone: "orange" },
+    { label: "Просрочки", value: notifications.filter((item) => item.tone === "red").length, tone: "red" },
+    { label: "Документы", value: data.documents.length + data.customerDocuments.length, tone: "blue" },
+    { label: "Договоры", value: data.rentalContracts.length, tone: "green" },
+  ];
 
   function openOperation(kind: OperationKind) {
     const vehicle = selectedVehicle ?? data.vehicles[0];
@@ -2128,7 +2134,7 @@ export default function DashboardClient() {
         <header className="desktop-header">
           <div>
             <h1>{sectionLabel(locale, activeSection)}</h1>
-            <p className="api-status">{loading ? t("common.loading") : message || sectionSubtitle(locale, activeSection)}</p>
+            <p className={`api-status ${message ? "has-message" : ""}`}>{loading ? t("common.loading") : message || sectionSubtitle(locale, activeSection)}</p>
           </div>
           <div className="header-actions">
             <label className="global-search">
@@ -2140,6 +2146,30 @@ export default function DashboardClient() {
             <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
           </div>
         </header>
+
+        <section className="command-center" aria-label="FleetCore command center">
+          <div className="command-copy">
+            <span className="eyebrow">FleetCore Command</span>
+            <strong>{busyAction ? busyAction : "Рабочий центр автопарка"}</strong>
+            <p>{message || "Самые частые действия доступны в один клик без перехода по разделам."}</p>
+          </div>
+          <div className="workflow-stats">
+            {workflowStats.map((item) => (
+              <article className={`workflow-chip ${item.tone}`} key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </article>
+            ))}
+          </div>
+          <div className="command-actions">
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Новая бронь</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("Vehicles")} type="button">Автомобиль</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">Документ</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Расход</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">ТО</button>
+            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void sendRentalContract()} type="button">WhatsApp</button>
+          </div>
+        </section>
 
         {activeSection === "Dashboard" ? (
           <section className="workspace-grid">

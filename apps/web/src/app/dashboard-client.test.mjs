@@ -20,6 +20,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "/operations/rental-contract-events",
     "contractEventLabel",
     "contract-timeline",
+    "FleetCore Command",
+    "command-actions",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
