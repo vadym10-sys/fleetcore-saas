@@ -86,6 +86,28 @@ button:disabled {
   align-items: center;
 }
 
+.profile-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.profile-button small {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .profile button,
 .icon-button,
 .panel-title button,
@@ -994,6 +1016,7 @@ h3 {
 .car-window,
 .car-body,
 .car-light,
+.car-grille,
 .wheel {
   position: absolute;
   display: block;
@@ -1089,6 +1112,16 @@ h3 {
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 
+.car-grille {
+  z-index: 3;
+  right: 12%;
+  top: 48%;
+  width: 10%;
+  height: 18%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.36));
+}
+
 .vehicle-art.dark .car-roof,
 .vehicle-art.dark .car-body {
   background:
@@ -1109,6 +1142,88 @@ h3 {
 
 .wheel.left { left: 24%; }
 .wheel.right { right: 24%; }
+
+.vehicle-electric .car-roof {
+  left: 24%;
+  top: 18%;
+  width: 50%;
+  height: 28%;
+  border-radius: 55px 55px 10px 10px;
+}
+
+.vehicle-electric .car-body {
+  left: 5%;
+  right: 5%;
+  top: 42%;
+  height: 31%;
+  border-radius: 50px 58px 18px 18px;
+  background: linear-gradient(180deg, #ffffff, #e8eef7 56%, #b9c6d8);
+}
+
+.vehicle-van .car-roof {
+  left: 12%;
+  top: 10%;
+  width: 64%;
+  height: 43%;
+  border-radius: 18px 28px 8px 8px;
+}
+
+.vehicle-van .car-body {
+  left: 4%;
+  right: 4%;
+  top: 36%;
+  height: 39%;
+  border-radius: 20px 38px 12px 12px;
+  background: linear-gradient(180deg, #f8fafc, #d7dde7 58%, #a8b4c4);
+}
+
+.vehicle-suv .car-roof,
+.vehicle-luxury .car-roof {
+  height: 37%;
+}
+
+.vehicle-suv .car-body {
+  background: linear-gradient(180deg, #ffffff, #dbe3ee 54%, #9daec5);
+}
+
+.vehicle-sedan .car-roof {
+  left: 27%;
+  top: 18%;
+  width: 47%;
+  height: 28%;
+  border-radius: 44px 50px 8px 8px;
+}
+
+.vehicle-sedan .car-body {
+  left: 4%;
+  right: 4%;
+  top: 43%;
+  height: 29%;
+  border-radius: 50px 56px 12px 12px;
+  background: linear-gradient(180deg, #f8fafc, #cbd5e1 58%, #94a3b8);
+}
+
+.vehicle-luxury .car-body {
+  top: 41%;
+  height: 33%;
+  border-radius: 28px 42px 12px 12px;
+  background: linear-gradient(180deg, #1f2937, #0f172a 58%, #020617);
+}
+
+.vehicle-luxury .car-roof {
+  background: linear-gradient(145deg, #334155, #0f172a);
+}
+
+.vehicle-luxury .car-grille {
+  right: 10%;
+  top: 43%;
+  width: 11%;
+  height: 28%;
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(90deg, rgba(226, 232, 240, 0.7) 0 1px, rgba(15, 23, 42, 0.7) 1px 3px),
+    #111827;
+}
 
 .badge {
   display: inline-flex;
@@ -2254,6 +2369,141 @@ h3 {
   color: #0f7a55;
 }
 
+.owner-profile-modal {
+  width: min(940px, calc(100vw - 28px));
+  max-height: min(840px, calc(100vh - 28px));
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 28px 100px rgba(17, 24, 39, 0.26);
+}
+
+.owner-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+  gap: 14px;
+}
+
+.owner-profile-card,
+.team-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.owner-photo {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #3157e8, #8bd7ff);
+  color: white;
+  font-size: 42px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.owner-photo:after {
+  content: "Upload";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 0;
+  background: rgba(15, 23, 42, 0.72);
+  color: white;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.owner-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.owner-photo input {
+  display: none;
+}
+
+.owner-profile-card label,
+.team-create label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.owner-profile-card input,
+.team-create input,
+.team-create select {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  padding: 0 12px;
+}
+
+.owner-profile-card p {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.profile-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.team-list,
+.team-create {
+  display: grid;
+  gap: 8px;
+}
+
+.team-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.team-row strong,
+.team-row span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-row span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.team-create {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 1180px) {
   .command-center {
     grid-template-columns: 1fr;
@@ -2307,6 +2557,23 @@ h3 {
 
   .contract-timeline span {
     text-align: left;
+  }
+
+  .owner-profile-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    padding: 12px;
+  }
+
+  .owner-profile-grid,
+  .profile-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-photo {
+    width: 104px;
+    height: 104px;
+    font-size: 34px;
   }
 }
 

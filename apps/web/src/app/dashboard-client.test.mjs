@@ -22,6 +22,11 @@ test("dashboard client keeps production account and document flows wired", () =>
     "contract-timeline",
     "FleetCore Command",
     "command-actions",
+    "OwnerProfileDialog",
+    "/auth/team",
+    "/auth/me",
+    "VehicleVisual",
+    "vehicleVisualVariant",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

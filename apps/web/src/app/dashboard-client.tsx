@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -57,6 +57,7 @@ type AppData = {
   rentalContracts: RentalContract[];
   rentalContractEvents: RentalContractEvent[];
   serviceRecords: ServiceRecord[];
+  teamUsers: User[];
   vehicles: Vehicle[];
 };
 
@@ -790,14 +791,26 @@ function Badge({ value }: { value: string }) {
   return <span className={`badge badge-${value.replaceAll(" ", "-").replaceAll("_", "-")}`}>{value.replaceAll("_", " ")}</span>;
 }
 
-function VehicleArt({ tone = "light" }: { tone?: "light" | "dark" }) {
+function vehicleVisualVariant(vehicle?: Pick<Vehicle, "make" | "model">) {
+  const name = `${vehicle?.make ?? ""} ${vehicle?.model ?? ""}`.toLowerCase();
+  if (name.includes("tesla")) return "electric";
+  if (name.includes("ford") || name.includes("transit")) return "van";
+  if (name.includes("mercedes")) return "sedan";
+  if (name.includes("rolls") || name.includes("royce")) return "luxury";
+  if (name.includes("bmw") || name.includes("x5") || name.includes("x6")) return "suv";
+  return "default";
+}
+
+function VehicleVisual({ tone = "light", vehicle }: { tone?: "light" | "dark"; vehicle?: Pick<Vehicle, "make" | "model"> }) {
+  const variant = vehicleVisualVariant(vehicle);
   return (
-    <div className={`vehicle-art ${tone}`}>
+    <div className={`vehicle-art vehicle-visual ${tone} vehicle-${variant}`}>
       <span className="car-shadow" />
       <span className="car-roof" />
       <span className="car-window front" />
       <span className="car-window rear" />
       <span className="car-body" />
+      <span className="car-grille" />
       <span className="car-light front" />
       <span className="car-light rear" />
       <span className="wheel left" />
@@ -1110,6 +1123,15 @@ export default function DashboardClient() {
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<string | undefined>();
   const [operation, setOperation] = useState<OperationKind | undefined>();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [teamForm, setTeamForm] = useState({
+    email: `manager-${Date.now().toString().slice(-5)}@example.com`,
+    fullName: "Fleet Manager",
+    password: "manager-pass-123",
+    role: "fleet_manager" as Exclude<UserRole, "owner">,
+  });
   const [operationForm, setOperationForm] = useState(defaultOperationForm);
   const [operationFiles, setOperationFiles] = useState<FileList | null>(null);
   const vehicleDocumentInputRef = useRef<HTMLInputElement>(null);
@@ -1133,6 +1155,7 @@ export default function DashboardClient() {
     rentalContracts: [],
     rentalContractEvents: [],
     serviceRecords: [],
+    teamUsers: [],
     vehicles: [],
   });
   const [vehicleForm, setVehicleForm] = useState({
@@ -1169,6 +1192,12 @@ export default function DashboardClient() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!session?.user.id) return;
+    setProfileName(session.user.fullName);
+    setProfilePhoto(localStorage.getItem(`fleetcore-profile-photo:${session.user.id}`) ?? "");
+  }, [session?.user.fullName, session?.user.id]);
+
   function changeLocale(nextLocale: Locale) {
     setLocale(nextLocale);
     localStorage.setItem("fleetcore-locale", nextLocale);
@@ -1177,7 +1206,8 @@ export default function DashboardClient() {
   async function loadData(currentToken = token) {
     setLoading(true);
     try {
-      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents] = await Promise.all([
+      const canManageTeam = session?.user.role === "owner" || session?.user.role === "admin";
+      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents, teamUsers] = await Promise.all([
         api<DashboardMetrics>("/dashboard", {}, currentToken),
         api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
         api<Customer[]>("/customers", {}, currentToken),
@@ -1192,6 +1222,7 @@ export default function DashboardClient() {
         api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
         api<RentalContract[]>("/operations/rental-contracts", {}, currentToken),
         api<RentalContractEvent[]>("/operations/rental-contract-events", {}, currentToken),
+        canManageTeam ? api<User[]>("/auth/team", {}, currentToken) : Promise.resolve({ data: session?.user ? [session.user] : [] }),
       ]);
 
       setData({
@@ -1208,6 +1239,7 @@ export default function DashboardClient() {
         rentalContracts: rentalContracts.data,
         rentalContractEvents: rentalContractEvents.data,
         serviceRecords: serviceRecords.data,
+        teamUsers: teamUsers.data,
         vehicles: vehicles.data,
       });
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
@@ -2005,6 +2037,50 @@ export default function DashboardClient() {
     });
   }
 
+  async function saveProfilePhoto(file: File | undefined) {
+    if (!file || !session?.user.id) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result ?? "");
+      setProfilePhoto(value);
+      localStorage.setItem(`fleetcore-profile-photo:${session.user.id}`, value);
+      setMessage("Фото профиля сохранено");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveOwnerProfile() {
+    if (!session) return;
+    await runAction("Сохраняем профиль...", async () => {
+      const response = await api<User>("/auth/me", {
+        body: JSON.stringify({ fullName: profileName }),
+        method: "PATCH",
+      }, token);
+      const nextSession = { ...session, user: response.data };
+      setSession(nextSession);
+      saveStoredSession(nextSession);
+      await loadData(nextSession.accessToken);
+      setMessage("Профиль обновлен");
+    });
+  }
+
+  async function addTeamMember() {
+    await runAction("Добавляем менеджера...", async () => {
+      await api<User>("/auth/team", {
+        body: JSON.stringify(teamForm),
+        method: "POST",
+      }, token);
+      setTeamForm((current) => ({
+        ...current,
+        email: `manager-${Date.now().toString().slice(-5)}@example.com`,
+        fullName: "Fleet Manager",
+        password: "manager-pass-123",
+      }));
+      await loadData();
+      setMessage("Менеджер добавлен и может войти по email и паролю");
+    });
+  }
+
   async function logout() {
     const stored = readStoredSession();
     if (stored?.refreshToken) {
@@ -2105,14 +2181,14 @@ export default function DashboardClient() {
         type="file"
       />
       <aside className="desktop-sidebar">
-        <div className="profile">
-          <div className="avatar">{session.user.fullName.slice(0, 1)}</div>
+        <button className="profile profile-button" onClick={() => setProfileOpen(true)} type="button">
+          <div className="avatar">{profilePhoto ? <img alt="" src={profilePhoto} /> : session.user.fullName.slice(0, 1)}</div>
           <div>
             <strong>{session.user.fullName}</strong>
             <span>{session.user.role} · {session.companyId.slice(0, 12)}</span>
           </div>
-          <button onClick={() => void logout()} title="Выйти">×</button>
-        </div>
+          <small>Manage</small>
+        </button>
         <nav className="side-nav">
           {sections.map((item) => (
             <button className={activeSection === item ? "active" : ""} key={item} onClick={() => setActiveSection(item)} type="button">
@@ -2421,8 +2497,126 @@ export default function DashboardClient() {
         />
       ) : null}
 
+      {profileOpen ? (
+        <OwnerProfileDialog
+          busy={Boolean(busyAction)}
+          form={teamForm}
+          onAddTeamMember={() => void addTeamMember()}
+          onClose={() => setProfileOpen(false)}
+          onFormChange={setTeamForm}
+          onLogout={() => void logout()}
+          onNameChange={setProfileName}
+          onPhoto={(file) => void saveProfilePhoto(file)}
+          onSave={() => void saveOwnerProfile()}
+          photo={profilePhoto}
+          profileName={profileName}
+          session={session}
+          teamUsers={data.teamUsers}
+        />
+      ) : null}
+
       <MobileAppNav activeSection={activeSection} locale={locale} notificationsCount={notifications.length} onSelect={setActiveSection} />
     </main>
+  );
+}
+
+function OwnerProfileDialog({
+  busy,
+  form,
+  onAddTeamMember,
+  onClose,
+  onFormChange,
+  onLogout,
+  onNameChange,
+  onPhoto,
+  onSave,
+  photo,
+  profileName,
+  session,
+  teamUsers,
+}: {
+  busy: boolean;
+  form: { email: string; fullName: string; password: string; role: Exclude<UserRole, "owner"> };
+  onAddTeamMember: () => void;
+  onClose: () => void;
+  onFormChange: (form: { email: string; fullName: string; password: string; role: Exclude<UserRole, "owner"> }) => void;
+  onLogout: () => void;
+  onNameChange: (name: string) => void;
+  onPhoto: (file: File | undefined) => void;
+  onSave: () => void;
+  photo: string;
+  profileName: string;
+  session: AuthSession;
+  teamUsers: User[];
+}) {
+  const canManageTeam = session.user.role === "owner" || session.user.role === "admin";
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <section className="owner-profile-modal">
+        <div className="modal-title">
+          <div>
+            <span>Owner profile</span>
+            <h2>{session.user.fullName}</h2>
+          </div>
+          <button onClick={onClose} type="button">×</button>
+        </div>
+
+        <div className="owner-profile-grid">
+          <section className="owner-profile-card">
+            <label className="owner-photo">
+              {photo ? <img alt="" src={photo} /> : <span>{session.user.fullName.slice(0, 1)}</span>}
+              <input accept=".jpg,.jpeg,.png,.webp" onChange={(event) => onPhoto(event.currentTarget.files?.[0])} type="file" />
+            </label>
+            <label>Имя и фамилия
+              <input value={profileName} onChange={(event) => onNameChange(event.target.value)} />
+            </label>
+            <p>{session.user.email}</p>
+            <div className="profile-actions">
+              <button className="primary-button" disabled={busy} onClick={onSave} type="button">Сохранить профиль</button>
+              <button className="ghost-button" onClick={onLogout} type="button">Выйти</button>
+            </div>
+          </section>
+
+          <section className="team-panel">
+            <div className="section-title compact-title">
+              <h2>Команда</h2>
+              <Badge value={String(teamUsers.length)} />
+            </div>
+            <div className="team-list">
+              {teamUsers.map((user) => (
+                <article className="team-row" key={user.id}>
+                  <div className="avatar small">{user.fullName.slice(0, 1)}</div>
+                  <div>
+                    <strong>{user.fullName}</strong>
+                    <span>{user.email} · {user.role}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {canManageTeam ? (
+              <div className="team-create">
+                <label>Имя менеджера<input value={form.fullName} onChange={(event) => onFormChange({ ...form, fullName: event.target.value })} /></label>
+                <label>Email<input inputMode="email" type="email" value={form.email} onChange={(event) => onFormChange({ ...form, email: event.target.value })} /></label>
+                <label>Роль
+                  <select value={form.role} onChange={(event) => onFormChange({ ...form, role: event.target.value as Exclude<UserRole, "owner"> })}>
+                    <option value="fleet_manager">Fleet manager</option>
+                    <option value="finance_manager">Finance manager</option>
+                    <option value="support">Support</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+                <label>Пароль<input minLength={8} type="password" value={form.password} onChange={(event) => onFormChange({ ...form, password: event.target.value })} /></label>
+                <button className="primary-button full" disabled={busy} onClick={onAddTeamMember} type="button">Добавить менеджера</button>
+              </div>
+            ) : (
+              <p className="history-row">Управление командой доступно owner/admin.</p>
+            )}
+          </section>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -2546,7 +2740,7 @@ function VehicleCard({ customer, documents, finance, locale, onDocument, onExpen
   const vehicleServiceRecords = serviceRecords.filter((record) => record.vehicleId === vehicle.id);
   return (
     <section className="table-panel vehicle-card-panel">
-      <VehicleArt />
+      <VehicleVisual vehicle={vehicle} />
       <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
       <h2>{vehicle.make} {vehicle.model}</h2>
       <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
@@ -2621,7 +2815,7 @@ function VehicleHero({
         </div>
       </div>
       <div className="vehicle-hero-art">
-        <VehicleArt tone="dark" />
+        <VehicleVisual tone="dark" vehicle={vehicle} />
       </div>
       <div className="vehicle-hero-stats">
         <article><span>{translate(locale, "vehicle.mileage")}</span><strong>{vehicle.odometerKm.toLocaleString()} км</strong></article>
@@ -2667,7 +2861,7 @@ function VehicleGridCard({
         onDelete();
       }} title={canDelete ? translate(locale, "vehicle.delete") : translate(locale, "vehicle.deleteBlocked")} type="button">×</button>
       <div className="fleet-vehicle-top">
-        <VehicleArt />
+        <VehicleVisual vehicle={vehicle} />
         <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
       </div>
       <div className="fleet-vehicle-title">

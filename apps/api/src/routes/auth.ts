@@ -1,10 +1,10 @@
 import type { AuthSession } from "@fleetcore/shared";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import { createAuthToken, createCompanyAccount, getActiveAuthToken, getUserByEmail, getUserCredentialsByEmail, listAuditLogs, markAuthTokenUsed, markUserEmailVerified, revokeAuthToken, revokeUserRefreshTokens, touchUserLogin, updateUserPassword, writeAuditLog } from "../db/repositories.js";
+import { createAuthToken, createCompanyAccount, createTeamUser, getActiveAuthToken, getUserByEmail, getUserCredentialsByEmail, listAuditLogs, listTeamUsers, markAuthTokenUsed, markUserEmailVerified, revokeAuthToken, revokeUserRefreshTokens, touchUserLogin, updateUserPassword, updateUserProfile, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { accessTokenExpiresAt, createOpaqueToken, hashOpaqueToken, hashPassword, refreshTokenExpiresAt, signAccessToken, verifyPassword } from "../lib/auth.js";
 import { envelope } from "../lib/http.js";
-import { emailVerificationInput, emailVerificationRequestInput, loginInput, logoutInput, passwordResetInput, passwordResetRequestInput, refreshTokenInput, registerCompanyInput } from "../schemas.js";
+import { emailVerificationInput, emailVerificationRequestInput, loginInput, logoutInput, passwordResetInput, passwordResetRequestInput, profileUpdateInput, refreshTokenInput, registerCompanyInput, teamMemberInput } from "../schemas.js";
 
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -311,5 +311,70 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (!requireRoles(request, reply, ["owner", "admin"])) return;
     const scope = getTenantScope(request);
     return envelope(await listAuditLogs(scope, 100));
+  });
+
+  app.patch("/auth/me", async (request, reply) => {
+    const user = getRequestUser(request);
+    if (!user) return reply.code(401).send({ error: "Authentication required" });
+
+    const parsed = profileUpdateInput.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid profile payload", issues: parsed.error.flatten() });
+    }
+
+    const updated = await updateUserProfile(user.id, parsed.data.fullName);
+    if (!updated) return reply.code(404).send({ error: "User not found" });
+
+    await writeAuditLog({
+      action: "auth.profile.updated",
+      actorEmail: updated.email,
+      companyId: updated.companyId,
+      ipAddress: requestIp(request),
+      metadata: { fullName: updated.fullName },
+      tenantId: updated.tenantId,
+      userAgent: userAgent(request),
+      userId: updated.id,
+    });
+
+    return envelope(updated);
+  });
+
+  app.get("/auth/team", async (request, reply) => {
+    if (!requireRoles(request, reply, ["owner", "admin"])) return;
+    return envelope(await listTeamUsers(getTenantScope(request)));
+  });
+
+  app.post("/auth/team", async (request, reply) => {
+    if (!requireRoles(request, reply, ["owner", "admin"])) return;
+
+    const parsed = teamMemberInput.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid team member payload", issues: parsed.error.flatten() });
+    }
+
+    const scope = getTenantScope(request);
+    const actor = getRequestUser(request);
+    try {
+      const user = await createTeamUser(scope, parsed.data, hashPassword(parsed.data.password));
+      await writeAuditLog({
+        action: "auth.team_user.created",
+        actorEmail: actor?.email,
+        companyId: scope.companyId,
+        entityId: user.id,
+        entityType: "user",
+        ipAddress: requestIp(request),
+        metadata: { email: user.email, role: user.role },
+        tenantId: scope.tenantId,
+        userAgent: userAgent(request),
+        userId: actor?.id,
+      });
+      return reply.code(201).send(envelope(user));
+    } catch (error) {
+      if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
+        return reply.code(409).send({ error: "Email already registered" });
+      }
+
+      throw error;
+    }
   });
 };

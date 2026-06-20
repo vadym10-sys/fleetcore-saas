@@ -46,6 +46,17 @@ export const emailVerificationInput = z.object({
   token: z.string().min(32),
 });
 
+export const profileUpdateInput = z.object({
+  fullName: z.string().trim().min(2).max(120),
+});
+
+export const teamMemberInput = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  fullName: z.string().trim().min(2).max(120),
+  password: z.string().min(8),
+  role: z.enum(["admin", "fleet_manager", "finance_manager", "support"]).default("fleet_manager"),
+});
+
 export const vehicleInput = z.object({
   vin: z.string().min(6),
   plateNumber: z.string().min(2),

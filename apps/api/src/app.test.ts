@@ -193,6 +193,71 @@ test("B2B company registration creates an isolated tenant account", async () => 
   assert.deepEqual(vehicles.json().data, []);
 });
 
+test("owner can update profile and add a manager account", async () => {
+  const email = `team-owner-${Date.now()}@rental.example`;
+  const managerEmail = `manager-${Date.now()}@rental.example`;
+  const register = await app.inject({
+    method: "POST",
+    url: "/auth/register-company",
+    payload: {
+      company: {
+        country: "PL",
+        currency: "EUR",
+        fleetSizeLimit: 16,
+        legalName: "Team Rental Sp. z o.o.",
+        plan: "starter",
+        tradingName: "Team Rental",
+      },
+      owner: {
+        email,
+        fullName: "Team Owner",
+        password: "secure-pass-123",
+      },
+    },
+  });
+  assert.equal(register.statusCode, 201);
+  const ownerToken = register.json().data.accessToken;
+
+  const profile = await app.inject({
+    headers: { authorization: `Bearer ${ownerToken}` },
+    method: "PATCH",
+    payload: { fullName: "Updated Team Owner" },
+    url: "/auth/me",
+  });
+  assert.equal(profile.statusCode, 200);
+  assert.equal(profile.json().data.fullName, "Updated Team Owner");
+
+  const createdManager = await app.inject({
+    headers: { authorization: `Bearer ${ownerToken}` },
+    method: "POST",
+    payload: {
+      email: managerEmail,
+      fullName: "Rental Manager",
+      password: "manager-pass-123",
+      role: "fleet_manager",
+    },
+    url: "/auth/team",
+  });
+  assert.equal(createdManager.statusCode, 201);
+  assert.equal(createdManager.json().data.role, "fleet_manager");
+
+  const team = await app.inject({
+    headers: { authorization: `Bearer ${ownerToken}` },
+    method: "GET",
+    url: "/auth/team",
+  });
+  assert.equal(team.statusCode, 200);
+  assert.ok(team.json().data.some((item: { email: string }) => item.email === managerEmail));
+
+  const managerLogin = await app.inject({
+    method: "POST",
+    payload: { email: managerEmail, password: "manager-pass-123" },
+    url: "/auth/login",
+  });
+  assert.equal(managerLogin.statusCode, 200);
+  assert.equal(managerLogin.json().data.user.role, "fleet_manager");
+});
+
 test("authenticated API can create an invoice payment", async () => {
   const invoices = await app.inject({
     headers: { authorization: `Bearer ${token}` },

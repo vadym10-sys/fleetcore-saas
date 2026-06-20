@@ -20,6 +20,7 @@ import type {
   rentalInput,
   rentalPatchInput,
   serviceRecordInput,
+  teamMemberInput,
   vehicleDocumentInput,
   vehicleInput,
   vehiclePatchInput,
@@ -44,6 +45,7 @@ type ServiceRecordInput = z.infer<typeof serviceRecordInput>;
 type CustomerDocumentInput = z.infer<typeof customerDocumentInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
 type FileUploadInput = z.infer<typeof fileUploadInput>;
+type TeamMemberInput = z.infer<typeof teamMemberInput>;
 export type AuthTokenType = "refresh" | "password_reset" | "email_verification";
 export type AuditLogInput = {
   action: string;
@@ -353,6 +355,38 @@ export async function getUserCredentialsByEmail(email: string): Promise<{ passwo
     [email],
   );
   return result.rows[0] ? { passwordHash: String(result.rows[0].password_hash), user: mapUser(result.rows[0]) } : undefined;
+}
+
+export async function listTeamUsers(scope: TenantScope): Promise<User[]> {
+  const result = await pool.query(
+    "select * from users where tenant_id = $1 and company_id = $2 order by role asc, full_name asc",
+    [scope.tenantId, scope.companyId],
+  );
+  return result.rows.map(mapUser);
+}
+
+export async function createTeamUser(scope: TenantScope, input: TeamMemberInput, passwordHash: string): Promise<User> {
+  const duplicate = await pool.query("select 1 from users where lower(email) = lower($1) limit 1", [input.email]);
+  if (duplicate.rowCount) {
+    throw new Error("EMAIL_ALREADY_REGISTERED");
+  }
+
+  const result = await pool.query(
+    `insert into users (
+      id, tenant_id, company_id, email, password_hash, full_name, role
+    ) values ($1, $2, $3, $4, $5, $6, $7)
+    returning *`,
+    [createId("user"), scope.tenantId, scope.companyId, input.email.toLowerCase(), passwordHash, input.fullName, input.role],
+  );
+  return mapUser(result.rows[0]);
+}
+
+export async function updateUserProfile(userId: string, fullName: string): Promise<User | undefined> {
+  const result = await pool.query(
+    "update users set full_name = $2, updated_at = now() where id = $1 returning *",
+    [userId, fullName],
+  );
+  return result.rows[0] ? mapUser(result.rows[0]) : undefined;
 }
 
 export async function listVehicles(scope: TenantScope): Promise<Vehicle[]> {
