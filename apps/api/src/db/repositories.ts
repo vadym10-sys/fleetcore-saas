@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
@@ -754,6 +754,104 @@ export async function returnRental(scope: TenantScope, rentalId: string, input: 
   } finally {
     client.release();
   }
+}
+
+function flowStep(key: RentalFlowStep["key"], label: string, status: RentalFlowStep["status"], detail: string, actionLabel?: string): RentalFlowStep {
+  return { key, label, status, detail, ...(actionLabel ? { actionLabel } : {}) };
+}
+
+export async function getRentalFlow(scope: TenantScope, rentalId: string): Promise<RentalFlow | undefined> {
+  const rental = await getRental(scope, rentalId);
+  if (!rental) return undefined;
+
+  const [customer, vehicle, invoices, payments, contracts, checklists] = await Promise.all([
+    getCustomer(scope, rental.customerId),
+    getVehicle(scope, rental.vehicleId),
+    listInvoices(scope),
+    listPayments(scope),
+    listRentalContracts(scope),
+    listRentalChecklists(scope, rental.id),
+  ]);
+  if (!customer || !vehicle) return undefined;
+
+  const invoice = invoices.find((item) => item.rentalId === rental.id);
+  const contract = contracts.find((item) => item.rentalId === rental.id);
+  const paidAmount = invoice
+    ? payments.filter((item) => item.invoiceId === invoice.id).reduce((sum, payment) => sum + payment.amount, 0)
+    : 0;
+  const isPaid = invoice ? paidAmount >= invoice.total || invoice.status === "paid" : false;
+  const pickupDone = checklists.some((item) => item.phase === "pickup");
+  const returnDone = checklists.some((item) => item.phase === "return");
+  const contractDone = contract?.status === "signed";
+  const closed = rental.status === "closed";
+  const active = rental.status === "active" || rental.status === "return_due" || closed;
+
+  const steps: RentalFlowStep[] = [
+    flowStep("booking", "Booking", "done", `${customer.displayName} · ${vehicle.plateNumber}`),
+    flowStep(
+      "contract",
+      "Contract",
+      contractDone ? "done" : "current",
+      contract ? `Status: ${contract.status}` : "Generate and send rental agreement",
+      contractDone ? undefined : "Create contract",
+    ),
+    flowStep(
+      "payment",
+      "Payment",
+      isPaid ? "done" : contractDone ? "current" : "blocked",
+      invoice ? `${paidAmount}/${invoice.total} ${invoice.currency}` : "Create invoice and payment",
+      isPaid ? undefined : "Take payment",
+    ),
+    flowStep(
+      "pickup",
+      "Pickup checklist",
+      pickupDone ? "done" : isPaid ? "current" : "blocked",
+      pickupDone ? "Vehicle handover confirmed" : "Inspect vehicle and confirm deposit",
+      pickupDone ? undefined : "Complete pickup",
+    ),
+    flowStep(
+      "activeRental",
+      "Active rental",
+      active ? "done" : pickupDone ? "current" : "pending",
+      active ? `Status: ${rental.status}` : "Start rental after pickup",
+      active ? undefined : "Start rental",
+    ),
+    flowStep(
+      "return",
+      "Return checklist",
+      returnDone || closed ? "done" : active ? "current" : "pending",
+      returnDone || closed ? "Return inspection saved" : "Inspect vehicle at return",
+      returnDone || closed ? undefined : "Complete return",
+    ),
+    flowStep(
+      "deposit",
+      "Deposit return",
+      closed ? "done" : returnDone ? "current" : "pending",
+      closed ? "Deposit flow closed" : "Refund or charge deposit difference",
+      closed ? undefined : "Process deposit",
+    ),
+    flowStep(
+      "closed",
+      "Closed",
+      closed ? "done" : "pending",
+      closed ? "Rental completed" : "Close rental after return and deposit",
+    ),
+  ];
+
+  const nextAction = steps.find((item) => item.status === "current" || item.status === "blocked");
+
+  return {
+    rental,
+    customer,
+    vehicle,
+    ...(contract ? { contract } : {}),
+    ...(invoice ? { invoice } : {}),
+    paidAmount,
+    checklists,
+    contractPdfUrl: `/rentals/${rental.id}/contract.pdf`,
+    ...(nextAction ? { nextAction } : {}),
+    steps,
+  };
 }
 
 export async function listInvoices(scope: TenantScope): Promise<Invoice[]> {

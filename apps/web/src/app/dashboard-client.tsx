@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -58,6 +58,7 @@ type AppData = {
   rentalChecklists: RentalChecklist[];
   rentalContracts: RentalContract[];
   rentalContractEvents: RentalContractEvent[];
+  rentalFlows: RentalFlow[];
   serviceRecords: ServiceRecord[];
   teamUsers: User[];
   vehicles: Vehicle[];
@@ -1210,6 +1211,7 @@ export default function DashboardClient() {
     rentalChecklists: [],
     rentalContracts: [],
     rentalContractEvents: [],
+    rentalFlows: [],
     serviceRecords: [],
     teamUsers: [],
     vehicles: [],
@@ -1294,6 +1296,8 @@ export default function DashboardClient() {
         canManageTeam ? api<User[]>("/auth/team", {}, currentToken) : Promise.resolve({ data: session?.user ? [session.user] : [] }),
       ]);
 
+      const rentalFlows = await Promise.all(rentals.data.map((rental) => api<RentalFlow>(`/rentals/${rental.id}/flow`, {}, currentToken)));
+
       setData({
         company: company.data,
         customers: customers.data,
@@ -1309,6 +1313,7 @@ export default function DashboardClient() {
         rentalChecklists: rentalChecklists.data,
         rentalContracts: rentalContracts.data,
         rentalContractEvents: rentalContractEvents.data,
+        rentalFlows: rentalFlows.map((flow) => flow.data),
         serviceRecords: serviceRecords.data,
         teamUsers: teamUsers.data,
         vehicles: vehicles.data,
@@ -1349,6 +1354,9 @@ export default function DashboardClient() {
   const activeRental = data.rentals.find((rental) => rental.vehicleId === selectedVehicle?.id && rental.status !== "closed");
   const activeCustomer = data.customers.find((customer) => customer.id === activeRental?.customerId) ?? data.customers[0];
   const activeInvoice = data.invoices.find((invoice) => invoice.status !== "paid") ?? data.invoices[0];
+  const activeRentalFlow = data.rentalFlows.find((flow) => flow.rental.id === activeRental?.id)
+    ?? data.rentalFlows.find((flow) => flow.rental.status !== "closed")
+    ?? data.rentalFlows[0];
 
   const filteredVehicles = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -2152,25 +2160,29 @@ export default function DashboardClient() {
     });
   }
 
+  async function saveRentalChecklist(phase: RentalChecklist["phase"], rentalOverride?: Rental) {
+    const rental = rentalOverride ?? await ensureRental();
+    const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+    await api<RentalChecklist>("/operations/rental-checklists", {
+      body: JSON.stringify({
+        depositConfirmed: true,
+        documentsOk: true,
+        exteriorOk: true,
+        fuelLevel: 100,
+        interiorOk: true,
+        notes: phase === "pickup" ? `Выдача ${vehicle.plateNumber}` : `Возврат ${vehicle.plateNumber}`,
+        odometerKm: vehicle.odometerKm,
+        phase,
+        photoUrls: vehicle.photoUrl ? [vehicle.photoUrl] : [],
+        rentalId: rental.id,
+      }),
+      method: "POST",
+    }, token);
+  }
+
   async function createRentalChecklist(phase: RentalChecklist["phase"], rentalOverride?: Rental) {
     await runAction(phase === "pickup" ? "Сохраняем чек-лист выдачи..." : "Сохраняем чек-лист возврата...", async () => {
-      const rental = rentalOverride ?? await ensureRental();
-      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
-      await api<RentalChecklist>("/operations/rental-checklists", {
-        body: JSON.stringify({
-          depositConfirmed: true,
-          documentsOk: true,
-          exteriorOk: true,
-          fuelLevel: 100,
-          interiorOk: true,
-          notes: phase === "pickup" ? `Выдача ${vehicle.plateNumber}` : `Возврат ${vehicle.plateNumber}`,
-          odometerKm: vehicle.odometerKm,
-          phase,
-          photoUrls: vehicle.photoUrl ? [vehicle.photoUrl] : [],
-          rentalId: rental.id,
-        }),
-        method: "POST",
-      }, token);
+      await saveRentalChecklist(phase, rentalOverride);
       await loadData();
       setMessage(phase === "pickup" ? "Чек-лист выдачи сохранен" : "Чек-лист возврата сохранен");
     });
@@ -2204,6 +2216,97 @@ export default function DashboardClient() {
       }, token);
       await loadData();
       setMessage("Возврат депозита записан в финансах");
+    });
+  }
+
+  async function openRentalContractPdf(flowOverride?: RentalFlow) {
+    const flow = flowOverride ?? activeRentalFlow;
+    if (!flow) return;
+    await runAction("Готовим PDF договор...", async () => {
+      const response = await fetch(`${API_URL}${flow.contractPdfUrl}`, {
+        headers: token ? { authorization: `Bearer ${token}` } : { "x-tenant-id": TENANT_ID },
+      });
+      if (!response.ok) throw new Error(await parseApiError(response));
+      const fileUrl = URL.createObjectURL(await response.blob());
+      window.open(fileUrl, "_blank", "noreferrer");
+      setMessage("PDF договор открыт");
+    });
+  }
+
+  async function payRentalInvoice(flow: RentalFlow) {
+    const invoice = flow.invoice ?? (await api<Invoice>("/finance/invoices", {
+      body: JSON.stringify({
+        currency: data.company?.currency ?? "EUR",
+        customerId: flow.customer.id,
+        dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        rentalId: flow.rental.id,
+        status: "issued",
+        subtotal: flow.rental.totalAmount,
+        tax: 0,
+      }),
+      method: "POST",
+    }, token)).data;
+    await api<Payment>(`/finance/invoices/${invoice.id}/payments`, {
+      body: JSON.stringify({
+        amount: Math.max(0, invoice.total - flow.paidAmount),
+        currency: invoice.currency,
+        method: "manual",
+        reference: `FLOW-${Date.now()}`,
+      }),
+      method: "POST",
+    }, token);
+  }
+
+  async function startRental(flow: RentalFlow) {
+    await api<Rental>(`/rentals/${flow.rental.id}`, {
+      body: JSON.stringify({ status: "active" }),
+      method: "PATCH",
+    }, token);
+    await api<Vehicle>(`/fleet/vehicles/${flow.vehicle.id}`, {
+      body: JSON.stringify({ status: "rented" }),
+      method: "PATCH",
+    }, token);
+  }
+
+  async function completeFlowReturn(flow: RentalFlow) {
+    await saveRentalChecklist("return", flow.rental);
+    await api<Rental>(`/rentals/${flow.rental.id}/return`, {
+      body: JSON.stringify({
+        finalAmount: flow.rental.totalAmount,
+        odometerKm: flow.vehicle.odometerKm + 25,
+      }),
+      method: "POST",
+    }, token);
+  }
+
+  async function processFlowAction(flowOverride?: RentalFlow) {
+    const flow = flowOverride ?? activeRentalFlow;
+    if (!flow?.nextAction) return;
+    await runAction(`Rental Flow: ${flow.nextAction.actionLabel ?? flow.nextAction.label}`, async () => {
+      if (flow.nextAction?.key === "contract") {
+        await createContractRecord("sent", "whatsapp", flow.rental);
+      } else if (flow.nextAction?.key === "payment") {
+        await payRentalInvoice(flow);
+      } else if (flow.nextAction?.key === "pickup") {
+        await saveRentalChecklist("pickup", flow.rental);
+      } else if (flow.nextAction?.key === "activeRental") {
+        await startRental(flow);
+      } else if (flow.nextAction?.key === "return") {
+        await completeFlowReturn(flow);
+      } else if (flow.nextAction?.key === "deposit") {
+        await api<Expense>("/operations/expenses", {
+          body: JSON.stringify({
+            amount: flow.rental.depositAmount,
+            category: "other",
+            currency: data.company?.currency ?? "EUR",
+            note: `Deposit returned for rental ${flow.rental.id}`,
+            vehicleId: flow.vehicle.id,
+          }),
+          method: "POST",
+        }, token);
+      }
+      await loadData();
+      setMessage("Rental Flow обновлен");
     });
   }
 
@@ -2449,6 +2552,15 @@ export default function DashboardClient() {
           </div>
         </section>
 
+        {activeRentalFlow ? (
+          <RentalFlowPanel
+            busy={Boolean(busyAction)}
+            flow={activeRentalFlow}
+            onOpenPdf={() => void openRentalContractPdf(activeRentalFlow)}
+            onPrimaryAction={() => void processFlowAction(activeRentalFlow)}
+          />
+        ) : null}
+
         {activeSection === "Dashboard" ? (
           <section className="workspace-grid">
             <div className="main-column">
@@ -2610,6 +2722,7 @@ export default function DashboardClient() {
                   </div>
                   <div className="contract-cell">
                     {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void openRentalContractPdf(data.rentalFlows.find((flow) => flow.rental.id === rental.id))} type="button">PDF</button>
                     {contractEvents.length ? (
                       <div className="contract-timeline">
                         {contractEvents.map((event) => (
@@ -2915,6 +3028,36 @@ function BookingCalendar({ customers, rentals, vehicles }: { customers: Customer
             </Fragment>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function RentalFlowPanel({ busy, flow, onOpenPdf, onPrimaryAction }: { busy: boolean; flow: RentalFlow; onOpenPdf: () => void; onPrimaryAction: () => void }) {
+  const completed = flow.steps.filter((step) => step.status === "done").length;
+  const nextLabel = flow.nextAction?.actionLabel ?? flow.nextAction?.label ?? "Flow complete";
+
+  return (
+    <section className="rental-flow-panel" aria-label="Rental workflow">
+      <div className="flow-heading">
+        <div>
+          <span className="eyebrow">Rental Flow</span>
+          <h2>{flow.vehicle.make} {flow.vehicle.model} · {flow.vehicle.plateNumber}</h2>
+          <p>{flow.customer.displayName} · {completed}/{flow.steps.length} steps · {flow.rental.status}</p>
+        </div>
+        <div className="flow-actions">
+          <button className="ghost-button" disabled={busy} onClick={onOpenPdf} type="button">PDF договор</button>
+          <button className="primary-button" disabled={busy || !flow.nextAction || flow.nextAction.status === "blocked"} onClick={onPrimaryAction} type="button">{nextLabel}</button>
+        </div>
+      </div>
+      <div className="flow-steps">
+        {flow.steps.map((step, index) => (
+          <article className={`flow-step ${step.status}`} key={step.key}>
+            <span>{index + 1}</span>
+            <strong>{step.label}</strong>
+            <small>{step.detail}</small>
+          </article>
+        ))}
       </div>
     </section>
   );

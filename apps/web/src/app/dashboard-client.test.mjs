@@ -37,6 +37,12 @@ test("dashboard client keeps production account and document flows wired", () =>
     "/operations/rental-checklists",
     "createRentalChecklist",
     "checklist-cell",
+    "/flow",
+    "contractPdfUrl",
+    "RentalFlowPanel",
+    "rental-flow-panel",
+    "processFlowAction",
+    "openRentalContractPdf",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

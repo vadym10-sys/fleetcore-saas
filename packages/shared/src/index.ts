@@ -232,6 +232,30 @@ export interface RentalChecklist {
   updatedAt: string;
 }
 
+export type RentalFlowStepKey = "booking" | "contract" | "payment" | "pickup" | "activeRental" | "return" | "deposit" | "closed";
+export type RentalFlowStepStatus = "done" | "current" | "blocked" | "pending";
+
+export interface RentalFlowStep {
+  key: RentalFlowStepKey;
+  label: string;
+  status: RentalFlowStepStatus;
+  detail: string;
+  actionLabel?: string;
+}
+
+export interface RentalFlow {
+  rental: Rental;
+  customer: Customer;
+  vehicle: Vehicle;
+  contract?: RentalContract;
+  invoice?: Invoice;
+  paidAmount: number;
+  checklists: RentalChecklist[];
+  contractPdfUrl: string;
+  nextAction?: RentalFlowStep;
+  steps: RentalFlowStep[];
+}
+
 export interface FileObject extends TenantScopedEntity {
   companyId: string;
   originalName: string;
