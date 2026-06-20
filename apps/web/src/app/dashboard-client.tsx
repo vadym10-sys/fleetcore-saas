@@ -1321,8 +1321,8 @@ export default function DashboardClient() {
   useEffect(() => {
     if (!session?.user.id) return;
     setProfileName(session.user.fullName);
-    setProfilePhoto(localStorage.getItem(`fleetcore-profile-photo:${session.user.id}`) ?? "");
-  }, [session?.user.fullName, session?.user.id]);
+    setProfilePhoto(session.user.photoUrl ?? localStorage.getItem(`fleetcore-profile-photo:${session.user.id}`) ?? "");
+  }, [session?.user.fullName, session?.user.id, session?.user.photoUrl]);
 
   function changeLocale(nextLocale: Locale) {
     setLocale(nextLocale);
@@ -2465,15 +2465,22 @@ export default function DashboardClient() {
   }
 
   async function saveProfilePhoto(file: File | undefined) {
-    if (!file || !session?.user.id) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = String(reader.result ?? "");
-      setProfilePhoto(value);
-      localStorage.setItem(`fleetcore-profile-photo:${session.user.id}`, value);
+    if (!file || !session) return;
+    await runAction("Загружаем фото профиля...", async () => {
+      const storedFile = await uploadFile(file);
+      const response = await api<User>("/auth/me", {
+        body: JSON.stringify({ photoUrl: storedFile.publicUrl }),
+        method: "PATCH",
+      }, token);
+      const nextSession = { ...session, user: response.data };
+      setSession(nextSession);
+      saveStoredSession(nextSession);
+      setProfileName(response.data.fullName);
+      setProfilePhoto(response.data.photoUrl ?? storedFile.publicUrl);
+      localStorage.setItem(`fleetcore-profile-photo:${session.user.id}`, response.data.photoUrl ?? storedFile.publicUrl);
+      await loadData(nextSession.accessToken);
       setMessage("Фото профиля сохранено");
-    };
-    reader.readAsDataURL(file);
+    });
   }
 
   async function saveOwnerProfile() {
@@ -2486,6 +2493,7 @@ export default function DashboardClient() {
       const nextSession = { ...session, user: response.data };
       setSession(nextSession);
       saveStoredSession(nextSession);
+      setProfilePhoto(response.data.photoUrl ?? "");
       await loadData(nextSession.accessToken);
       setMessage("Профиль обновлен");
     });
@@ -3282,7 +3290,7 @@ function OwnerProfileDialog({
       <section className="owner-profile-modal">
         <div className="modal-title">
           <div>
-            <span>Owner profile</span>
+            <span>Профиль аккаунта</span>
             <h2>{session.user.fullName}</h2>
           </div>
           <button onClick={onClose} type="button">×</button>
@@ -3291,9 +3299,11 @@ function OwnerProfileDialog({
         <div className="owner-profile-grid">
           <section className="owner-profile-card">
             <label className="owner-photo">
-              {photo ? <img alt="" src={photo} /> : <span>{session.user.fullName.slice(0, 1)}</span>}
+              {photo ? <img alt={`Фото ${session.user.fullName}`} src={photo} /> : <span>{session.user.fullName.slice(0, 1)}</span>}
               <input accept=".jpg,.jpeg,.png,.webp" onChange={(event) => onPhoto(event.currentTarget.files?.[0])} type="file" />
+              <strong>Загрузить фото</strong>
             </label>
+            <p className="owner-photo-hint">JPG, PNG или WebP. Фото сохраняется в аккаунте и будет видно на телефоне и компьютере.</p>
             <label>Имя и фамилия
               <input value={profileName} onChange={(event) => onNameChange(event.target.value)} />
             </label>

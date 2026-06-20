@@ -221,11 +221,15 @@ test("owner can update profile and add a manager account", async () => {
   const profile = await app.inject({
     headers: { authorization: `Bearer ${ownerToken}` },
     method: "PATCH",
-    payload: { fullName: "Updated Team Owner" },
+    payload: {
+      fullName: "Updated Team Owner",
+      photoUrl: "https://cdn.fleetcore.test/profile/team-owner.png",
+    },
     url: "/auth/me",
   });
   assert.equal(profile.statusCode, 200);
   assert.equal(profile.json().data.fullName, "Updated Team Owner");
+  assert.equal(profile.json().data.photoUrl, "https://cdn.fleetcore.test/profile/team-owner.png");
 
   const createdManager = await app.inject({
     headers: { authorization: `Bearer ${ownerToken}` },

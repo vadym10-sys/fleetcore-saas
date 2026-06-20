@@ -25,6 +25,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "OwnerProfileDialog",
     "/auth/team",
     "/auth/me",
+    "saveProfilePhoto",
+    "owner-photo-hint",
     "VehicleVisual",
     "vehicleVisualVariant",
     "saveVehiclePhoto",

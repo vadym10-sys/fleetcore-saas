@@ -322,7 +322,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: "Invalid profile payload", issues: parsed.error.flatten() });
     }
 
-    const updated = await updateUserProfile(user.id, parsed.data.fullName);
+    const updated = await updateUserProfile(user.id, parsed.data);
     if (!updated) return reply.code(404).send({ error: "User not found" });
 
     await writeAuditLog({
@@ -330,7 +330,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       actorEmail: updated.email,
       companyId: updated.companyId,
       ipAddress: requestIp(request),
-      metadata: { fullName: updated.fullName },
+      metadata: { fullName: updated.fullName, photoUrl: updated.photoUrl ?? null },
       tenantId: updated.tenantId,
       userAgent: userAgent(request),
       userId: updated.id,

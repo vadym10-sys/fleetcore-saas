@@ -47,7 +47,10 @@ export const emailVerificationInput = z.object({
 });
 
 export const profileUpdateInput = z.object({
-  fullName: z.string().trim().min(2).max(120),
+  fullName: z.string().trim().min(2).max(120).optional(),
+  photoUrl: z.string().url().nullable().optional(),
+}).refine((value) => value.fullName !== undefined || value.photoUrl !== undefined, {
+  message: "At least one profile field is required",
 });
 
 export const teamMemberInput = z.object({

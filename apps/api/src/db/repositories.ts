@@ -21,6 +21,7 @@ import type {
   rentalChecklistInput,
   rentalInput,
   rentalPatchInput,
+  profileUpdateInput,
   serviceRecordInput,
   teamMemberInput,
   vehicleDocumentInput,
@@ -37,6 +38,7 @@ type CustomerPatchInput = z.infer<typeof customerPatchInput>;
 type RentalInput = z.infer<typeof rentalInput>;
 type RentalPatchInput = z.infer<typeof rentalPatchInput>;
 type RentalChecklistInput = z.infer<typeof rentalChecklistInput>;
+type ProfileUpdateInput = z.infer<typeof profileUpdateInput>;
 type InvoiceInput = z.infer<typeof invoiceInput>;
 type InvoicePatchInput = z.infer<typeof invoicePatchInput>;
 type PaymentInput = z.infer<typeof paymentInput>;
@@ -420,10 +422,26 @@ export async function createTeamUser(scope: TenantScope, input: TeamMemberInput,
   return mapUser(result.rows[0]);
 }
 
-export async function updateUserProfile(userId: string, fullName: string): Promise<User | undefined> {
+export async function updateUserProfile(userId: string, input: ProfileUpdateInput): Promise<User | undefined> {
+  const patch = patchSet(
+    {
+      fullName: input.fullName,
+      photoUrl: input.photoUrl,
+    },
+    {
+      fullName: "full_name",
+      photoUrl: "photo_url",
+    },
+    2,
+  );
+  if (!patch.sql) {
+    const result = await pool.query("select * from users where id = $1", [userId]);
+    return result.rows[0] ? mapUser(result.rows[0]) : undefined;
+  }
+
   const result = await pool.query(
-    "update users set full_name = $2, updated_at = now() where id = $1 returning *",
-    [userId, fullName],
+    `update users set ${patch.sql}, updated_at = now() where id = $1 returning *`,
+    [userId, ...patch.values],
   );
   return result.rows[0] ? mapUser(result.rows[0]) : undefined;
 }

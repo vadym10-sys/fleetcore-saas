@@ -46,6 +46,7 @@ export function mapUser(row: DbRow): User {
     email: String(row.email),
     fullName: String(row.full_name),
     role: row.role as User["role"],
+    ...(row.photo_url ? { photoUrl: String(row.photo_url) } : {}),
   };
 }
 

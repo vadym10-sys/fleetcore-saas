@@ -27,6 +27,7 @@ export interface User extends TenantScopedEntity {
   fullName: string;
   role: UserRole;
   companyId: string;
+  photoUrl?: string;
 }
 
 export interface Company extends TenantScopedEntity {

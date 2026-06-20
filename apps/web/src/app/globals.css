@@ -2640,8 +2640,7 @@ h3 {
   cursor: pointer;
 }
 
-.owner-photo:after {
-  content: "Upload";
+.owner-photo strong {
   position: absolute;
   left: 0;
   right: 0;
@@ -2662,6 +2661,14 @@ h3 {
 
 .owner-photo input {
   display: none;
+}
+
+.owner-photo-hint {
+  max-width: 280px;
+  margin: -4px 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .owner-profile-card label,
