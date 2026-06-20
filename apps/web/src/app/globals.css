@@ -2128,6 +2128,27 @@ h3 {
   font-weight: 800;
 }
 
+.contract-cell {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  min-width: 180px;
+}
+
+.contract-timeline {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+
+.contract-timeline span {
+  display: block;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .document-link {
   display: inline-flex;
   min-height: 38px;

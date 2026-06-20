@@ -1,9 +1,9 @@
-import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
 import { createId } from "../lib/http.js";
-import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalContract, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
+import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalContract, mapRentalContractEvent, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
 import type {
   customerInput,
   customerPatchInput,
@@ -993,6 +993,51 @@ export async function listRentalContracts(scope: TenantScope): Promise<RentalCon
     [scope.tenantId, scope.companyId],
   );
   return result.rows.map(mapRentalContract);
+}
+
+export async function listRentalContractEvents(scope: TenantScope, contractId?: string): Promise<RentalContractEvent[]> {
+  const result = await pool.query(
+    `select *
+     from rental_contract_events
+     where tenant_id = $1
+       and company_id = $2
+       and ($3::text is null or contract_id = $3)
+     order by created_at desc`,
+    [scope.tenantId, scope.companyId, contractId ?? null],
+  );
+  return result.rows.map(mapRentalContractEvent);
+}
+
+export async function createRentalContractEvent(input: {
+  actorLabel?: string | undefined;
+  channel: RentalContractEvent["channel"];
+  companyId: string;
+  contractId: string;
+  customerId: string;
+  eventType: RentalContractEvent["eventType"];
+  metadata?: Record<string, unknown>;
+  rentalId: string;
+  tenantId: string;
+}): Promise<RentalContractEvent> {
+  const result = await pool.query(
+    `insert into rental_contract_events (
+      id, tenant_id, company_id, contract_id, rental_id, customer_id, event_type, channel, actor_label, metadata
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+    returning *`,
+    [
+      createId("cevt"),
+      input.tenantId,
+      input.companyId,
+      input.contractId,
+      input.rentalId,
+      input.customerId,
+      input.eventType,
+      input.channel,
+      input.actorLabel ?? null,
+      JSON.stringify(input.metadata ?? {}),
+    ],
+  );
+  return mapRentalContractEvent(result.rows[0]);
 }
 
 export async function createRentalContract(scope: TenantScope, input: RentalContractInput): Promise<RentalContract | undefined> {

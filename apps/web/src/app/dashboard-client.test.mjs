@@ -17,6 +17,9 @@ test("dashboard client keeps production account and document flows wired", () =>
     "requestSignatureUpload",
     "requestVehicleFolderUpload",
     "requestCustomerFolderUpload",
+    "/operations/rental-contract-events",
+    "contractEventLabel",
+    "contract-timeline",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

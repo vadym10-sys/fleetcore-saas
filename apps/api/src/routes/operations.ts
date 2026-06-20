@@ -3,10 +3,12 @@ import {
   createCustomerDocument,
   createExpense,
   createRentalContract,
+  createRentalContractEvent,
   createServiceRecord,
   getPublicRentalContract,
   listCustomerDocuments,
   listExpenses,
+  listRentalContractEvents,
   listRentalContracts,
   listServiceRecords,
   signPublicRentalContract,
@@ -156,6 +158,11 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/operations/rental-contracts", async (request) => envelope(await listRentalContracts(getTenantScope(request))));
 
+  app.get("/operations/rental-contract-events", async (request) => {
+    const { contractId } = request.query as { contractId?: string };
+    return envelope(await listRentalContractEvents(getTenantScope(request), contractId));
+  });
+
   app.get("/operations/rental-contracts/public/:contractId", async (request, reply) => {
     const { contractId } = request.params as { contractId: string };
     const { token } = request.query as { token?: string };
@@ -170,6 +177,17 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
       entityId: contract.id,
       entityType: "rental_contract",
       metadata: { rentalId: contract.rentalId, status: contract.status },
+      tenantId: contract.tenantId,
+    });
+    await createRentalContractEvent({
+      actorLabel: "Customer",
+      channel: "public_link",
+      companyId: contract.companyId,
+      contractId: contract.id,
+      customerId: contract.customerId,
+      eventType: "viewed",
+      metadata: { status: contract.status },
+      rentalId: contract.rentalId,
       tenantId: contract.tenantId,
     });
     reply.header("content-type", "text/html; charset=utf-8");
@@ -200,6 +218,17 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
       metadata: { rentalId: signed.contract.rentalId, signerName: signed.signerName },
       tenantId: signed.contract.tenantId,
     });
+    await createRentalContractEvent({
+      actorLabel: signed.signerName,
+      channel: "public_link",
+      companyId: signed.contract.companyId,
+      contractId: signed.contract.id,
+      customerId: signed.contract.customerId,
+      eventType: "signed",
+      metadata: { signerName: signed.signerName },
+      rentalId: signed.contract.rentalId,
+      tenantId: signed.contract.tenantId,
+    });
     reply.header("content-type", "text/html; charset=utf-8");
     return reply.send(contractHtml(signed.contract, token));
   });
@@ -228,6 +257,17 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
       metadata: { rentalId: contract.rentalId, sentVia: contract.sentVia, status: contract.status },
       tenantId: scope.tenantId,
       userId: user?.id,
+    });
+    await createRentalContractEvent({
+      actorLabel: user?.email,
+      channel: contract.sentVia,
+      companyId: scope.companyId,
+      contractId: contract.id,
+      customerId: contract.customerId,
+      eventType: contract.status === "draft" ? "created" : contract.status,
+      metadata: { documentUrl: contract.documentUrl, rentalId: contract.rentalId, status: contract.status },
+      rentalId: contract.rentalId,
+      tenantId: scope.tenantId,
     });
     return reply.code(201).send(envelope(contract));
   });

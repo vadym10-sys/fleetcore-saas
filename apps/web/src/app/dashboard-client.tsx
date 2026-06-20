@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -55,6 +55,7 @@ type AppData = {
   customerDocuments: CustomerDocument[];
   expenses: Expense[];
   rentalContracts: RentalContract[];
+  rentalContractEvents: RentalContractEvent[];
   serviceRecords: ServiceRecord[];
   vehicles: Vehicle[];
 };
@@ -846,6 +847,17 @@ function vehicleStatusLabel(locale: Locale, vehicle: Vehicle, rental?: Rental) {
   return translate(locale, "status.available");
 }
 
+function contractEventLabel(locale: Locale, event: RentalContractEvent) {
+  const labels: Record<Locale, Record<RentalContractEvent["eventType"], string>> = {
+    de: { created: "Erstellt", sent: "Gesendet", viewed: "Geöffnet", signed: "Signiert" },
+    en: { created: "Created", sent: "Sent", viewed: "Viewed", signed: "Signed" },
+    es: { created: "Creado", sent: "Enviado", viewed: "Visto", signed: "Firmado" },
+    fr: { created: "Créé", sent: "Envoyé", viewed: "Vu", signed: "Signé" },
+    ru: { created: "Создан", sent: "Отправлен", viewed: "Открыт", signed: "Подписан" },
+  };
+  return labels[locale][event.eventType];
+}
+
 function statusTone(vehicle: Vehicle, rental?: Rental): UiNotification["tone"] {
   if (vehicle.status === "maintenance") return "black";
   if (rental?.status === "reserved") return "blue";
@@ -1119,6 +1131,7 @@ export default function DashboardClient() {
     customerDocuments: [],
     expenses: [],
     rentalContracts: [],
+    rentalContractEvents: [],
     serviceRecords: [],
     vehicles: [],
   });
@@ -1164,7 +1177,7 @@ export default function DashboardClient() {
   async function loadData(currentToken = token) {
     setLoading(true);
     try {
-      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts] = await Promise.all([
+      const [metrics, vehicles, customers, rentals, invoices, payments, gpsDevices, documents, files, expenses, serviceRecords, customerDocuments, rentalContracts, rentalContractEvents] = await Promise.all([
         api<DashboardMetrics>("/dashboard", {}, currentToken),
         api<Vehicle[]>("/fleet/vehicles", {}, currentToken),
         api<Customer[]>("/customers", {}, currentToken),
@@ -1178,6 +1191,7 @@ export default function DashboardClient() {
         api<ServiceRecord[]>("/operations/service-records", {}, currentToken),
         api<CustomerDocument[]>("/operations/customer-documents", {}, currentToken),
         api<RentalContract[]>("/operations/rental-contracts", {}, currentToken),
+        api<RentalContractEvent[]>("/operations/rental-contract-events", {}, currentToken),
       ]);
 
       setData({
@@ -1192,6 +1206,7 @@ export default function DashboardClient() {
         customerDocuments: customerDocuments.data,
         expenses: expenses.data,
         rentalContracts: rentalContracts.data,
+        rentalContractEvents: rentalContractEvents.data,
         serviceRecords: serviceRecords.data,
         vehicles: vehicles.data,
       });
@@ -2261,13 +2276,25 @@ export default function DashboardClient() {
               const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
               const customer = data.customers.find((item) => item.id === rental.customerId);
               const contract = data.rentalContracts.find((item) => item.rentalId === rental.id);
+              const contractEvents = contract
+                ? data.rentalContractEvents.filter((item) => item.contractId === contract.id).slice(0, 3)
+                : [];
               return (
                 <article className="booking-card" key={rental.id}>
                   <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
                   <Badge value={rental.status} />
                   <span>Депозит {money.format(rental.depositAmount)}</span>
                   <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
-                  {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
+                  <div className="contract-cell">
+                    {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
+                    {contractEvents.length ? (
+                      <div className="contract-timeline">
+                        {contractEvents.map((event) => (
+                          <span key={event.id}>{contractEventLabel(locale, event)} · {dateFmt.format(new Date(event.createdAt))}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 </article>
               );
             })}

@@ -190,6 +190,20 @@ export interface RentalContract extends TenantScopedEntity {
   signedAt?: string;
 }
 
+export interface RentalContractEvent {
+  id: string;
+  tenantId: TenantId;
+  companyId: string;
+  contractId: string;
+  rentalId: string;
+  customerId: string;
+  eventType: "created" | "sent" | "viewed" | "signed";
+  channel: "email" | "whatsapp" | "manual" | "public_link";
+  actorLabel?: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface FileObject extends TenantScopedEntity {
   companyId: string;
   originalName: string;

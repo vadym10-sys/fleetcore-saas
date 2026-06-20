@@ -464,6 +464,16 @@ test("authenticated API can manage business operations", async () => {
   const signedContract = afterSign.json().data.find((item: { id: string }) => item.id === contract.json().data.id);
   assert.equal(signedContract.status, "signed");
   assert.equal(typeof signedContract.signedAt, "string");
+
+  const events = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: `/operations/rental-contract-events?contractId=${contract.json().data.id}`,
+  });
+  assert.equal(events.statusCode, 200);
+  assert.ok(events.json().data.some((item: { eventType: string }) => item.eventType === "sent"));
+  assert.ok(events.json().data.some((item: { eventType: string }) => item.eventType === "viewed"));
+  assert.ok(events.json().data.some((item: { eventType: string }) => item.eventType === "signed"));
 });
 
 test("owners can read company audit log", async () => {

@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 type DbRow = Record<string, unknown>;
 
@@ -226,6 +226,22 @@ export function mapRentalContract(row: DbRow): RentalContract {
     ...(row.sent_at ? { sentAt: iso(row.sent_at) } : {}),
     ...(row.viewed_at ? { viewedAt: iso(row.viewed_at) } : {}),
     ...(row.signed_at ? { signedAt: iso(row.signed_at) } : {}),
+  };
+}
+
+export function mapRentalContractEvent(row: DbRow): RentalContractEvent {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    contractId: String(row.contract_id),
+    rentalId: String(row.rental_id),
+    customerId: String(row.customer_id),
+    eventType: row.event_type as RentalContractEvent["eventType"],
+    channel: row.channel as RentalContractEvent["channel"],
+    ...(row.actor_label ? { actorLabel: String(row.actor_label) } : {}),
+    metadata: row.metadata as Record<string, unknown>,
+    createdAt: iso(row.created_at),
   };
 }
 
