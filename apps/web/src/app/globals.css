@@ -1985,7 +1985,7 @@ h3 {
 }
 
 .fleet-app {
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 304px minmax(0, 1fr);
 }
 
 .global-search {
@@ -4671,6 +4671,8 @@ h3 {
 
 .desktop-sidebar .side-nav .nav-label {
   display: -webkit-box;
+  width: auto;
+  min-width: 0;
   overflow: hidden;
   color: inherit;
   font-size: 13px;
