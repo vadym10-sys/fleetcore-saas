@@ -48,7 +48,7 @@ test("mobile user can enter demo SaaS and navigate through drawer", async ({ pag
 
   await expect(page.getByRole("heading", { name: "Главная" })).toBeVisible();
   await expect(page.locator(".mobile-menu-button")).toBeVisible();
-  await expect(page.locator(".mobile-fab")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Создать/ })).toBeVisible();
 
   await page.locator(".mobile-menu-button").click();
   await expect(page.locator(".mobile-drawer-shell.open")).toBeVisible();

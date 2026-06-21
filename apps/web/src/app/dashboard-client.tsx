@@ -3837,6 +3837,8 @@ export default function DashboardClient() {
           title={t("command.title")}
         />
 
+        <WorkspaceStatusBanner loading={loading} message={message} />
+
         {activeSection === "Dashboard" ? (
           loading && !data.vehicles.length && !data.rentals.length ? (
             <DashboardLoadingState />
@@ -4478,6 +4480,24 @@ function ClientProfilePanel({
           ))}
           {!docs.length ? <p className="history-row">Загрузите паспорт, ID или водительские права.</p> : null}
         </section>
+      </div>
+    </section>
+  );
+}
+
+function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message: string }) {
+  if (!loading && !message) return null;
+  const normalized = message.toLowerCase();
+  const tone = loading ? "loading" : /ошибка|error|failed|не удалось|нельзя|invalid|unauthorized|forbidden/.test(normalized) ? "error" : "success";
+  const title = tone === "loading" ? "Синхронизируем данные" : tone === "error" ? "Нужно проверить действие" : "Готово";
+  const text = loading ? "FleetCore обновляет автомобили, аренды, документы и финансы." : message;
+
+  return (
+    <section className={`workspace-status-banner ${tone}`} role={tone === "error" ? "alert" : "status"}>
+      <span>{tone === "loading" ? "↻" : tone === "error" ? "!" : "✓"}</span>
+      <div>
+        <strong>{title}</strong>
+        <p>{text}</p>
       </div>
     </section>
   );
