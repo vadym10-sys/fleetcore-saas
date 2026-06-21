@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { EmptyWorkspaceState, ListControlBar, type SavedView } from "../features/common/list-control-bar";
+import { CommandCenterDashboard } from "../features/operations/command-center-dashboard";
 import { RentalWorkbench } from "../features/rentals/rental-workbench";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -3963,9 +3964,18 @@ export default function DashboardClient() {
           ) : (
             <TodayOperationsDashboard
               cards={dashboardCards}
+              checklists={data.rentalChecklists}
+              contracts={data.rentalContracts}
+              contractEvents={data.rentalContractEvents}
+              customerDocuments={data.customerDocuments}
+              customers={data.customers}
+              documents={data.documents}
+              gpsDevices={data.gpsDevices}
+              invoices={data.invoices}
               locale={locale}
               notifications={notifications}
               onCreateBooking={() => openOperation("booking")}
+              onCreateCustomer={openCustomerCreate}
               onCreateService={() => openOperation("service")}
               onOpenDocuments={() => selectSection("Service")}
               onOpenFinance={() => selectSection("Finance")}
@@ -3974,7 +3984,11 @@ export default function DashboardClient() {
                 setSelectedVehicleId(rental.vehicleId);
                 selectSection("Bookings");
               }}
+              onOpenVehicles={() => selectSection("Vehicles")}
               operations={operations}
+              payments={data.payments}
+              rentalFlows={data.rentalFlows}
+              rentals={visibleRentals}
               selectedRental={selectedRentalDetail}
               vehicles={filteredVehicles}
             />
@@ -4647,25 +4661,48 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
 
 function TodayOperationsDashboard({
   cards,
+  checklists,
+  contracts,
+  contractEvents,
+  customerDocuments,
+  customers,
+  documents,
+  gpsDevices,
+  invoices,
   locale,
   notifications,
   onCreateBooking,
+  onCreateCustomer,
   onCreateService,
   onOpenDocuments,
   onOpenFinance,
   onOpenRental,
+  onOpenVehicles,
   operations,
+  payments,
+  rentalFlows,
+  rentals,
   selectedRental,
   vehicles,
 }: {
   cards: readonly (readonly [string, string | number, string])[];
+  checklists: RentalChecklist[];
+  contracts: RentalContract[];
+  contractEvents: RentalContractEvent[];
+  customerDocuments: CustomerDocument[];
+  customers: Customer[];
+  documents: VehicleDocument[];
+  gpsDevices: GpsDevice[];
+  invoices: Invoice[];
   locale: Locale;
   notifications: UiNotification[];
   onCreateBooking: () => void;
+  onCreateCustomer: () => void;
   onCreateService: () => void;
   onOpenDocuments: () => void;
   onOpenFinance: () => void;
   onOpenRental: (rental: Rental) => void;
+  onOpenVehicles: () => void;
   operations: {
     activeRentals: Rental[];
     dueToday: Rental[];
@@ -4678,6 +4715,9 @@ function TodayOperationsDashboard({
     serviceDue: Vehicle[];
     unpaidInvoices: Invoice[];
   };
+  payments: Payment[];
+  rentalFlows: RentalFlow[];
+  rentals: Rental[];
   selectedRental: RentalDetailContext | undefined;
   vehicles: Vehicle[];
 }) {
@@ -4725,6 +4765,27 @@ function TodayOperationsDashboard({
           </details>
         </div>
       </div>
+
+      <CommandCenterDashboard
+        checklists={checklists}
+        contracts={contracts}
+        contractEvents={contractEvents}
+        customerDocuments={customerDocuments}
+        customers={customers}
+        documents={documents}
+        gpsDevices={gpsDevices}
+        invoices={invoices}
+        onCreateBooking={onCreateBooking}
+        onCreateCustomer={onCreateCustomer}
+        onOpenDocuments={onOpenDocuments}
+        onOpenFinance={onOpenFinance}
+        onOpenRental={onOpenRental}
+        onOpenVehicles={onOpenVehicles}
+        payments={payments}
+        rentalFlows={rentalFlows}
+        rentals={rentals}
+        vehicles={vehicles}
+      />
 
       <section className="today-task-board operations-inbox" data-testid="operations-inbox" aria-label="Operations Inbox">
         <div className="section-title compact-title">
