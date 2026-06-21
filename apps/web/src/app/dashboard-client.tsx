@@ -4696,6 +4696,7 @@ function ListControlBar<T extends string>({
   return (
     <section className="list-control-bar" aria-label={label}>
       <div className="list-control-summary">
+        <em>{label}</em>
         <span>{count ? `${count} записей` : emptyLabel}</span>
         {selectedCount ? <strong>{selectedCount} выбрано</strong> : <strong>Рабочий вид</strong>}
       </div>

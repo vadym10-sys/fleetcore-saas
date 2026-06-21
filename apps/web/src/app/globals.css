@@ -2276,6 +2276,15 @@ h3 {
   font-weight: 850;
 }
 
+.list-control-summary em {
+  color: var(--gold);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .list-control-summary strong {
   overflow: hidden;
   color: var(--ink);

@@ -40,6 +40,43 @@ test("desktop user can open every main SaaS section", async ({ page, isMobile })
   }
 });
 
+test("desktop user can manage professional list controls", async ({ page, isMobile }) => {
+  test.skip(isMobile, "list controls are covered in desktop workflow first");
+
+  await page.goto("/");
+  await page.getByRole("button", demoButton).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Главная" })).toBeVisible();
+
+  const sidebarNav = page.getByRole("navigation").first();
+  await sidebarNav.getByRole("button", { name: /Авто/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Авто" })).toBeVisible();
+
+  const fleetControls = page.locator(".list-control-bar").filter({ hasText: "Fleet list" }).first();
+  await expect(fleetControls).toBeVisible();
+  await fleetControls.getByRole("combobox").selectOption("roi");
+  await fleetControls.getByRole("button", { name: "Выбрать видимые" }).click();
+  await expect(fleetControls).toContainText("выбрано");
+
+  const fleetDownload = page.waitForEvent("download");
+  await fleetControls.getByRole("button", { name: "Экспорт выбранных" }).click();
+  await fleetDownload;
+  await expect(page.getByRole("status").getByText(/автомобилей экспортировано в CSV/)).toBeVisible();
+
+  await sidebarNav.getByRole("button", { name: /Клиенты/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Клиенты" })).toBeVisible();
+
+  const crmControls = page.locator(".list-control-bar").filter({ hasText: "CRM list" }).first();
+  await expect(crmControls).toBeVisible();
+  await crmControls.getByRole("combobox").selectOption("rentals");
+  await crmControls.getByRole("button", { name: "Выбрать видимые" }).click();
+  await expect(crmControls).toContainText("выбрано");
+
+  const crmDownload = page.waitForEvent("download");
+  await crmControls.getByRole("button", { name: "Экспорт выбранных" }).click();
+  await crmDownload;
+  await expect(page.getByRole("status").getByText(/клиентов экспортировано в CSV/)).toBeVisible();
+});
+
 test("mobile user can enter demo SaaS and navigate through drawer", async ({ page, isMobile }) => {
   test.skip(!isMobile, "mobile drawer flow is only meaningful on mobile project");
 
