@@ -3384,12 +3384,17 @@ export default function DashboardClient() {
           </div>
           <div className="command-actions" data-testid="fleet-command-actions">
             <button aria-label="Быстро создать бронь" className="primary-button" data-testid="command-create-booking" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">{t("command.newBooking")}</button>
-            <button aria-label="Быстро добавить автомобиль" className="ghost-button" data-testid="command-create-vehicle" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">{t("command.vehicle")}</button>
-            <button aria-label="Быстро добавить клиента" className="ghost-button" data-testid="command-create-customer" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">{t("command.customer")}</button>
-            <button aria-label="Быстро загрузить документ автомобиля" className="ghost-button" data-testid="command-upload-document" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
-            <button aria-label="Быстро добавить расход" className="ghost-button" data-testid="command-create-expense" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
-            <button aria-label="Быстро создать ТО" className="ghost-button" data-testid="command-create-service" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
-            <button aria-label="Отправить договор через WhatsApp Telegram или Email" className="ghost-button" data-testid="command-share-contract" disabled={Boolean(busyAction)} onClick={openShareDialog} type="button">WhatsApp</button>
+            <details className="action-menu command-action-menu">
+              <summary>Еще действия</summary>
+              <div>
+                <button aria-label="Быстро добавить автомобиль" className="ghost-button" data-testid="command-create-vehicle" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">{t("command.vehicle")}</button>
+                <button aria-label="Быстро добавить клиента" className="ghost-button" data-testid="command-create-customer" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">{t("command.customer")}</button>
+                <button aria-label="Быстро загрузить документ автомобиля" className="ghost-button" data-testid="command-upload-document" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
+                <button aria-label="Быстро добавить расход" className="ghost-button" data-testid="command-create-expense" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
+                <button aria-label="Быстро создать ТО" className="ghost-button" data-testid="command-create-service" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
+                <button aria-label="Отправить договор через WhatsApp Telegram или Email" className="ghost-button" data-testid="command-share-contract" disabled={Boolean(busyAction)} onClick={openShareDialog} type="button">WhatsApp / Telegram</button>
+              </div>
+            </details>
           </div>
         </section>
 
@@ -3583,14 +3588,17 @@ export default function DashboardClient() {
                 onSign={(detail) => detail.flow ? void signRentalFlow(detail.flow) : requestSignatureUpload()}
               />
               <aside className="rental-details-side">
-                <div className="quick-actions-grid compact-actions">
-                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать договор</button>
-                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор</button>
-                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("whatsapp", selectedRental) : void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
-                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("telegram", selectedRental) : void shareRentalContract("telegram")} type="button">Telegram</button>
-                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("email", selectedRental) : void shareRentalContract("email")} type="button">Email</button>
-                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Подпись</button>
-                </div>
+                <details className="action-menu side-action-menu compact-actions">
+                  <summary>Договор и отправка</summary>
+                  <div>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать договор</button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор</button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("whatsapp", selectedRental) : void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("telegram", selectedRental) : void shareRentalContract("telegram")} type="button">Telegram</button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("email", selectedRental) : void shareRentalContract("email")} type="button">Email</button>
+                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Подпись</button>
+                  </div>
+                </details>
                 <BookingCalendar customers={data.customers} rentals={data.rentals} vehicles={data.vehicles} />
               </aside>
             </div>
@@ -3643,10 +3651,17 @@ export default function DashboardClient() {
             <article className="metric-card"><span>{t("finance.net")}</span><strong className="blue">{money.format(finance.netProfit)}</strong></article>
             <article className="metric-card"><span>Депозиты</span><strong className="green">{money.format(totalDeposits)}</strong></article>
             <article className="metric-card"><span>Просрочено</span><strong className="red">{overdueInvoices.length}</strong></article>
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("payment")} type="button">Провести оплату</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Добавить расход</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestDepositUpload} type="button">Загрузить депозит/возврат</button>
-            <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("depositReturn")} type="button">Оформить возврат депозита</button>
+            <div className="finance-primary-actions">
+              <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("payment")} type="button">Провести оплату</button>
+              <details className="action-menu">
+                <summary>Финансовые действия</summary>
+                <div>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">Добавить расход</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestDepositUpload} type="button">Загрузить депозит/возврат</button>
+                  <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => openOperation("depositReturn")} type="button">Оформить возврат депозита</button>
+                </div>
+              </details>
+            </div>
             <div className="table-panel finance-wide">
               <h2>ROI по каждому авто</h2>
               {finance.incomeByVehicle.map((item) => (
@@ -3969,10 +3984,15 @@ function ClientProfilePanel({
 
       <div className="client-action-bar">
         <button className="primary-button" onClick={onCreateBooking} type="button">Новая бронь</button>
-        <button className="ghost-button" onClick={onAssignVehicle} type="button">Добавить авто клиенту</button>
-        <button className="ghost-button" onClick={onUploadDocument} type="button">Паспорт / ID</button>
-        <button className="ghost-button" onClick={onUploadFolder} type="button">Папка клиента</button>
-        <button className="ghost-button" onClick={onCreateVehicle} type="button">Новое авто</button>
+        <details className="action-menu">
+          <summary>Еще по клиенту</summary>
+          <div>
+            <button className="ghost-button" onClick={onAssignVehicle} type="button">Добавить авто клиенту</button>
+            <button className="ghost-button" onClick={onUploadDocument} type="button">Паспорт / ID</button>
+            <button className="ghost-button" onClick={onUploadFolder} type="button">Папка клиента</button>
+            <button className="ghost-button" onClick={onCreateVehicle} type="button">Новое авто</button>
+          </div>
+        </details>
       </div>
 
       <div className="client-profile-columns">
@@ -4323,16 +4343,21 @@ function RentalDetailPanel({
 
       <div className="rental-action-bar">
         <button className="primary-button" disabled={busy} onClick={() => detail.contract ? onOpenPdf(detail) : onCreateContract()} type="button">{detail.contract ? "Открыть PDF" : "Создать договор"}</button>
-        <button className="ghost-button" disabled={busy} onClick={onRequestContractUpload} type="button">Загрузить договор</button>
-        <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
-        <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
-        <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
-        <button className="ghost-button" disabled={busy} onClick={() => onSign(detail)} type="button">{contractSigned ? "Подписано" : "Подписать"}</button>
-        <button className="ghost-button" disabled={busy} onClick={() => onCreatePickup(detail.rental)} type="button">{pickup ? "Выдача OK" : "Акт выдачи"}</button>
-        <button className="ghost-button" disabled={busy} onClick={() => onCreateReturn(detail.rental)} type="button">{returned ? "Возврат OK" : "Акт возврата"}</button>
-        <button className="ghost-button" disabled={busy || paymentReady} onClick={onPay} type="button">Провести оплату</button>
         <button className="primary-button" disabled={busy || !returned} onClick={() => onSettle(detail)} type="button">Финальный расчёт</button>
-        <button className="ghost-button" disabled={busy} onClick={onRequestSignature} type="button">Загрузить подпись</button>
+        <details className="action-menu">
+          <summary>Еще действия</summary>
+          <div>
+            <button className="ghost-button" disabled={busy} onClick={onRequestContractUpload} type="button">Загрузить договор</button>
+            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
+            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
+            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onSign(detail)} type="button">{contractSigned ? "Подписано" : "Подписать"}</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onCreatePickup(detail.rental)} type="button">{pickup ? "Выдача OK" : "Акт выдачи"}</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onCreateReturn(detail.rental)} type="button">{returned ? "Возврат OK" : "Акт возврата"}</button>
+            <button className="ghost-button" disabled={busy || paymentReady} onClick={onPay} type="button">Провести оплату</button>
+            <button className="ghost-button" disabled={busy} onClick={onRequestSignature} type="button">Загрузить подпись</button>
+          </div>
+        </details>
       </div>
     </section>
   );
@@ -4859,7 +4884,6 @@ function RentalFlowPanel({
         </div>
         <div className="flow-actions">
           <button className="ghost-button" disabled={busy} onClick={onOpenPdf} type="button">PDF договор</button>
-          <button className="primary-button" disabled={busy || !flow.nextAction || flow.nextAction.status === "blocked"} onClick={onPrimaryAction} type="button">{nextLabel}</button>
         </div>
       </div>
       <div className="flow-progress-row">
@@ -4891,11 +4915,17 @@ function RentalFlowPanel({
         </article>
       </div>
       <div className="flow-playbook">
-        <button className="ghost-button" disabled={busy} onClick={() => onShare("whatsapp")} type="button">WhatsApp</button>
-        <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram")} type="button">Telegram</button>
-        <button className="ghost-button" disabled={busy} onClick={() => onShare("email")} type="button">Email</button>
-        <button className="ghost-button" disabled={busy || flow.contract?.status === "signed"} onClick={onSign} type="button">Подписать</button>
-        <button className="ghost-button" disabled={busy || !canSettle} onClick={onSettle} type="button">Депозит и финальный расчёт</button>
+        <button className="primary-button" disabled={busy || !flow.nextAction || flow.nextAction.status === "blocked"} onClick={onPrimaryAction} type="button">{nextLabel}</button>
+        <details className="action-menu">
+          <summary>Отправка и подпись</summary>
+          <div>
+            <button className="ghost-button" disabled={busy} onClick={() => onShare("whatsapp")} type="button">WhatsApp</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram")} type="button">Telegram</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onShare("email")} type="button">Email</button>
+            <button className="ghost-button" disabled={busy || flow.contract?.status === "signed"} onClick={onSign} type="button">Подписать</button>
+            <button className="ghost-button" disabled={busy || !canSettle} onClick={onSettle} type="button">Депозит и финальный расчёт</button>
+          </div>
+        </details>
       </div>
       <div className="flow-operations-grid">
         <RentalFlowHistoryPanel events={events} flow={flow} locale={locale} />
