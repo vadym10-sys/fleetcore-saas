@@ -64,6 +64,16 @@ RENDER_WEB_SERVICE_ID=srv_... \
 pnpm deploy:render
 ```
 
+GitHub Actions fallback:
+
+1. Add repository secrets:
+   - `RENDER_API_KEY`
+   - `RENDER_API_SERVICE_ID`
+   - `RENDER_WEB_SERVICE_ID`
+2. Add repository variable:
+   - `RENDER_DEPLOY_ENABLED=true`
+3. Push to `main` or run the `Deploy to Render` workflow manually.
+
 Manual dashboard fallback:
 
 1. Open Render Dashboard.
