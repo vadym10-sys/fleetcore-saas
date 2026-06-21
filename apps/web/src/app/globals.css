@@ -1685,6 +1685,7 @@ h3 {
   .dashboard-grid,
   .finance-layout,
   .settings-grid,
+  .client-crm-workspace,
   .operations-main-grid,
   .operations-lower-grid,
   .rental-details-layout,
@@ -1697,6 +1698,12 @@ h3 {
   .rental-detail-grid,
   .rental-document-strip,
   .rental-action-bar,
+  .client-profile-kpis,
+  .client-workflow-grid,
+  .client-profile-columns,
+  .client-action-bar,
+  .rental-flow-plus-grid,
+  .document-workbench-grid,
   .document-status-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2517,8 +2524,20 @@ h3 {
   grid-template-columns: auto 1fr auto;
   gap: 12px;
   align-items: center;
+  width: 100%;
   padding: 14px 6px;
+  border: 0;
   border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.customer-line.selected,
+.customer-line:hover {
+  border-radius: 8px;
+  background: rgba(35, 70, 216, 0.06);
 }
 
 .customer-line span,
@@ -2536,6 +2555,204 @@ h3 {
 .settings-grid {
   display: grid;
   gap: 12px;
+}
+
+.client-crm-workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.45fr) minmax(320px, 0.85fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.client-list-panel,
+.client-create-column {
+  display: grid;
+  gap: 12px;
+}
+
+.client-profile-panel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(184, 137, 58, 0.26);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+  box-shadow: 0 18px 44px rgba(17, 24, 39, 0.08);
+}
+
+.client-profile-panel.empty {
+  align-content: center;
+  min-height: 360px;
+}
+
+.client-profile-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.avatar.large {
+  width: 72px;
+  height: 72px;
+  font-size: 28px;
+}
+
+.client-profile-hero h2 {
+  margin: 3px 0;
+  color: var(--ink);
+  font-size: 25px;
+  letter-spacing: 0;
+}
+
+.client-profile-hero p,
+.client-profile-panel.empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.client-profile-kpis,
+.client-profile-columns,
+.client-workflow-grid,
+.document-workbench-grid,
+.rental-flow-plus-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.client-profile-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.client-profile-kpis article,
+.settlement-mini-card,
+.client-workflow-grid section,
+.rental-flow-plus-grid section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e5eaf2;
+  border-radius: 8px;
+  background: white;
+}
+
+.client-profile-kpis span,
+.settlement-mini-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.client-profile-kpis strong,
+.settlement-mini-card strong {
+  color: var(--ink);
+  font-size: 19px;
+}
+
+.client-profile-kpis .attention strong { color: #c2410c; }
+.client-profile-kpis .done strong { color: #0f7a55; }
+
+.client-workflow-grid,
+.client-profile-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.client-workflow-grid h3,
+.client-profile-columns h3,
+.rental-flow-plus-grid h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.client-workflow-grid p,
+.rental-flow-plus-grid p {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.client-workflow-grid p span,
+.rental-flow-plus-grid p span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dbe3ef;
+  color: #334155;
+  font-weight: 900;
+}
+
+.client-workflow-grid p.done span,
+.rental-flow-plus-grid p.done span {
+  background: #0f9f6e;
+  color: white;
+}
+
+.client-workflow-grid p.attention span,
+.rental-flow-plus-grid p.blocked span {
+  background: #d97706;
+  color: white;
+}
+
+.client-workflow-grid section > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.client-action-bar {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.rental-flow-plus-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(240px, 0.75fr);
+}
+
+.settlement-mini-card div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settlement-mini-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.document-workbench-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.document-workbench-row {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.document-workbench-row strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.document-workbench-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .quick-actions-grid {
@@ -4179,6 +4396,7 @@ h3 {
   .dashboard-grid,
   .finance-layout,
   .settings-grid,
+  .client-crm-workspace,
   .operations-main-grid,
   .operations-lower-grid,
   .rental-details-layout,
@@ -4191,6 +4409,12 @@ h3 {
   .rental-detail-grid,
   .rental-document-strip,
   .rental-action-bar,
+  .client-profile-kpis,
+  .client-workflow-grid,
+  .client-profile-columns,
+  .client-action-bar,
+  .rental-flow-plus-grid,
+  .document-workbench-grid,
   .document-status-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -4230,6 +4454,13 @@ h3 {
   .rental-detail-grid,
   .rental-document-strip,
   .rental-action-bar,
+  .client-profile-hero,
+  .client-profile-kpis,
+  .client-workflow-grid,
+  .client-profile-columns,
+  .client-action-bar,
+  .rental-flow-plus-grid,
+  .document-workbench-grid,
   .document-status-board,
   .compact-actions {
     grid-template-columns: 1fr;
@@ -5996,6 +6227,7 @@ h3 {
   .onboarding-grid,
   .document-center-board,
   .document-status-board,
+  .document-workbench-grid,
   .rental-folder-grid,
   .vault-folder-grid,
   .vault-hero {

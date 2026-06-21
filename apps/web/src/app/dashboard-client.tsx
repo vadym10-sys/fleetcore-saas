@@ -1509,6 +1509,7 @@ export default function DashboardClient() {
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [selectedRentalId, setSelectedRentalId] = useState<string | undefined>();
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<string | undefined>();
@@ -1702,7 +1703,10 @@ export default function DashboardClient() {
 
   const selectedVehicle = data.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? data.vehicles[0];
   const activeRental = data.rentals.find((rental) => rental.vehicleId === selectedVehicle?.id && rental.status !== "closed");
-  const activeCustomer = data.customers.find((customer) => customer.id === activeRental?.customerId) ?? data.customers[0];
+  const selectedCustomer = data.customers.find((customer) => customer.id === selectedCustomerId)
+    ?? data.customers.find((customer) => customer.id === activeRental?.customerId)
+    ?? data.customers[0];
+  const activeCustomer = selectedCustomer;
   const activeInvoice = data.invoices.find((invoice) => invoice.status !== "paid") ?? data.invoices[0];
   const activeRentalFlow = data.rentalFlows.find((flow) => flow.rental.id === activeRental?.id)
     ?? data.rentalFlows.find((flow) => flow.rental.status !== "closed")
@@ -1805,6 +1809,9 @@ export default function DashboardClient() {
     }
     if (result.rentalId) {
       setSelectedRentalId(result.rentalId);
+    }
+    if (result.customerId) {
+      setSelectedCustomerId(result.customerId);
     }
     if (result.kind === "vehicle" && result.vehicleId) {
       const vehicle = data.vehicles.find((item) => item.id === result.vehicleId);
@@ -2136,6 +2143,7 @@ export default function DashboardClient() {
   }
 
   async function ensureCustomer() {
+    if (selectedCustomer) return selectedCustomer;
     if (activeCustomer) return activeCustomer;
     if (data.customers[0]) return data.customers[0];
     return createCustomerRecord({
@@ -2216,7 +2224,8 @@ export default function DashboardClient() {
   async function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(t("customer.creating"), async () => {
-      await createCustomerRecord();
+      const customer = await createCustomerRecord();
+      setSelectedCustomerId(customer.id);
       setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com`, vehicleId: "" }));
       await loadData();
       setMessage(t("customer.saved"));
@@ -2258,6 +2267,7 @@ export default function DashboardClient() {
 
       setCustomerForm((current) => ({ ...current, displayName: "Новый клиент", email: `client-${Date.now().toString().slice(-5)}@example.com`, vehicleId: "" }));
       setSelectedVehicleId(vehicle.id);
+      setSelectedCustomerId(customer.id);
       await loadData();
       setMessage(`${customer.displayName}: ${t("customer.assigned")} ${vehicle.make} ${vehicle.model}`);
     });
@@ -3496,17 +3506,38 @@ export default function DashboardClient() {
         ) : null}
 
         {activeSection === "Drivers/Clients" ? (
-          <section className="workspace-grid">
-            <div className="main-column table-panel">
+          <section className="client-crm-workspace">
+            <div className="client-list-panel table-panel">
+              <div className="section-title compact-title">
+                <div>
+                  <h2>Client CRM</h2>
+                  <p>Клиенты, документы, аренды, долги и прикрепленные автомобили.</p>
+                </div>
+                <Badge value={String(data.customers.length)} />
+              </div>
               {data.customers.filter((customer) => !search || `${customer.displayName} ${customer.phone} ${customer.email}`.toLowerCase().includes(search.toLowerCase())).map((customer) => (
-                <article className="customer-line" key={customer.id}>
+                <button className={`customer-line ${selectedCustomer?.id === customer.id ? "selected" : ""}`} key={customer.id} onClick={() => setSelectedCustomerId(customer.id)} type="button">
                   <div className="avatar small">{customer.displayName.slice(0, 1)}</div>
                   <div><strong>{customer.displayName}</strong><span>{customer.phone} · {customer.email}</span></div>
                   <Badge value={customer.riskLevel === "low" ? t("status.active") : customer.riskLevel} />
-                </article>
+                </button>
               ))}
             </div>
-            <aside className="side-column">
+            <ClientProfilePanel
+              customer={selectedCustomer}
+              customerDocuments={data.customerDocuments}
+              invoices={data.invoices}
+              onAssignVehicle={() => void assignVehicleToNewCustomer()}
+              onCreateBooking={() => openOperation("booking")}
+              onCreateVehicle={openVehicleCreate}
+              onDocumentPreview={setDocumentPreview}
+              onUploadDocument={requestCustomerDocumentUpload}
+              onUploadFolder={requestCustomerFolderUpload}
+              payments={data.payments}
+              rentals={data.rentals}
+              vehicles={data.vehicles}
+            />
+            <aside className="side-column client-create-column">
               <CustomerForm
                 form={customerForm}
                 formRef={customerCreateRef}
@@ -3518,17 +3549,6 @@ export default function DashboardClient() {
                 setForm={setCustomerForm}
                 vehicles={data.vehicles}
               />
-              <div className="table-panel">
-                <h2>CRM история</h2>
-                <button className="ghost-button full-button" onClick={requestCustomerDocumentUpload} type="button">Загрузить паспорт/ID</button>
-                <button className="ghost-button full-button" onClick={requestCustomerFolderUpload} type="button">Загрузить папку клиента</button>
-                <p className="history-row">Документы клиентов: {data.customerDocuments.length}</p>
-                {data.rentals.slice(-5).map((rental) => {
-                  const customer = data.customers.find((item) => item.id === rental.customerId);
-                  const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
-                  return <p className="history-row" key={rental.id}>{customer?.displayName} · {vehicle?.plateNumber} · {money.format(rental.totalAmount)}</p>;
-                })}
-              </div>
             </aside>
           </section>
         ) : null}
@@ -3839,6 +3859,129 @@ export default function DashboardClient() {
   );
 }
 
+function ClientProfilePanel({
+  customer,
+  customerDocuments,
+  invoices,
+  onAssignVehicle,
+  onCreateBooking,
+  onCreateVehicle,
+  onDocumentPreview,
+  onUploadDocument,
+  onUploadFolder,
+  payments,
+  rentals,
+  vehicles,
+}: {
+  customer: Customer | undefined;
+  customerDocuments: CustomerDocument[];
+  invoices: Invoice[];
+  onAssignVehicle: () => void;
+  onCreateBooking: () => void;
+  onCreateVehicle: () => void;
+  onDocumentPreview: (document: DocumentPreview) => void;
+  onUploadDocument: () => void;
+  onUploadFolder: () => void;
+  payments: Payment[];
+  rentals: Rental[];
+  vehicles: Vehicle[];
+}) {
+  if (!customer) {
+    return (
+      <section className="client-profile-panel empty">
+        <span className="eyebrow">Client Profile</span>
+        <h2>Клиент не выбран</h2>
+        <p>Создайте клиента или выберите его из CRM-списка.</p>
+        <button className="primary-button" onClick={onCreateBooking} type="button">Создать бронь</button>
+      </section>
+    );
+  }
+
+  const clientRentals = rentals.filter((rental) => rental.customerId === customer.id);
+  const clientRentalIds = new Set(clientRentals.map((rental) => rental.id));
+  const clientInvoices = invoices.filter((invoice) => invoice.customerId === customer.id || (invoice.rentalId && clientRentalIds.has(invoice.rentalId)));
+  const paidAmount = clientInvoices.reduce((sum, invoice) => sum + payments.filter((payment) => payment.invoiceId === invoice.id).reduce((paymentSum, payment) => paymentSum + payment.amount, 0), 0);
+  const invoiceTotal = clientInvoices.reduce((sum, invoice) => sum + invoice.total, 0);
+  const unpaidAmount = Math.max(0, invoiceTotal - paidAmount);
+  const docs = customerDocuments.filter((doc) => doc.customerId === customer.id);
+  const verifiedDocs = docs.filter((doc) => doc.verified).length;
+  const activeRental = clientRentals.find((rental) => rental.status !== "closed");
+  const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeRental?.vehicleId);
+  const readiness = [
+    { done: docs.length > 0, label: "Паспорт/ID загружен" },
+    { done: verifiedDocs > 0, label: "Документы проверены" },
+    { done: unpaidAmount <= 0, label: "Нет долга" },
+    { done: Boolean(activeRental), label: "Есть активная аренда" },
+  ];
+
+  return (
+    <section className="client-profile-panel" data-testid="client-profile-panel">
+      <div className="client-profile-hero">
+        <div className="avatar large">{customer.displayName.slice(0, 1)}</div>
+        <div>
+          <span className="eyebrow">Client Profile</span>
+          <h2>{customer.displayName}</h2>
+          <p>{customer.phone} · {customer.email}</p>
+        </div>
+        <Badge value={customer.riskLevel === "low" ? "active" : customer.riskLevel} />
+      </div>
+
+      <div className="client-profile-kpis">
+        <article><span>Аренды</span><strong>{clientRentals.length}</strong></article>
+        <article><span>Документы</span><strong>{verifiedDocs}/{docs.length}</strong></article>
+        <article><span>Оплачено</span><strong>{money.format(paidAmount)}</strong></article>
+        <article className={unpaidAmount > 0 ? "attention" : "done"}><span>Долг</span><strong>{money.format(unpaidAmount)}</strong></article>
+      </div>
+
+      <div className="client-workflow-grid">
+        <section>
+          <h3>Готовность клиента</h3>
+          {readiness.map((item) => (
+            <p className={item.done ? "done" : "attention"} key={item.label}><span>{item.done ? "✓" : "!"}</span><strong>{item.label}</strong></p>
+          ))}
+        </section>
+        <section>
+          <h3>Текущая аренда</h3>
+          {activeRental ? (
+            <>
+              <strong>{activeVehicle ? `${activeVehicle.make} ${activeVehicle.model}` : "Автомобиль"}</strong>
+              <span>{activeVehicle?.plateNumber ?? "без номера"} · возврат {dateFmt.format(new Date(activeRental.returnAt))}</span>
+            </>
+          ) : <span>Нет активной аренды</span>}
+        </section>
+      </div>
+
+      <div className="client-action-bar">
+        <button className="primary-button" onClick={onCreateBooking} type="button">Новая бронь</button>
+        <button className="ghost-button" onClick={onAssignVehicle} type="button">Добавить авто клиенту</button>
+        <button className="ghost-button" onClick={onUploadDocument} type="button">Паспорт / ID</button>
+        <button className="ghost-button" onClick={onUploadFolder} type="button">Папка клиента</button>
+        <button className="ghost-button" onClick={onCreateVehicle} type="button">Новое авто</button>
+      </div>
+
+      <div className="client-profile-columns">
+        <section>
+          <h3>История аренд</h3>
+          {clientRentals.slice(0, 5).map((rental) => {
+            const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+            return <p className="history-row" key={rental.id}>{vehicle?.plateNumber ?? "Авто"} · {rental.status} · {money.format(rental.totalAmount)}</p>;
+          })}
+          {!clientRentals.length ? <p className="history-row">Истории аренд пока нет.</p> : null}
+        </section>
+        <section>
+          <h3>Документы клиента</h3>
+          {docs.slice(0, 5).map((doc) => (
+            <p className="history-row" key={doc.id}>
+              <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.verified ? "verified" : "pending"}`} />
+            </p>
+          ))}
+          {!docs.length ? <p className="history-row">Загрузите паспорт, ID или водительские права.</p> : null}
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function TodayOperationsDashboard({
   cards,
   finance,
@@ -4052,6 +4195,8 @@ function RentalDetailPanel({
   const returned = detail.checklists.some((item) => item.phase === "return");
   const contractSigned = detail.contract?.status === "signed";
   const paymentReady = detail.remainingAmount <= 0;
+  const rentalReady = Boolean(detail.contract) && paymentReady && pickup;
+  const settlementReady = returned && paymentReady;
   const steps = [
     { done: true, label: "Бронь", meta: detail.rental.status },
     { done: Boolean(detail.contract), label: "Договор", meta: detail.contract?.status ?? "not created" },
@@ -4112,6 +4257,32 @@ function RentalDetailPanel({
           {detail.contractEvents.slice(0, 3).map((event) => <span key={event.id}>{contractEventLabel(locale, event)} · {event.channel}</span>)}
           {!detail.contractEvents.length ? <span>Событий пока нет</span> : null}
         </div>
+      </div>
+
+      <div className="rental-flow-plus-grid" data-testid="rental-flow-plus">
+        <section>
+          <h3>Rental Flow Plus</h3>
+          {(detail.flow?.steps ?? steps.map((step) => ({ key: step.label, label: step.label, status: step.done ? "done" : "pending" }))).map((step) => (
+            <p className={step.status === "done" ? "done" : step.status === "blocked" ? "blocked" : "pending"} key={step.key}>
+              <span>{step.status === "done" ? "✓" : step.status === "blocked" ? "!" : "•"}</span>
+              <strong>{step.label}</strong>
+            </p>
+          ))}
+        </section>
+        <section>
+          <h3>Контроль закрытия</h3>
+          <p className={detail.contract ? "done" : "pending"}><span>{detail.contract ? "✓" : "•"}</span><strong>PDF договора</strong></p>
+          <p className={contractSigned ? "done" : "pending"}><span>{contractSigned ? "✓" : "•"}</span><strong>Подпись клиента</strong></p>
+          <p className={rentalReady ? "done" : "pending"}><span>{rentalReady ? "✓" : "•"}</span><strong>Выдача разрешена</strong></p>
+          <p className={settlementReady ? "done" : "pending"}><span>{settlementReady ? "✓" : "•"}</span><strong>Можно закрывать аренду</strong></p>
+        </section>
+        <section className="settlement-mini-card">
+          <h3>Финальный расчёт</h3>
+          <div><span>Аренда</span><strong>{rentalMoney.format(detail.rental.totalAmount)}</strong></div>
+          <div><span>Депозит</span><strong>{rentalMoney.format(detail.rental.depositAmount)}</strong></div>
+          <div><span>Остаток</span><strong>{rentalMoney.format(detail.remainingAmount)}</strong></div>
+          <small>{returned ? "Акт возврата готов" : "Сначала создайте акт возврата"}</small>
+        </section>
       </div>
 
       <div className="rental-action-bar">
@@ -4265,6 +4436,43 @@ function DocumentVault({
             <small>{folder.text}</small>
           </button>
         ))}
+      </section>
+
+      <section className="document-workbench-grid" data-testid="document-workbench-grid">
+        <article className="table-panel">
+          <h2>Авто-документы</h2>
+          {vehicles.slice(0, 5).map((vehicle) => {
+            const docs = vehicleDocuments.filter((doc) => doc.vehicleId === vehicle.id);
+            const soon = docs.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * 24 * 60 * 60 * 1000).length;
+            return (
+              <p className="document-workbench-row" key={vehicle.id}>
+                <strong>{vehicle.plateNumber}</strong>
+                <span>{docs.length} файлов · {soon} сроков</span>
+              </p>
+            );
+          })}
+        </article>
+        <article className="table-panel">
+          <h2>Клиентские папки</h2>
+          {customers.slice(0, 5).map((customer) => {
+            const docs = customerDocuments.filter((doc) => doc.customerId === customer.id);
+            return (
+              <p className="document-workbench-row" key={customer.id}>
+                <strong>{customer.displayName}</strong>
+                <span>{docs.filter((doc) => doc.verified).length}/{docs.length} verified</span>
+              </p>
+            );
+          })}
+        </article>
+        <article className="table-panel">
+          <h2>Папки аренды</h2>
+          {rentalFolders.slice(0, 5).map((folder) => (
+            <p className="document-workbench-row" key={folder.rental.id}>
+              <strong>{folder.vehicle?.plateNumber ?? "Авто"} · {folder.customer?.displayName ?? "Клиент"}</strong>
+              <span>{folder.contract?.status ?? "нет договора"} · {folder.checklists.length}/2 акта</span>
+            </p>
+          ))}
+        </article>
       </section>
 
       <section className="table-panel rental-folder-panel">
