@@ -3097,6 +3097,58 @@ h3 {
   color: rgba(255, 255, 255, 0.64);
 }
 
+.section-focus-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin: -10px 0 22px;
+  padding: 14px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.94)),
+    #fff;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.07);
+}
+
+.section-focus-bar > div:first-child {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.section-focus-bar strong,
+.section-focus-bar small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.section-focus-bar strong {
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.section-focus-bar small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.section-focus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.section-focus-actions .primary-button,
+.section-focus-actions .ghost-button {
+  min-height: 42px;
+}
+
 .finance-primary-actions {
   grid-column: 1 / -1;
   display: grid;
@@ -4727,10 +4779,26 @@ h3 {
   .operations-hero-actions,
   .operations-fast-actions,
   .command-actions,
+  .section-focus-actions,
   .finance-primary-actions {
     display: grid;
     grid-template-columns: 1fr;
     justify-content: stretch;
+  }
+
+  .section-focus-bar {
+    grid-template-columns: 1fr;
+    margin-top: -8px;
+  }
+
+  .section-focus-bar small {
+    white-space: normal;
+  }
+
+  .section-focus-actions .primary-button,
+  .section-focus-actions .ghost-button {
+    width: 100%;
+    min-height: 48px;
   }
 
   .action-menu > div {

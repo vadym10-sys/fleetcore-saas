@@ -31,6 +31,13 @@ type ApiEnvelope<T> = { data: T };
 type Section = "Dashboard" | "GPS" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
 type Locale = "en" | "ru" | "es" | "fr" | "de";
 type MapProvider = "apple" | "google";
+type SmartAction = { disabled?: boolean; label: string; onClick: () => void };
+type SectionFocus = {
+  meta: string;
+  primary: SmartAction;
+  secondary: SmartAction[];
+  title: string;
+};
 type OperationKind =
   | "booking"
   | "contract"
@@ -3221,6 +3228,103 @@ export default function DashboardClient() {
     return <AuthScreen initialMode={authMode} locale={locale} onLocaleChange={changeLocale} onSession={setSession} />;
   }
 
+  const sectionFocus: SectionFocus = (() => {
+    const firstIssue = operations.issues[0];
+    if (activeSection === "Dashboard") {
+      return {
+        meta: firstIssue ? firstIssue.meta : `${operations.activeRentals.length} активных аренд · ${notifications.length} уведомлений`,
+        primary: firstIssue
+          ? { label: firstIssue.label, onClick: firstIssue.action }
+          : { label: "Создать аренду", onClick: () => openOperation("booking") },
+        secondary: [
+          { label: "Документы", onClick: () => setActiveSection("Service") },
+          { label: "Финансы", onClick: () => setActiveSection("Finance") },
+        ],
+        title: firstIssue ? "Сначала решите самое важное" : "Сегодня всё спокойно",
+      };
+    }
+    if (activeSection === "GPS") {
+      return {
+        meta: `${data.gpsDevices.length} устройств · ${operations.offlineGps.length} без сигнала`,
+        primary: { label: "Подключить GPS", onClick: () => openOperation("gps") },
+        secondary: [
+          { label: "Обновить данные", onClick: () => void loadData() },
+          { label: "Автомобили", onClick: () => setActiveSection("Vehicles") },
+        ],
+        title: operations.offlineGps.length ? "Проверьте автомобили без сигнала" : "GPS-мониторинг работает",
+      };
+    }
+    if (activeSection === "Vehicles") {
+      return {
+        meta: `${data.vehicles.length} авто · ${operations.missingVehicleDocs.length} без документов`,
+        primary: { label: "Добавить авто", onClick: openVehicleCreate },
+        secondary: [
+          { label: "Загрузить документ", onClick: requestVehicleDocumentUpload },
+          { label: "Создать ТО", onClick: () => openOperation("service") },
+        ],
+        title: "Управляйте автопарком из одной карточки",
+      };
+    }
+    if (activeSection === "Drivers/Clients") {
+      return {
+        meta: `${data.customers.length} клиентов · ${data.customerDocuments.length} документов`,
+        primary: { label: "Добавить клиента", onClick: openCustomerCreate },
+        secondary: [
+          { label: "Прикрепить авто", onClick: () => void assignVehicleToNewCustomer() },
+          { label: "Загрузить паспорт", onClick: requestCustomerDocumentUpload },
+        ],
+        title: "Клиент, документы и аренды в одном профиле",
+      };
+    }
+    if (activeSection === "Bookings") {
+      const nextLabel = activeRentalFlow?.nextAction?.actionLabel ?? activeRentalFlow?.nextAction?.label;
+      return {
+        meta: selectedRentalDetail
+          ? `${selectedRentalDetail.vehicle?.plateNumber ?? "Авто"} · ${rentalStatusLabel(locale, selectedRentalDetail.rental.status)}`
+          : `${data.rentals.length} аренд`,
+        primary: activeRentalFlow && nextLabel
+          ? { disabled: activeRentalFlow.nextAction?.status === "blocked", label: nextLabel, onClick: () => void processFlowAction(activeRentalFlow) }
+          : { label: "Новая аренда", onClick: () => openOperation("booking") },
+        secondary: [
+          { label: "Отправить ссылку", onClick: openShareDialog },
+          { label: "Оплата", onClick: () => openOperation("payment") },
+        ],
+        title: "Ведите аренду от брони до финального расчёта",
+      };
+    }
+    if (activeSection === "Finance") {
+      return {
+        meta: `${money.format(finance.netProfit)} чистая прибыль · ${overdueInvoices.length} просрочек`,
+        primary: { label: "Провести оплату", onClick: () => openOperation("payment") },
+        secondary: [
+          { label: "Добавить расход", onClick: () => openOperation("expense") },
+          { label: "Возврат депозита", onClick: () => openOperation("depositReturn") },
+        ],
+        title: overdueInvoices.length ? "Сначала закройте просроченные оплаты" : "Финансы под контролем",
+      };
+    }
+    if (activeSection === "Service") {
+      return {
+        meta: `${data.files.length + data.documents.length + data.customerDocuments.length} файлов · ${operations.expiringDocs.length} сроков`,
+        primary: { label: "Загрузить документ", onClick: requestVehicleDocumentUpload },
+        secondary: [
+          { label: "Папка клиента", onClick: requestCustomerFolderUpload },
+          { label: "Создать ТО", onClick: () => openOperation("service") },
+        ],
+        title: "Документы, сроки и акты без лишних разделов",
+      };
+    }
+    return {
+      meta: `${session.companyId} · ${session.user.role}`,
+      primary: { label: "Профиль владельца", onClick: () => setProfileOpen(true) },
+      secondary: [
+        { label: "Мастер настройки", onClick: () => setOnboardingOpen(true) },
+        { label: "Выйти", onClick: () => void logout() },
+      ],
+      title: "Настройки компании и доступа",
+    };
+  })();
+
   return (
     <main className="product-shell fleet-app">
       <input
@@ -3433,6 +3537,8 @@ export default function DashboardClient() {
             </details>
           </div>
         </section>
+
+        <SectionFocusBar busy={Boolean(busyAction)} focus={sectionFocus} />
 
         {activeRentalFlow ? (
           <RentalFlowPanel
@@ -5135,6 +5241,24 @@ function FinalSettlementPanel({ busy, canSettle, flow, money, onSettle }: { busy
       <button className="primary-button full-button" disabled={busy || !canSettle} onClick={onSettle} type="button">
         {closed ? "Аренда закрыта" : canSettle ? "Закрыть аренду и депозит" : "Сначала создайте акт возврата"}
       </button>
+    </section>
+  );
+}
+
+function SectionFocusBar({ busy, focus }: { busy: boolean; focus: SectionFocus }) {
+  return (
+    <section className="section-focus-bar" data-testid="section-focus-bar" aria-label="Следующее действие раздела">
+      <div>
+        <span className="eyebrow">Следующее действие</span>
+        <strong>{focus.title}</strong>
+        <small>{focus.meta}</small>
+      </div>
+      <div className="section-focus-actions">
+        <button className="primary-button" disabled={busy || focus.primary.disabled} onClick={focus.primary.onClick} type="button">{focus.primary.label}</button>
+        {focus.secondary.map((action) => (
+          <button className="ghost-button" disabled={busy || action.disabled} key={action.label} onClick={action.onClick} type="button">{action.label}</button>
+        ))}
+      </div>
     </section>
   );
 }
