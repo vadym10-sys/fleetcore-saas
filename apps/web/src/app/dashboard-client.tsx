@@ -38,6 +38,7 @@ type SectionFocus = {
   secondary: SmartAction[];
   title: string;
 };
+type RentalWizardStep = "vehicle" | "customer" | "booking" | "contract" | "send" | "payment" | "return";
 type OperationKind =
   | "booking"
   | "contract"
@@ -1561,6 +1562,7 @@ export default function DashboardClient() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [profileName, setProfileName] = useState("");
   const [teamForm, setTeamForm] = useState({
@@ -3141,6 +3143,62 @@ export default function DashboardClient() {
     });
   }
 
+  async function runRentalWizardStep(step: RentalWizardStep) {
+    if (step === "vehicle") {
+      await runAction("Мастер аренды: готовим автомобиль...", async () => {
+        const vehicle = await ensureVehicle();
+        await loadData();
+        setActiveSection("Vehicles");
+        setSelectedVehicleId(vehicle.id);
+        setMessage(`Автомобиль готов: ${vehicle.make} ${vehicle.model}`);
+      });
+      return;
+    }
+    if (step === "customer") {
+      await runAction("Мастер аренды: готовим клиента...", async () => {
+        const customer = await ensureCustomer();
+        await loadData();
+        setActiveSection("Drivers/Clients");
+        setSelectedCustomerId(customer.id);
+        setMessage(`Клиент готов: ${customer.displayName}`);
+      });
+      return;
+    }
+    if (step === "booking") {
+      await runAction("Мастер аренды: создаем бронь...", async () => {
+        const rental = await ensureRental();
+        await loadData();
+        setActiveSection("Bookings");
+        setSelectedRentalId(rental.id);
+        setMessage("Бронь создана и выбрана");
+      });
+      return;
+    }
+    if (step === "contract") {
+      await runAction("Мастер аренды: создаем договор...", async () => {
+        const rental = await ensureRental();
+        await createContractRecord("draft", "manual", rental);
+        await loadData();
+        setActiveSection("Bookings");
+        setSelectedRentalId(rental.id);
+        setMessage("Договор создан");
+      });
+      return;
+    }
+    if (step === "send") {
+      const rental = selectedRental ?? activeRental ?? data.rentals.find((item) => item.status !== "closed");
+      await shareRentalContract("whatsapp", rental);
+      return;
+    }
+    if (step === "payment") {
+      await payActiveInvoice();
+      setActiveSection("Finance");
+      return;
+    }
+    await returnActiveRental();
+    setActiveSection("Bookings");
+  }
+
   async function requestEmailVerification() {
     await runAction("Отправляем подтверждение email...", async () => {
       const response = await api<{ delivery: "development" | "email"; verificationToken?: string }>("/auth/request-email-verification", {
@@ -3243,10 +3301,10 @@ export default function DashboardClient() {
         meta: firstIssue ? firstIssue.meta : `${operations.activeRentals.length} активных аренд · ${notifications.length} уведомлений`,
         primary: firstIssue
           ? { label: firstIssue.label, onClick: firstIssue.action }
-          : { label: "Создать аренду", onClick: () => openOperation("booking") },
+          : { label: "Мастер аренды", onClick: () => setRentalWizardOpen(true) },
         secondary: [
+          { label: "Быстрая бронь", onClick: () => openOperation("booking") },
           { label: "Документы", onClick: () => setActiveSection("Service") },
-          { label: "Финансы", onClick: () => setActiveSection("Finance") },
         ],
         title: firstIssue ? "Сначала решите самое важное" : "Сегодня всё спокойно",
       };
@@ -3292,10 +3350,10 @@ export default function DashboardClient() {
           : `${data.rentals.length} аренд`,
         primary: activeRentalFlow && nextLabel
           ? { disabled: activeRentalFlow.nextAction?.status === "blocked", label: nextLabel, onClick: () => void processFlowAction(activeRentalFlow) }
-          : { label: "Новая аренда", onClick: () => openOperation("booking") },
+          : { label: "Мастер аренды", onClick: () => setRentalWizardOpen(true) },
         secondary: [
+          { label: "Новая бронь", onClick: () => openOperation("booking") },
           { label: "Отправить ссылку", onClick: openShareDialog },
-          { label: "Оплата", onClick: () => openOperation("payment") },
         ],
         title: "Ведите аренду от брони до финального расчёта",
       };
@@ -3990,6 +4048,18 @@ export default function DashboardClient() {
         />
       ) : null}
 
+      {rentalWizardOpen ? (
+        <RentalScenarioWizard
+          busy={Boolean(busyAction)}
+          data={data}
+          locale={locale}
+          money={money}
+          onClose={() => setRentalWizardOpen(false)}
+          onRunStep={(step) => void runRentalWizardStep(step)}
+          selectedRental={selectedRental}
+        />
+      ) : null}
+
       {documentPreview ? (
         <DocumentPreviewDialog
           document={documentPreview}
@@ -4008,6 +4078,7 @@ export default function DashboardClient() {
         onCreateExpense={() => openOperation("expense")}
         onCreateService={() => openOperation("service")}
         onCreateVehicle={openVehicleCreate}
+        onOpenRentalWizard={() => setRentalWizardOpen(true)}
         onShareContract={openShareDialog}
         onUploadDocument={requestVehicleDocumentUpload}
         open={createSheetOpen}
@@ -5253,6 +5324,93 @@ function FinalSettlementPanel({ busy, canSettle, flow, money, onSettle }: { busy
   );
 }
 
+function RentalScenarioWizard({
+  busy,
+  data,
+  locale,
+  money,
+  onClose,
+  onRunStep,
+  selectedRental,
+}: {
+  busy: boolean;
+  data: AppData;
+  locale: Locale;
+  money: Intl.NumberFormat;
+  onClose: () => void;
+  onRunStep: (step: RentalWizardStep) => void;
+  selectedRental: Rental | undefined;
+}) {
+  const rental = selectedRental ?? data.rentals.find((item) => item.status !== "closed") ?? data.rentals[0];
+  const vehicle = data.vehicles.find((item) => item.id === rental?.vehicleId) ?? data.vehicles[0];
+  const customer = data.customers.find((item) => item.id === rental?.customerId) ?? data.customers[0];
+  const contract = data.rentalContracts.find((item) => item.rentalId === rental?.id);
+  const invoice = data.invoices.find((item) => item.rentalId === rental?.id);
+  const paidAmount = invoice ? data.payments.filter((item) => item.invoiceId === invoice.id).reduce((sum, item) => sum + item.amount, 0) : 0;
+  const returnDone = Boolean(rental?.status === "closed" || data.rentalChecklists.some((item) => item.rentalId === rental?.id && item.phase === "return"));
+  const steps: Array<{ done: boolean; key: RentalWizardStep; label: string; meta: string }> = [
+    { done: Boolean(vehicle), key: "vehicle", label: "1. Автомобиль", meta: vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}` : "Создать или выбрать авто" },
+    { done: Boolean(customer), key: "customer", label: "2. Клиент", meta: customer ? `${customer.displayName} · ${customer.phone}` : "Создать клиента" },
+    { done: Boolean(rental), key: "booking", label: "3. Бронь", meta: rental ? `${rentalStatusLabel(locale, rental.status)} · ${money.format(rental.totalAmount)}` : "Создать период аренды" },
+    { done: Boolean(contract), key: "contract", label: "4. Договор", meta: contract ? contractStatusLabel(locale, contract.status) : "Сгенерировать PDF/ссылку" },
+    { done: Boolean(contract && contract.status !== "draft"), key: "send", label: "5. Отправка", meta: contract?.publicUrl ? "Ссылка готова для клиента" : "WhatsApp / Telegram / Email" },
+    { done: Boolean(invoice && paidAmount >= invoice.total), key: "payment", label: "6. Оплата", meta: invoice ? `${money.format(paidAmount)} / ${money.format(invoice.total)}` : "Создать инвойс и оплату" },
+    { done: returnDone, key: "return", label: "7. Возврат", meta: returnDone ? "Аренда закрыта" : "Акт возврата и финальный расчёт" },
+  ];
+  const nextStep = steps.find((step) => !step.done) ?? steps.at(-1)!;
+  const progress = Math.round((steps.filter((step) => step.done).length / steps.length) * 100);
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <section className="rental-scenario-wizard" data-testid="rental-scenario-wizard">
+        <div className="wizard-hero">
+          <div>
+            <span className="eyebrow">Rental Flow</span>
+            <h2>Новая аренда с нуля</h2>
+            <p>FleetCore ведёт менеджера по одному рабочему процессу: авто, клиент, бронь, договор, отправка, оплата и возврат.</p>
+          </div>
+          <button className="ghost-button" onClick={onClose} type="button">Закрыть</button>
+        </div>
+
+        <div className="wizard-progress-row">
+          <div className="flow-progress-track" aria-label={`Rental wizard ${progress}%`}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
+          <strong>{progress}%</strong>
+        </div>
+
+        <div className="rental-scenario-grid">
+          <div className="wizard-step-list">
+            {steps.map((step) => (
+              <button className={step.done ? "done" : step.key === nextStep.key ? "next" : ""} disabled={busy} key={step.key} onClick={() => onRunStep(step.key)} type="button">
+                <span>{step.done ? "✓" : step.key === nextStep.key ? "→" : "•"}</span>
+                <div>
+                  <strong>{step.label}</strong>
+                  <small>{step.meta}</small>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <aside className="wizard-summary-card">
+            <span className="eyebrow">Следующий шаг</span>
+            <h3>{nextStep.label}</h3>
+            <p>{nextStep.meta}</p>
+            <button className="primary-button full" disabled={busy} onClick={() => onRunStep(nextStep.key)} type="button">
+              {nextStep.done ? "Проверить финальный расчёт" : `Выполнить: ${nextStep.label.replace(/^\d+\.\s*/, "")}`}
+            </button>
+            <div className="wizard-rental-snapshot">
+              <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль ещё не выбран"}</strong>
+              <span>{customer?.displayName ?? "Клиент ещё не выбран"}</span>
+              <span>{rental ? `${money.format(rental.totalAmount)} · депозит ${money.format(rental.depositAmount)}` : "Бронь ещё не создана"}</span>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function SectionFocusBar({ busy, focus }: { busy: boolean; focus: SectionFocus }) {
   return (
     <section className="section-focus-bar" data-testid="section-focus-bar" aria-label="Следующее действие раздела">
@@ -5280,6 +5438,7 @@ function CreateActionSheet({
   onCreateExpense,
   onCreateService,
   onCreateVehicle,
+  onOpenRentalWizard,
   onShareContract,
   onUploadDocument,
   open,
@@ -5292,6 +5451,7 @@ function CreateActionSheet({
   onCreateExpense: () => void;
   onCreateService: () => void;
   onCreateVehicle: () => void;
+  onOpenRentalWizard: () => void;
   onShareContract: () => void;
   onUploadDocument: () => void;
   open: boolean;
@@ -5308,6 +5468,7 @@ function CreateActionSheet({
     ? "Выберите одно действие. Остальные шаги FleetCore предложит внутри процесса."
     : "Choose one action. FleetCore will guide the next steps inside the workflow.";
   const actions = [
+    { description: locale === "ru" ? "Авто, клиент, бронь, договор, оплата и возврат." : "Vehicle, customer, booking, contract, payment and return.", label: locale === "ru" ? "Мастер аренды" : "Rental wizard", onClick: onOpenRentalWizard },
     { description: locale === "ru" ? "Бронь, договор, депозит, выдача и возврат." : "Booking, contract, deposit, pickup and return.", label: locale === "ru" ? "Новая аренда" : "New rental", onClick: onCreateBooking },
     { description: locale === "ru" ? "Добавить машину в автопарк." : "Add a vehicle to the fleet.", label: locale === "ru" ? "Автомобиль" : "Vehicle", onClick: onCreateVehicle },
     { description: locale === "ru" ? "CRM-карточка клиента и документы." : "Customer CRM profile and documents.", label: locale === "ru" ? "Клиент" : "Customer", onClick: onCreateCustomer },
