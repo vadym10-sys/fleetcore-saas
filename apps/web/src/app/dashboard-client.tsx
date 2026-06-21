@@ -3815,37 +3815,23 @@ export default function DashboardClient() {
           </div>
         </header>
 
-        <section className="command-center" aria-label="FleetCore command center">
-          <div className="command-copy">
-            <span className="eyebrow">{t("command.kicker")}</span>
-            <strong>{busyAction ? busyAction : t("command.title")}</strong>
-            <p>{message || t("command.subtitle")}</p>
-          </div>
-          <div className="workflow-stats">
-            {workflowStats.map((item) => (
-              <article className={`workflow-chip ${item.tone}`} key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </article>
-            ))}
-          </div>
-          <div className="command-actions" data-testid="fleet-command-actions">
-            <button aria-label="Быстро создать бронь" className="primary-button" data-testid="command-create-booking" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">{t("command.newBooking")}</button>
-            <details className="action-menu command-action-menu">
-              <summary>Еще действия</summary>
-              <div>
-                <button aria-label="Быстро добавить автомобиль" className="ghost-button" data-testid="command-create-vehicle" disabled={Boolean(busyAction)} onClick={openVehicleCreate} type="button">{t("command.vehicle")}</button>
-                <button aria-label="Быстро добавить клиента" className="ghost-button" data-testid="command-create-customer" disabled={Boolean(busyAction)} onClick={openCustomerCreate} type="button">{t("command.customer")}</button>
-                <button aria-label="Быстро загрузить документ автомобиля" className="ghost-button" data-testid="command-upload-document" disabled={Boolean(busyAction)} onClick={requestVehicleDocumentUpload} type="button">{t("command.document")}</button>
-                <button aria-label="Быстро добавить расход" className="ghost-button" data-testid="command-create-expense" disabled={Boolean(busyAction)} onClick={() => openOperation("expense")} type="button">{t("command.expense")}</button>
-                <button aria-label="Быстро создать ТО" className="ghost-button" data-testid="command-create-service" disabled={Boolean(busyAction)} onClick={() => openOperation("service")} type="button">{t("command.service")}</button>
-                <button aria-label="Отправить договор через WhatsApp Telegram или Email" className="ghost-button" data-testid="command-share-contract" disabled={Boolean(busyAction)} onClick={openShareDialog} type="button">WhatsApp / Telegram</button>
-              </div>
-            </details>
-          </div>
-        </section>
-
-        <SectionFocusBar busy={Boolean(busyAction)} focus={sectionFocus} />
+        <SimplifiedCommandCenter
+          busy={Boolean(busyAction)}
+          busyAction={busyAction}
+          focus={sectionFocus}
+          message={message}
+          onCreateBooking={() => openOperation("booking")}
+          onCreateCustomer={openCustomerCreate}
+          onCreateExpense={() => openOperation("expense")}
+          onCreateService={() => openOperation("service")}
+          onCreateVehicle={openVehicleCreate}
+          onOpenWizard={() => setRentalWizardOpen(true)}
+          onShareContract={openShareDialog}
+          onUploadDocument={requestVehicleDocumentUpload}
+          stats={workflowStats}
+          subtitle={t("command.subtitle")}
+          title={t("command.title")}
+        />
 
         {activeRentalFlow ? (
           <RentalFlowPanel
@@ -4037,21 +4023,16 @@ export default function DashboardClient() {
                 onSign={(detail) => detail.flow ? void signRentalFlow(detail.flow) : requestSignatureUpload()}
               />
               <aside className="rental-details-side">
-                <details className="action-menu side-action-menu compact-actions">
-                  <summary>Договор и отправка</summary>
-                  <div>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createDraftContract()} type="button">Создать договор</button>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestContractUpload} type="button">Загрузить договор</button>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("whatsapp", selectedRental) : void shareRentalContract("whatsapp")} type="button">WhatsApp</button>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("telegram", selectedRental) : void shareRentalContract("telegram")} type="button">Telegram</button>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => selectedRental ? void shareRentalContract("email", selectedRental) : void shareRentalContract("email")} type="button">Email</button>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Подпись</button>
-                  </div>
-                </details>
+                <section className="table-panel rental-side-focus">
+                  <span className="eyebrow">Быстро</span>
+                  <h3>Новая аренда</h3>
+                  <p>Создайте бронь, а FleetCore дальше проведёт по договору, оплате, выдаче и возврату.</p>
+                  <button className="primary-button full" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Создать аренду</button>
+                </section>
                 <BookingCalendar customers={data.customers} locale={locale} rentals={data.rentals} vehicles={data.vehicles} />
               </aside>
             </div>
-            {data.rentals.map((rental) => {
+            {data.rentals.slice(0, 6).map((rental) => {
               const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
               const customer = data.customers.find((item) => item.id === rental.customerId);
               const contract = data.rentalContracts.find((item) => item.rentalId === rental.id);
@@ -4090,6 +4071,9 @@ export default function DashboardClient() {
                 </article>
               );
             })}
+            {data.rentals.length > 6 ? (
+              <p className="history-row">Показаны 6 ближайших аренд. Используйте поиск сверху, чтобы быстро найти клиента, номер авто или договор.</p>
+            ) : null}
           </section>
         ) : null}
 
@@ -5661,6 +5645,85 @@ function RentalScenarioWizard({
         </div>
       </section>
     </div>
+  );
+}
+
+function SimplifiedCommandCenter({
+  busy,
+  busyAction,
+  focus,
+  message,
+  onCreateBooking,
+  onCreateCustomer,
+  onCreateExpense,
+  onCreateService,
+  onCreateVehicle,
+  onOpenWizard,
+  onShareContract,
+  onUploadDocument,
+  stats,
+  subtitle,
+  title,
+}: {
+  busy: boolean;
+  busyAction: string | undefined;
+  focus: SectionFocus;
+  message: string;
+  onCreateBooking: () => void;
+  onCreateCustomer: () => void;
+  onCreateExpense: () => void;
+  onCreateService: () => void;
+  onCreateVehicle: () => void;
+  onOpenWizard: () => void;
+  onShareContract: () => void;
+  onUploadDocument: () => void;
+  stats: Array<{ label: string; tone: string; value: number | string }>;
+  subtitle: string;
+  title: string;
+}) {
+  const secondaryActions: Array<SmartAction & { testId?: string | undefined }> = [
+    ...focus.secondary.map((action) => ({ ...action, testId: undefined })),
+    { label: "Мастер аренды", onClick: onOpenWizard, testId: undefined },
+    { label: "Новая аренда", onClick: onCreateBooking, testId: "command-create-booking" },
+    { label: "Автомобиль", onClick: onCreateVehicle, testId: "command-create-vehicle" },
+    { label: "Клиент", onClick: onCreateCustomer, testId: "command-create-customer" },
+    { label: "Документ", onClick: onUploadDocument, testId: "command-upload-document" },
+    { label: "Расход", onClick: onCreateExpense, testId: "command-create-expense" },
+    { label: "ТО", onClick: onCreateService, testId: "command-create-service" },
+    { label: "WhatsApp / Telegram", onClick: onShareContract, testId: "command-share-contract" },
+  ].filter((action, index, list) => list.findIndex((item) => item.label === action.label) === index);
+
+  return (
+    <section className="command-center simplified-command-center" data-testid="section-focus-bar" aria-label="Операционный фокус FleetCore">
+      <div className="command-copy">
+        <span className="eyebrow">{title}</span>
+        <strong>{busyAction ?? focus.title}</strong>
+        <p>{message || focus.meta || subtitle}</p>
+      </div>
+      <div className="workflow-stats">
+        {stats.slice(0, 4).map((item) => (
+          <article className={`workflow-chip ${item.tone}`} key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </article>
+        ))}
+      </div>
+      <div className="command-actions" data-testid="fleet-command-actions">
+        <button className="primary-button" disabled={busy || focus.primary.disabled} onClick={focus.primary.onClick} type="button">
+          {focus.primary.label}
+        </button>
+        <details className="action-menu command-action-menu">
+          <summary>Другие действия</summary>
+          <div>
+            {secondaryActions.map((action) => (
+              <button className="ghost-button" data-testid={action.testId} disabled={busy || action.disabled} key={action.label} onClick={action.onClick} type="button">
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </details>
+      </div>
+    </section>
   );
 }
 
