@@ -2182,6 +2182,7 @@ export default function DashboardClient() {
       vin: `VIN${Date.now().toString().slice(-10)}`,
     });
     setSelectedVehicleId(created.id);
+    setMessage(`Автомобиль создан автоматически: ${created.make} ${created.model}`);
     return created;
   }
 
@@ -2189,11 +2190,14 @@ export default function DashboardClient() {
     if (selectedCustomer) return selectedCustomer;
     if (activeCustomer) return activeCustomer;
     if (data.customers[0]) return data.customers[0];
-    return createCustomerRecord({
+    const created = await createCustomerRecord({
       displayName: "Новый клиент",
       email: `client-${Date.now().toString().slice(-5)}@example.com`,
       phone: "+48 600 111 222",
     });
+    setSelectedCustomerId(created.id);
+    setMessage(`Клиент создан автоматически: ${created.displayName}`);
+    return created;
   }
 
   async function ensureRental() {
@@ -2214,6 +2218,9 @@ export default function DashboardClient() {
       }),
       method: "POST",
     }, token);
+    setSelectedRentalId(response.data.id);
+    setSelectedVehicleId(response.data.vehicleId);
+    setSelectedCustomerId(response.data.customerId);
     return response.data;
   }
 
@@ -2233,6 +2240,7 @@ export default function DashboardClient() {
       }),
       method: "POST",
     }, token);
+    setMessage(`Инвойс создан автоматически: ${response.data.invoiceNumber}`);
     return response.data;
   }
 
@@ -6133,6 +6141,16 @@ function OperationDialog({
   const showCustomer = ["booking", "customerDocument"].includes(kind);
   const showRental = ["contract", "depositDocument", "depositReturn", "signature"].includes(kind);
   const showFiles = ["contract", "customerDocument", "depositDocument", "expense", "signature", "vehicleDocument"].includes(kind);
+  const needsAutoVehicle = showVehicle && !data.vehicles.length;
+  const needsAutoCustomer = showCustomer && !data.customers.length;
+  const needsAutoRental = showRental && !data.rentals.length;
+  const needsAutoInvoice = kind === "payment" && !data.invoices.some((invoice) => invoice.status !== "paid");
+  const autoContextNotes = [
+    needsAutoVehicle ? "FleetCore создаст первый автомобиль автоматически." : "",
+    needsAutoCustomer ? "FleetCore создаст первого клиента автоматически." : "",
+    needsAutoRental ? "FleetCore создаст аренду автоматически, если активной аренды ещё нет." : "",
+    needsAutoInvoice ? "FleetCore создаст инвойс автоматически, если нет неоплаченного счёта." : "",
+  ].filter(Boolean);
 
   function patch(key: keyof typeof defaultOperationForm, value: string) {
     onChange({ ...form, [key]: value });
@@ -6149,10 +6167,18 @@ function OperationDialog({
           <button onClick={onClose} type="button">×</button>
         </div>
 
+        {autoContextNotes.length ? (
+          <div className="operation-auto-context" data-testid="operation-auto-context">
+            <strong>Можно сохранить сразу</strong>
+            {autoContextNotes.map((note) => <span key={note}>{note}</span>)}
+          </div>
+        ) : null}
+
         <div className="form-grid">
           {showVehicle ? (
             <label>{m("vehicle")}
               <select value={form.vehicleId} onChange={(event) => patch("vehicleId", event.target.value)}>
+                {!data.vehicles.length ? <option value="">Создать автомобиль автоматически</option> : null}
                 {data.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.make} {vehicle.model} · {vehicle.plateNumber}</option>)}
               </select>
             </label>
@@ -6161,6 +6187,7 @@ function OperationDialog({
           {showCustomer ? (
             <label>{m("customer")}
               <select value={form.customerId} onChange={(event) => patch("customerId", event.target.value)}>
+                {!data.customers.length ? <option value="">Создать клиента автоматически</option> : null}
                 {data.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName} · {customer.phone}</option>)}
               </select>
             </label>
@@ -6169,6 +6196,7 @@ function OperationDialog({
           {showRental ? (
             <label>{m("rental")}
               <select value={form.rentalId} onChange={(event) => patch("rentalId", event.target.value)}>
+                {!data.rentals.length ? <option value="">Создать аренду автоматически</option> : null}
                 {data.rentals.map((rental) => {
                   const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
                   const customer = data.customers.find((item) => item.id === rental.customerId);
@@ -6231,7 +6259,8 @@ function OperationDialog({
             <>
               <label>{m("invoice")}
                 <select value={form.invoiceId} onChange={(event) => patch("invoiceId", event.target.value)}>
-                  {data.invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} · {money.format(invoice.total)}</option>)}
+                  {!data.invoices.some((invoice) => invoice.status !== "paid") ? <option value="">Создать инвойс автоматически</option> : null}
+                  {data.invoices.filter((invoice) => invoice.status !== "paid").map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber} · {money.format(invoice.total)}</option>)}
                 </select>
               </label>
               <label>{m("amount")}<input type="number" min="0" value={form.amount} onChange={(event) => patch("amount", event.target.value)} /></label>
