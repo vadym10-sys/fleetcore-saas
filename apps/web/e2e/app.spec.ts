@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const demoButton = { exact: true, name: "Демо" };
-const desktopSections = ["Главная", "GPS", "Авто", "Клиенты", "Аренды", "Финансы", "Документы", "Настройки"];
+const desktopSections = ["Главная", "GPS", "Авто", "Календарь", "Аренды", "Финансы", "Документы", "Настройки"];
 
 function actionName(label: RegExp | string) {
   if (label instanceof RegExp) return label;
@@ -77,8 +77,9 @@ test("desktop user can manage professional list controls", async ({ page, isMobi
   await fleetDownload;
   await expect(page.getByRole("status").getByText(/автомобилей экспортировано в CSV/)).toBeVisible();
 
-  await sidebarNav.getByRole("button", { name: /Клиенты/ }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Клиенты" })).toBeVisible();
+  await sidebarNav.getByRole("button", { name: /Календарь/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Календарь" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Календарь резерваций" })).toBeVisible();
 
   const crmControls = page.locator(".list-control-bar").filter({ hasText: "CRM list" }).first();
   await expect(crmControls).toBeVisible();

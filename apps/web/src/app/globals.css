@@ -4782,6 +4782,158 @@ h3 {
   grid-column: span 3;
 }
 
+.calendar-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.calendar-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 20px;
+}
+
+.calendar-hero h2 {
+  margin: 3px 0 6px;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.calendar-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.calendar-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.calendar-kpi-grid article,
+.free-days-grid article,
+.reservation-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 34px rgba(18, 22, 45, 0.06);
+}
+
+.calendar-kpi-grid article {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.calendar-kpi-grid span,
+.free-days-grid span,
+.free-days-grid small,
+.reservation-row span,
+.reservation-row small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.calendar-kpi-grid strong {
+  color: var(--ink);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.75fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.calendar-main,
+.calendar-side {
+  display: grid;
+  gap: 16px;
+}
+
+.free-days-panel,
+.reservations-panel,
+.calendly-panel {
+  padding: 16px;
+}
+
+.free-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.free-days-grid article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.free-days-grid strong {
+  color: var(--primary);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.reservation-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.reservation-row + .reservation-row {
+  margin-top: 8px;
+}
+
+.reservation-row strong,
+.reservation-row span {
+  display: block;
+}
+
+.reservation-row strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.reservation-row small {
+  white-space: nowrap;
+}
+
+.calendly-panel iframe {
+  width: 100%;
+  min-height: 620px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.calendly-empty {
+  display: grid;
+  gap: 6px;
+  min-height: 220px;
+  place-content: center;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  padding: 16px;
+  text-align: center;
+}
+
+.calendly-empty strong {
+  color: var(--ink);
+}
+
 .booking-calendar {
   display: grid;
   gap: 12px;
@@ -5015,8 +5167,55 @@ h3 {
     padding: 10px;
   }
 
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .free-days-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .calendar-grid {
     min-width: 1040px;
+  }
+}
+
+@media (max-width: 760px) {
+  .calendar-hero {
+    display: grid;
+    padding: 16px;
+  }
+
+  .calendar-hero h2 {
+    font-size: 24px;
+  }
+
+  .calendar-hero .primary-button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .calendar-kpi-grid,
+  .free-days-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-side,
+  .calendar-main,
+  .calendar-layout {
+    gap: 12px;
+  }
+
+  .reservation-row {
+    display: grid;
+  }
+
+  .reservation-row small {
+    white-space: normal;
+  }
+
+  .calendly-panel iframe {
+    min-height: 580px;
   }
 }
 

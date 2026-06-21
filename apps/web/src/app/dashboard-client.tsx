@@ -7,6 +7,7 @@ import { RentalWorkbench } from "../features/rentals/rental-workbench";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+const CALENDLY_URL = process.env.NEXT_PUBLIC_CALENDLY_URL ?? "https://calendly.com/fleetcore-saas/rental-reservation";
 const TENANT_ID = "tenant_atlas";
 
 type GoogleLatLngLiteral = { lat: number; lng: number };
@@ -30,7 +31,7 @@ declare global {
 }
 
 type ApiEnvelope<T> = { data: T };
-type Section = "Dashboard" | "GPS" | "Vehicles" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
+type Section = "Dashboard" | "GPS" | "Vehicles" | "Calendar" | "Drivers/Clients" | "Bookings" | "Finance" | "Service" | "Settings";
 type Locale = "en" | "ru" | "es" | "fr" | "de";
 type MapProvider = "apple" | "google";
 type SmartAction = { disabled?: boolean; label: string; onClick: () => void };
@@ -153,7 +154,7 @@ type GlobalSearchResult = {
   preview?: DocumentPreview;
 };
 
-const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Drivers/Clients", "Bookings", "Finance", "Service", "Settings"];
+const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Calendar", "Bookings", "Finance", "Service", "Settings"];
 const locales: Array<{ code: Locale; label: string }> = [
   { code: "en", label: "EN" },
   { code: "ru", label: "RU" },
@@ -222,6 +223,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Executive view of fleet, revenue, returns and operational alerts.",
     "section.subtitle.GPS": "Connect trackers, platforms and live vehicle positions in one control room.",
     "section.subtitle.Vehicles": "Manage fleet records, documents, service and profitability per vehicle.",
+    "section.subtitle.Calendar": "Reservations, availability, free days and Calendly booking slots.",
     "section.subtitle.Drivers/Clients": "Customer CRM, documents, rental history and verification files.",
     "section.subtitle.Bookings": "Create bookings, contracts, signatures and WhatsApp customer links.",
     "section.subtitle.Finance": "Payments, expenses, deposits, refunds and ROI by vehicle.",
@@ -315,6 +317,7 @@ const uiCopy = {
     "form.odometerKm": "Mileage, km",
     "form.dailyRate": "Daily rate",
     "nav.Bookings": "Rentals",
+    "nav.Calendar": "Calendar",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Clients",
     "nav.Finance": "Finance",
@@ -381,6 +384,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Главный обзор автопарка, доходов, возвратов и операционных событий.",
     "section.subtitle.GPS": "Подключайте трекеры, платформы и живые позиции автомобилей в одном центре.",
     "section.subtitle.Vehicles": "Управляйте авто, документами, сервисом и прибыльностью каждой машины.",
+    "section.subtitle.Calendar": "Резервации, свободные дни, занятость автопарка и Calendly.",
     "section.subtitle.Drivers/Clients": "CRM клиентов, документы, история аренд и проверочные файлы.",
     "section.subtitle.Bookings": "Брони, договоры, подписи и WhatsApp-ссылки для клиентов.",
     "section.subtitle.Finance": "Оплаты, расходы, депозиты, возвраты и ROI по автомобилям.",
@@ -474,6 +478,7 @@ const uiCopy = {
     "form.odometerKm": "Пробег, км",
     "form.dailyRate": "Цена в день",
     "nav.Bookings": "Аренды",
+    "nav.Calendar": "Календарь",
     "nav.Dashboard": "Главная",
     "nav.Drivers/Clients": "Клиенты",
     "nav.Finance": "Финансы",
@@ -540,6 +545,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Vista ejecutiva de flota, ingresos, devoluciones y alertas operativas.",
     "section.subtitle.GPS": "Conecta rastreadores, plataformas y posiciones en vivo en un solo centro.",
     "section.subtitle.Vehicles": "Gestiona flota, documentos, servicio y rentabilidad por vehículo.",
+    "section.subtitle.Calendar": "Reservas, disponibilidad, días libres y slots de Calendly.",
     "section.subtitle.Drivers/Clients": "CRM de clientes, documentos, historial de alquileres y verificación.",
     "section.subtitle.Bookings": "Reservas, contratos, firmas y enlaces WhatsApp para clientes.",
     "section.subtitle.Finance": "Pagos, gastos, depósitos, reembolsos y ROI por vehículo.",
@@ -633,6 +639,7 @@ const uiCopy = {
     "form.odometerKm": "Kilometraje, km",
     "form.dailyRate": "Tarifa diaria",
     "nav.Bookings": "Alquileres",
+    "nav.Calendar": "Calendario",
     "nav.Dashboard": "Panel",
     "nav.Drivers/Clients": "Clientes",
     "nav.Finance": "Finanzas",
@@ -699,6 +706,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Vue dirigeant de la flotte, des revenus, des retours et des alertes.",
     "section.subtitle.GPS": "Connectez traceurs, plateformes et positions en direct dans un centre unique.",
     "section.subtitle.Vehicles": "Gérez flotte, documents, service et rentabilité par véhicule.",
+    "section.subtitle.Calendar": "Réservations, disponibilités, jours libres et créneaux Calendly.",
     "section.subtitle.Drivers/Clients": "CRM clients, documents, historique de location et vérification.",
     "section.subtitle.Bookings": "Réservations, contrats, signatures et liens WhatsApp clients.",
     "section.subtitle.Finance": "Paiements, dépenses, dépôts, remboursements et ROI par véhicule.",
@@ -792,6 +800,7 @@ const uiCopy = {
     "form.odometerKm": "Kilométrage, km",
     "form.dailyRate": "Tarif jour",
     "nav.Bookings": "Locations",
+    "nav.Calendar": "Calendrier",
     "nav.Dashboard": "Tableau",
     "nav.Drivers/Clients": "Clients",
     "nav.Finance": "Finance",
@@ -858,6 +867,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Managementblick auf Flotte, Umsatz, Rückgaben und operative Alerts.",
     "section.subtitle.GPS": "Tracker, Plattformen und Live-Positionen in einer Leitstelle verbinden.",
     "section.subtitle.Vehicles": "Fahrzeuge, Dokumente, Service und Profitabilität je Fahrzeug verwalten.",
+    "section.subtitle.Calendar": "Reservierungen, Verfügbarkeit, freie Tage und Calendly-Zeiten.",
     "section.subtitle.Drivers/Clients": "Kunden-CRM, Dokumente, Mietverlauf und Verifizierungsdateien.",
     "section.subtitle.Bookings": "Buchungen, Verträge, Signaturen und WhatsApp-Kundenlinks.",
     "section.subtitle.Finance": "Zahlungen, Kosten, Kautionen, Rückgaben und ROI je Fahrzeug.",
@@ -951,6 +961,7 @@ const uiCopy = {
     "form.odometerKm": "Kilometerstand, km",
     "form.dailyRate": "Tagespreis",
     "nav.Bookings": "Mieten",
+    "nav.Calendar": "Kalender",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Kunden",
     "nav.Finance": "Finanzen",
@@ -991,6 +1002,7 @@ function sectionIcon(section: Section) {
   if (section === "Dashboard") return "⌂";
   if (section === "GPS") return "⌖";
   if (section === "Vehicles") return "▣";
+  if (section === "Calendar") return "◴";
   if (section === "Finance") return "€";
   if (section === "Service") return "▤";
   if (section === "Settings") return "⚙";
@@ -3930,6 +3942,17 @@ export default function DashboardClient() {
         title: "Управляйте автопарком из одной карточки",
       };
     }
+    if (activeSection === "Calendar") {
+      return {
+        meta: `${visibleRentals.filter((rental) => rental.status !== "closed").length} резерваций · ${visibleVehicles.filter((vehicle) => vehicle.status === "available").length} свободных авто`,
+        primary: { label: "Создать аренду", onClick: openRentalWorkflow },
+        secondary: [
+          { label: "Открыть аренды", onClick: () => selectSection("Bookings") },
+          { label: "Обновить календарь", onClick: () => void loadData() },
+        ],
+        title: "Календарь резерваций и свободных дней",
+      };
+    }
     if (activeSection === "Drivers/Clients") {
       return {
         meta: `${data.customers.length} клиентов · ${data.customerDocuments.length} документов`,
@@ -4394,6 +4417,17 @@ export default function DashboardClient() {
               />
             </aside>
           </section>
+        ) : null}
+
+        {activeSection === "Calendar" ? (
+          <CalendarWorkspace
+            calendlyUrl={CALENDLY_URL}
+            customers={data.customers}
+            locale={locale}
+            onCreateBooking={openRentalWorkflow}
+            rentals={visibleRentals}
+            vehicles={visibleVehicles}
+          />
         ) : null}
 
         {activeSection === "Bookings" ? (
@@ -5765,6 +5799,145 @@ function OwnerProfileDialog({
   );
 }
 
+function CalendarWorkspace({
+  calendlyUrl,
+  customers,
+  locale,
+  onCreateBooking,
+  rentals,
+  vehicles,
+}: {
+  calendlyUrl: string;
+  customers: Customer[];
+  locale: Locale;
+  onCreateBooking: () => void;
+  rentals: Rental[];
+  vehicles: Vehicle[];
+}) {
+  const activeRentals = rentals
+    .filter((rental) => rental.status !== "closed")
+    .sort((left, right) => new Date(left.pickupAt).getTime() - new Date(right.pickupAt).getTime());
+  const freeVehicles = vehicles.filter((vehicle) => vehicle.status === "available" && !activeRentals.some((rental) => rental.vehicleId === vehicle.id));
+  const now = Date.now();
+  const upcomingReturns = activeRentals
+    .filter((rental) => new Date(rental.returnAt).getTime() >= now)
+    .slice(0, 5);
+  const freeDays = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() + index);
+    const start = day.getTime();
+    const end = start + 24 * 60 * 60 * 1000;
+    const occupiedVehicleIds = new Set(activeRentals
+      .filter((rental) => new Date(rental.pickupAt).getTime() < end && new Date(rental.returnAt).getTime() >= start)
+      .map((rental) => rental.vehicleId));
+    return {
+      date: day,
+      freeCount: vehicles.filter((vehicle) => !occupiedVehicleIds.has(vehicle.id) && vehicle.status !== "maintenance").length,
+      total: vehicles.length,
+    };
+  });
+  const validCalendlyUrl = calendlyUrl.startsWith("https://calendly.com/");
+
+  return (
+    <section className="calendar-workspace">
+      <div className="calendar-hero table-panel">
+        <div>
+          <span className="eyebrow">FleetCore Calendar</span>
+          <h2>Календарь резерваций</h2>
+          <p>Резервации FleetCore, свободные автомобили, ближайшие возвраты и Calendly для свободных слотов в одном месте.</p>
+        </div>
+        <button className="primary-button" onClick={onCreateBooking} type="button">Создать аренду</button>
+      </div>
+
+      <div className="calendar-kpi-grid">
+        <article>
+          <span>Активные резервации</span>
+          <strong>{activeRentals.length}</strong>
+        </article>
+        <article>
+          <span>Свободно сейчас</span>
+          <strong>{freeVehicles.length}</strong>
+        </article>
+        <article>
+          <span>Ближайшие возвраты</span>
+          <strong>{upcomingReturns.length}</strong>
+        </article>
+      </div>
+
+      <div className="calendar-layout">
+        <div className="calendar-main">
+          <BookingCalendar customers={customers} locale={locale} rentals={rentals} vehicles={vehicles} />
+          <section className="table-panel free-days-panel">
+            <div className="section-title compact-title">
+              <div>
+                <h2>Свободные дни</h2>
+                <p>Сколько автомобилей доступно каждый день.</p>
+              </div>
+            </div>
+            <div className="free-days-grid">
+              {freeDays.map((day) => (
+                <article key={day.date.toISOString()}>
+                  <span>{day.date.toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", { day: "2-digit", month: "short" })}</span>
+                  <strong>{day.freeCount}</strong>
+                  <small>из {day.total} авто свободно</small>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <aside className="calendar-side">
+          <section className="table-panel reservations-panel">
+            <div className="section-title compact-title">
+              <div>
+                <h2>Ближайшие резервации</h2>
+                <p>Что уже занято в автопарке.</p>
+              </div>
+            </div>
+            {activeRentals.slice(0, 6).map((rental) => {
+              const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+              const customer = customers.find((item) => item.id === rental.customerId);
+              return (
+                <article className="reservation-row" key={rental.id}>
+                  <div>
+                    <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль"}</strong>
+                    <span>{vehicle?.plateNumber ?? "без номера"} · {customer?.displayName ?? "Без клиента"}</span>
+                  </div>
+                  <small>{new Date(rental.pickupAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })} - {new Date(rental.returnAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</small>
+                </article>
+              );
+            })}
+            {!activeRentals.length ? <p className="history-row">Резерваций пока нет. Создайте первую аренду.</p> : null}
+          </section>
+
+          <section className="table-panel calendly-panel">
+            <div className="section-title compact-title">
+              <div>
+                <span className="eyebrow">Calendly</span>
+                <h2>Свободное время</h2>
+                <p>Клиент может выбрать свободный слот через Calendly.</p>
+              </div>
+            </div>
+            {validCalendlyUrl ? (
+              <iframe
+                loading="lazy"
+                src={`${calendlyUrl}?hide_gdpr_banner=1&primary_color=2346d8`}
+                title="Calendly reservation calendar"
+              />
+            ) : (
+              <div className="calendly-empty">
+                <strong>Calendly URL не настроен</strong>
+                <span>Добавьте NEXT_PUBLIC_CALENDLY_URL со ссылкой на ваш Calendly event.</span>
+              </div>
+            )}
+          </section>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
 function BookingCalendar({ customers, locale, rentals, vehicles }: { customers: Customer[]; locale: Locale; rentals: Rental[]; vehicles: Vehicle[] }) {
   const days = Array.from({ length: 14 }, (_, index) => {
     const date = new Date();
@@ -6533,7 +6706,7 @@ function MobileDrawer({
     onRegister();
   }
 
-  const primarySections: Section[] = ["Dashboard", "Bookings", "Vehicles", "Drivers/Clients"];
+  const primarySections: Section[] = ["Dashboard", "Bookings", "Vehicles", "Calendar"];
   const secondarySections = sections.filter((section) => !primarySections.includes(section));
 
   return (
