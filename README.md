@@ -74,5 +74,6 @@ See [docs/deployment.md](./docs/deployment.md) for Docker and Render deployment 
 - [Architecture](./docs/ARCHITECTURE.md)
 - [Security](./docs/SECURITY.md)
 - [Data Model](./docs/DATA_MODEL.md)
+- [Information Architecture](./docs/INFORMATION_ARCHITECTURE.md)
 - [Deployment Runbook](./docs/DEPLOYMENT_RUNBOOK.md)
 - [Investor Readiness](./docs/INVESTOR_READINESS.md)
