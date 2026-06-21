@@ -3164,6 +3164,77 @@ h3 {
   background: linear-gradient(135deg, rgba(255, 250, 235, 0.98), rgba(255, 255, 255, 0.96));
 }
 
+.operations-kpi-grid.compact .metric-card {
+  min-height: 92px;
+}
+
+.today-task-board {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(17, 24, 39, 0.07);
+}
+
+.today-task-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.today-task-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.today-task-card > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f1f5f9;
+  font-weight: 950;
+}
+
+.today-task-card strong,
+.today-task-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.today-task-card strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.today-task-card small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.today-task-card.red { border-left-color: #e11d48; }
+.today-task-card.orange { border-left-color: #d97706; }
+.today-task-card.blue { border-left-color: #2346d8; }
+.today-task-card.green { border-left-color: #0f9f6e; }
+.today-task-card.black { border-left-color: #111827; }
+
 .operations-main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
@@ -3363,6 +3434,33 @@ h3 {
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
+}
+
+.rental-master-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(35, 70, 216, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(35, 70, 216, 0.08), rgba(15, 159, 110, 0.06)),
+    #fff;
+}
+
+.rental-master-card h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+}
+
+.rental-master-card p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
 }
 
 .rental-detail-timeline {
@@ -4607,6 +4705,8 @@ h3 {
 
   .operations-hero,
   .operations-kpi-grid,
+  .today-task-grid,
+  .rental-master-card,
   .rental-detail-hero,
   .rental-detail-timeline,
   .rental-detail-grid,
@@ -4646,6 +4746,14 @@ h3 {
 
   .rental-action-bar button {
     min-height: 48px;
+  }
+
+  .today-task-card {
+    min-height: 76px;
+  }
+
+  .today-task-card small {
+    white-space: normal;
   }
 
 }
@@ -6223,6 +6331,51 @@ h3 {
   line-height: 1.2;
 }
 
+.document-hub-pivots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.document-hub-pivots button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  min-height: 108px;
+  padding: 15px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(31, 41, 55, 0.9)),
+    #111827;
+  color: white;
+  text-align: left;
+}
+
+.document-hub-pivots strong {
+  font-size: 18px;
+}
+
+.document-hub-pivots span {
+  grid-column: 1 / -1;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.document-hub-pivots em {
+  min-width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #f4c96b;
+  font-style: normal;
+  font-weight: 950;
+}
+
 .document-center-board article {
   display: grid;
   gap: 5px;
@@ -6390,6 +6543,7 @@ h3 {
 @media (max-width: 760px) {
   .onboarding-grid,
   .document-center-board,
+  .document-hub-pivots,
   .document-status-board,
   .document-workbench-grid,
   .rental-folder-grid,

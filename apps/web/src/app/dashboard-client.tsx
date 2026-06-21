@@ -187,7 +187,7 @@ const uiCopy = {
     "section.subtitle.Drivers/Clients": "Customer CRM, documents, rental history and verification files.",
     "section.subtitle.Bookings": "Create bookings, contracts, signatures and WhatsApp customer links.",
     "section.subtitle.Finance": "Payments, expenses, deposits, refunds and ROI by vehicle.",
-    "section.subtitle.Service": "Maintenance, inspections, documents and service workload.",
+    "section.subtitle.Service": "Vehicle, client and rental documents, expiry dates and service files.",
     "section.subtitle.Settings": "Company account, subscription, integrations and business data.",
     "dashboard.activeRentals": "In rental",
     "dashboard.available": "Available now",
@@ -276,12 +276,12 @@ const uiCopy = {
     "form.location": "Location",
     "form.odometerKm": "Mileage, km",
     "form.dailyRate": "Daily rate",
-    "nav.Bookings": "Bookings",
+    "nav.Bookings": "Rentals",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Clients",
     "nav.Finance": "Finance",
     "nav.GPS": "GPS",
-    "nav.Service": "Service",
+    "nav.Service": "Documents",
     "nav.Settings": "Settings",
     "nav.Vehicles": "Vehicles",
     "settings.account": "Company account",
@@ -346,7 +346,7 @@ const uiCopy = {
     "section.subtitle.Drivers/Clients": "CRM клиентов, документы, история аренд и проверочные файлы.",
     "section.subtitle.Bookings": "Брони, договоры, подписи и WhatsApp-ссылки для клиентов.",
     "section.subtitle.Finance": "Оплаты, расходы, депозиты, возвраты и ROI по автомобилям.",
-    "section.subtitle.Service": "ТО, техосмотры, документы и сервисная нагрузка.",
+    "section.subtitle.Service": "Документы авто, клиентов, аренд, сроки действия и сервисные файлы.",
     "section.subtitle.Settings": "Аккаунт компании, подписка, интеграции и бизнес-данные.",
     "dashboard.activeRentals": "В аренде",
     "dashboard.available": "Свободно сейчас",
@@ -435,12 +435,12 @@ const uiCopy = {
     "form.location": "Локация",
     "form.odometerKm": "Пробег, км",
     "form.dailyRate": "Цена в день",
-    "nav.Bookings": "Брони",
+    "nav.Bookings": "Аренды",
     "nav.Dashboard": "Главная",
     "nav.Drivers/Clients": "Клиенты",
     "nav.Finance": "Финансы",
     "nav.GPS": "GPS",
-    "nav.Service": "Сервис",
+    "nav.Service": "Документы",
     "nav.Settings": "Настройки",
     "nav.Vehicles": "Авто",
     "settings.account": "Аккаунт компании",
@@ -505,7 +505,7 @@ const uiCopy = {
     "section.subtitle.Drivers/Clients": "CRM de clientes, documentos, historial de alquileres y verificación.",
     "section.subtitle.Bookings": "Reservas, contratos, firmas y enlaces WhatsApp para clientes.",
     "section.subtitle.Finance": "Pagos, gastos, depósitos, reembolsos y ROI por vehículo.",
-    "section.subtitle.Service": "Mantenimiento, inspecciones, documentos y carga de servicio.",
+    "section.subtitle.Service": "Documentos de autos, clientes, alquileres, vencimientos y servicio.",
     "section.subtitle.Settings": "Cuenta, suscripción, integraciones y datos de negocio.",
     "dashboard.activeRentals": "En alquiler",
     "dashboard.available": "Disponible ahora",
@@ -594,12 +594,12 @@ const uiCopy = {
     "form.location": "Ubicación",
     "form.odometerKm": "Kilometraje, km",
     "form.dailyRate": "Tarifa diaria",
-    "nav.Bookings": "Reservas",
+    "nav.Bookings": "Alquileres",
     "nav.Dashboard": "Panel",
     "nav.Drivers/Clients": "Clientes",
     "nav.Finance": "Finanzas",
     "nav.GPS": "GPS",
-    "nav.Service": "Servicio",
+    "nav.Service": "Documentos",
     "nav.Settings": "Ajustes",
     "nav.Vehicles": "Vehículos",
     "settings.account": "Cuenta de empresa",
@@ -664,7 +664,7 @@ const uiCopy = {
     "section.subtitle.Drivers/Clients": "CRM clients, documents, historique de location et vérification.",
     "section.subtitle.Bookings": "Réservations, contrats, signatures et liens WhatsApp clients.",
     "section.subtitle.Finance": "Paiements, dépenses, dépôts, remboursements et ROI par véhicule.",
-    "section.subtitle.Service": "Maintenance, inspections, documents et charge de service.",
+    "section.subtitle.Service": "Documents véhicules, clients, locations, échéances et service.",
     "section.subtitle.Settings": "Compte, abonnement, intégrations et données business.",
     "dashboard.activeRentals": "En location",
     "dashboard.available": "Disponible",
@@ -753,12 +753,12 @@ const uiCopy = {
     "form.location": "Emplacement",
     "form.odometerKm": "Kilométrage, km",
     "form.dailyRate": "Tarif jour",
-    "nav.Bookings": "Réservations",
+    "nav.Bookings": "Locations",
     "nav.Dashboard": "Tableau",
     "nav.Drivers/Clients": "Clients",
     "nav.Finance": "Finance",
     "nav.GPS": "GPS",
-    "nav.Service": "Service",
+    "nav.Service": "Documents",
     "nav.Settings": "Paramètres",
     "nav.Vehicles": "Véhicules",
     "settings.account": "Compte entreprise",
@@ -823,7 +823,7 @@ const uiCopy = {
     "section.subtitle.Drivers/Clients": "Kunden-CRM, Dokumente, Mietverlauf und Verifizierungsdateien.",
     "section.subtitle.Bookings": "Buchungen, Verträge, Signaturen und WhatsApp-Kundenlinks.",
     "section.subtitle.Finance": "Zahlungen, Kosten, Kautionen, Rückgaben und ROI je Fahrzeug.",
-    "section.subtitle.Service": "Wartung, Inspektionen, Dokumente und Serviceauslastung.",
+    "section.subtitle.Service": "Fahrzeug-, Kunden- und Mietdokumente, Fristen und Serviceakten.",
     "section.subtitle.Settings": "Firmenkonto, Abo, Integrationen und Geschäftsdaten.",
     "dashboard.activeRentals": "Vermietet",
     "dashboard.available": "Jetzt verfügbar",
@@ -912,12 +912,12 @@ const uiCopy = {
     "form.location": "Standort",
     "form.odometerKm": "Kilometerstand, km",
     "form.dailyRate": "Tagespreis",
-    "nav.Bookings": "Buchungen",
+    "nav.Bookings": "Mieten",
     "nav.Dashboard": "Dashboard",
     "nav.Drivers/Clients": "Kunden",
     "nav.Finance": "Finanzen",
     "nav.GPS": "GPS",
-    "nav.Service": "Service",
+    "nav.Service": "Dokumente",
     "nav.Settings": "Einstellungen",
     "nav.Vehicles": "Fahrzeuge",
     "settings.account": "Firmenkonto",
@@ -954,7 +954,7 @@ function sectionIcon(section: Section) {
   if (section === "GPS") return "⌖";
   if (section === "Vehicles") return "▣";
   if (section === "Finance") return "€";
-  if (section === "Service") return "◷";
+  if (section === "Service") return "▤";
   if (section === "Settings") return "⚙";
   return "♙";
 }
@@ -4073,6 +4073,19 @@ function TodayOperationsDashboard({
   const priorityRentals = [...operations.overdueRentals, ...operations.dueToday, ...operations.activeRentals]
     .filter((rental, index, list) => list.findIndex((item) => item.id === rental.id) === index)
     .slice(0, 5);
+  const taskCards = [
+    ...operations.issues.map((issue) => ({ action: issue.action, label: issue.label, meta: issue.meta, tone: issue.tone })),
+    ...priorityRentals.map((rental) => {
+      const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+      const overdue = new Date(rental.returnAt).getTime() < Date.now();
+      return {
+        action: () => onOpenRental(rental),
+        label: overdue ? "Закрыть просроченный возврат" : "Проверить активную аренду",
+        meta: `${vehicle?.plateNumber ?? "Авто"} · ${dateFmt.format(new Date(rental.returnAt))}`,
+        tone: overdue ? "red" as const : "blue" as const,
+      };
+    }),
+  ].filter((task, index, list) => list.findIndex((item) => `${item.label}-${item.meta}` === `${task.label}-${task.meta}`) === index).slice(0, 6);
 
   return (
     <section className="today-operations-board">
@@ -4084,26 +4097,54 @@ function TodayOperationsDashboard({
         </div>
         <div className="operations-hero-actions">
           <button className="primary-button" onClick={onCreateBooking} type="button">Новая бронь</button>
-          <button className="ghost-button" onClick={onOpenFinance} type="button">Финансы</button>
-          <button className="ghost-button" onClick={onOpenDocuments} type="button">Документы</button>
+          <details className="action-menu">
+            <summary>Открыть раздел</summary>
+            <div>
+              <button className="ghost-button" onClick={onOpenFinance} type="button">Финансы</button>
+              <button className="ghost-button" onClick={onOpenDocuments} type="button">Документы</button>
+              <button className="ghost-button" onClick={onCreateService} type="button">Создать ТО</button>
+            </div>
+          </details>
         </div>
       </div>
 
-      <div className="operations-kpi-grid">
-        {cards.map(([label, value, tone]) => (
+      <section className="today-task-board" aria-label="Что делать сегодня">
+        <div className="section-title compact-title">
+          <div>
+            <h2>Что делать сегодня</h2>
+            <p>Открывайте задачи сверху вниз: возвраты, оплаты, документы, GPS и активные аренды.</p>
+          </div>
+          <Badge value={`${taskCards.length} задач`} />
+        </div>
+        <div className="today-task-grid">
+          {taskCards.map((task) => (
+            <button className={`today-task-card ${task.tone}`} key={`${task.label}-${task.meta}`} onClick={task.action} type="button">
+              <span>{task.tone === "red" ? "!" : task.tone === "orange" ? "•" : "→"}</span>
+              <div>
+                <strong>{task.label}</strong>
+                <small>{task.meta}</small>
+              </div>
+            </button>
+          ))}
+          {!taskCards.length ? (
+            <button className="today-task-card green" onClick={onCreateBooking} type="button">
+              <span>✓</span>
+              <div>
+                <strong>Срочных задач нет</strong>
+                <small>Можно создать новую бронь или проверить документы.</small>
+              </div>
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="operations-kpi-grid compact">
+        {cards.slice(0, 4).map(([label, value, tone]) => (
           <article className="metric-card" key={label}>
             <span>{label}</span>
             <strong className={tone}>{value}</strong>
           </article>
         ))}
-        <article className="metric-card priority">
-          <span>Операционные риски</span>
-          <strong className={operations.issues.length ? "red" : "green"}>{operations.issues.length}</strong>
-        </article>
-        <article className="metric-card priority">
-          <span>Чистая прибыль</span>
-          <strong className="green">{money.format(finance.netProfit)}</strong>
-        </article>
       </div>
 
       <div className="operations-main-grid">
@@ -4115,7 +4156,7 @@ function TodayOperationsDashboard({
             <h2>Очередь действий</h2>
             <Badge value={String(operations.issues.length)} />
           </div>
-          {operations.issues.map((issue) => (
+          {operations.issues.slice(0, 4).map((issue) => (
             <button className={`operation-issue ${issue.tone}`} key={`${issue.label}-${issue.meta}`} onClick={issue.action} type="button">
               <strong>{issue.label}</strong>
               <span>{issue.meta}</span>
@@ -4127,11 +4168,6 @@ function TodayOperationsDashboard({
               <span>Можно создать новую бронь, проверить документы или открыть финансы.</span>
             </div>
           ) : null}
-          <div className="operations-fast-actions">
-            <button className="ghost-button" onClick={onCreateBooking} type="button">Бронь</button>
-            <button className="ghost-button" onClick={onCreateService} type="button">ТО</button>
-            <button className="ghost-button" onClick={onOpenDocuments} type="button">Документ</button>
-          </div>
         </aside>
       </div>
 
@@ -4249,6 +4285,19 @@ function RentalDetailPanel({
     { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
     { done: detail.rental.status === "closed", label: "Финал", meta: detail.rental.status === "closed" ? "закрыто" : "в работе" },
   ];
+  const primaryAction = !detail.contract
+    ? { disabled: busy, label: "Создать договор", onClick: onCreateContract }
+    : !contractSigned
+      ? { disabled: busy, label: "Отправить клиенту", onClick: () => onShare("whatsapp", detail.rental) }
+      : !paymentReady
+        ? { disabled: busy, label: "Принять оплату", onClick: onPay }
+        : !pickup
+          ? { disabled: busy, label: "Выдать авто", onClick: () => onCreatePickup(detail.rental) }
+          : !returned
+            ? { disabled: busy, label: "Оформить возврат", onClick: () => onCreateReturn(detail.rental) }
+            : detail.rental.status !== "closed"
+              ? { disabled: busy, label: "Финальный расчёт", onClick: () => onSettle(detail) }
+              : { disabled: true, label: "Аренда закрыта", onClick: () => undefined };
 
   return (
     <section className="rental-detail-panel" data-testid="rental-detail-panel">
@@ -4261,7 +4310,16 @@ function RentalDetailPanel({
         <Badge value={detail.rental.status} />
       </div>
 
-      <div className="rental-detail-timeline" data-testid="rental-detail-timeline">
+      <div className="rental-master-card" data-testid="rental-step-master">
+        <div>
+          <span className="eyebrow">Next step</span>
+          <h3>{primaryAction.label}</h3>
+          <p>{detail.rental.status === "closed" ? "Аренда полностью закрыта." : "FleetCore показывает только следующее нужное действие, чтобы менеджер не терялся в кнопках."}</p>
+        </div>
+        <button className="primary-button" disabled={primaryAction.disabled} onClick={primaryAction.onClick} type="button">{primaryAction.label}</button>
+      </div>
+
+      <div className="rental-detail-timeline rental-step-wizard" data-testid="rental-detail-timeline">
         {steps.map((step) => (
           <article className={step.done ? "done" : ""} key={step.label}>
             <span>{step.done ? "✓" : "•"}</span>
@@ -4342,11 +4400,11 @@ function RentalDetailPanel({
       </div>
 
       <div className="rental-action-bar">
-        <button className="primary-button" disabled={busy} onClick={() => detail.contract ? onOpenPdf(detail) : onCreateContract()} type="button">{detail.contract ? "Открыть PDF" : "Создать договор"}</button>
-        <button className="primary-button" disabled={busy || !returned} onClick={() => onSettle(detail)} type="button">Финальный расчёт</button>
+        <button className="primary-button" disabled={primaryAction.disabled} onClick={primaryAction.onClick} type="button">{primaryAction.label}</button>
         <details className="action-menu">
           <summary>Еще действия</summary>
           <div>
+            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onOpenPdf(detail)} type="button">Открыть PDF</button>
             <button className="ghost-button" disabled={busy} onClick={onRequestContractUpload} type="button">Загрузить договор</button>
             <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
             <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
@@ -4464,6 +4522,24 @@ function DocumentVault({
             <small>{card.meta}</small>
           </article>
         ))}
+      </section>
+
+      <section className="document-hub-pivots" aria-label="Document hub folders">
+        <button onClick={onVehicleFolder} type="button">
+          <strong>Авто</strong>
+          <span>Страховка, регистрация, техосмотр, сервисные PDF</span>
+          <em>{vehicleDocuments.length}</em>
+        </button>
+        <button onClick={onCustomerFolder} type="button">
+          <strong>Клиенты</strong>
+          <span>Паспорт, ID, права, KYC и проверка</span>
+          <em>{customerDocuments.length}</em>
+        </button>
+        <button onClick={onVehicleDocument} type="button">
+          <strong>Аренды</strong>
+          <span>Договор, акты выдачи/возврата, подпись</span>
+          <em>{rentalContracts.length + checklists.length}</em>
+        </button>
       </section>
 
       <section className="document-center-board" aria-label="Document center">
