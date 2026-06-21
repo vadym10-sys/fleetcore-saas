@@ -2126,18 +2126,35 @@ export default function DashboardClient() {
     const rentalResults = visibleRentals
       .map((rental) => ({
         customer: data.customers.find((customer) => customer.id === rental.customerId),
+        invoice: data.invoices.find((invoice) => invoice.rentalId === rental.id),
         rental,
         vehicle: visibleVehicles.find((vehicle) => vehicle.id === rental.vehicleId),
       }))
-      .filter(({ customer, rental, vehicle }) => matches(rental.status, rental.totalAmount, rental.depositAmount, vehicle?.plateNumber, vehicle?.vin, vehicle?.make, vehicle?.model, customer?.displayName, customer?.phone, customer?.email))
-      .slice(0, 5)
-      .map<GlobalSearchResult>(({ customer, rental, vehicle }) => ({
+      .filter(({ customer, invoice, rental, vehicle }) => matches(
+        rental.id,
+        rental.status,
+        rental.totalAmount,
+        rental.depositAmount,
+        rental.pickupAt,
+        rental.returnAt,
+        invoice?.status,
+        invoice?.total,
+        vehicle?.plateNumber,
+        vehicle?.vin,
+        vehicle?.make,
+        vehicle?.model,
+        customer?.displayName,
+        customer?.phone,
+        customer?.email,
+      ))
+      .slice(0, 6)
+      .map<GlobalSearchResult>(({ customer, invoice, rental, vehicle }) => ({
         ...(customer?.id ? { customerId: customer.id } : {}),
         ...(vehicle?.id ? { vehicleId: vehicle.id } : {}),
         id: `rental-${rental.id}`,
         kind: "rental",
-        label: `${vehicle?.make ?? "Авто"} ${vehicle?.model ?? ""}`.trim(),
-        meta: `${customer?.displayName ?? "Клиент"} · ${vehicle?.plateNumber ?? "без номера"} · возврат ${dateFmt.format(new Date(rental.returnAt))}`,
+        label: `${customer?.displayName ?? "Клиент"} · ${vehicle?.plateNumber ?? "без номера"}`,
+        meta: `${rental.id} · ${vehicle?.make ?? "Авто"} ${vehicle?.model ?? ""} · ${rental.status} · ${money.format(rental.totalAmount)} · депозит ${money.format(rental.depositAmount)} · ${invoice?.status ?? "invoice pending"} · возврат ${dateFmt.format(new Date(rental.returnAt))}`,
         rentalId: rental.id,
         section: "Bookings",
       }));
@@ -2176,8 +2193,8 @@ export default function DashboardClient() {
         section: "Service",
       }));
 
-    return [...vehicleResults, ...customerResults, ...rentalResults, ...vehicleDocumentResults, ...customerDocumentResults].slice(0, 10);
-  }, [data.customerDocuments, data.customers, data.documents, search, visibleRentals, visibleVehicles]);
+    return [...rentalResults, ...vehicleResults, ...customerResults, ...vehicleDocumentResults, ...customerDocumentResults].slice(0, 12);
+  }, [data.customerDocuments, data.customers, data.documents, data.invoices, money, search, visibleRentals, visibleVehicles]);
 
   function openSearchResult(result: GlobalSearchResult) {
     if (result.vehicleId) {
@@ -5875,12 +5892,27 @@ function rentalWorkflowReturnAt(returnDate: string, pickupAt: string) {
   return new Date(safeMs).toISOString();
 }
 
+function normalizeRentalWorkflowDates(draft: RentalWorkflowDraft) {
+  const pickupMs = new Date(draft.pickupAt).getTime();
+  const returnMs = new Date(draft.returnAt).getTime();
+  const safePickup = Number.isFinite(pickupMs) ? pickupMs : Date.now();
+  const safeReturn = Number.isFinite(returnMs) && returnMs > safePickup ? returnMs : safePickup + 2 * 24 * 60 * 60 * 1000;
+  const returnDateMs = new Date(draft.returnDate).getTime();
+  const safeReturnDate = Number.isFinite(returnDateMs) && returnDateMs > safePickup ? returnDateMs : safeReturn;
+  return {
+    ...draft,
+    pickupAt: toDatetimeLocal(new Date(safePickup)),
+    returnAt: toDatetimeLocal(new Date(safeReturn)),
+    returnDate: toDatetimeLocal(new Date(safeReturnDate)),
+  };
+}
+
 function buildRentalWorkflowDraft(vehicle: Vehicle | undefined, customer: Customer | undefined, rental: Rental | undefined): RentalWorkflowDraft {
   const pickupAt = rental?.pickupAt ?? new Date().toISOString();
   const returnAt = rental?.returnAt ?? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
   const rentalAmount = String(rental?.totalAmount ?? Math.max(1, (vehicle?.dailyRate ?? 90) * 2));
   const depositAmount = String(rental?.depositAmount ?? 500);
-  return {
+  return normalizeRentalWorkflowDates({
     clientEmail: customer?.email ?? "",
     clientName: customer?.displayName ?? "",
     clientNote: "",
@@ -5898,11 +5930,11 @@ function buildRentalWorkflowDraft(vehicle: Vehicle | undefined, customer: Custom
     returnAt: toDatetimeLocal(returnAt),
     returnCondition: "ok",
     returnDamages: "",
-    returnDate: toDatetimeLocal(new Date()),
+    returnDate: toDatetimeLocal(returnAt),
     selectedCustomerId: customer?.id ?? "",
     selectedRentalId: rental?.id ?? "",
     selectedVehicleId: vehicle?.id ?? "",
-  };
+  });
 }
 
 function RentalWorkflow({
@@ -5950,7 +5982,7 @@ function RentalWorkflow({
       const vehicleExists = vehicles.some((vehicle) => vehicle.id === parsed.selectedVehicleId && vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id));
       const customerExists = customers.some((customer) => customer.id === parsed.selectedCustomerId);
       return {
-        ...parsed,
+        ...normalizeRentalWorkflowDates(parsed),
         selectedCustomerId: customerExists ? parsed.selectedCustomerId : fallback.selectedCustomerId,
         selectedRentalId: rentalExists ? parsed.selectedRentalId : "",
         selectedVehicleId: vehicleExists ? parsed.selectedVehicleId : fallback.selectedVehicleId,
@@ -5977,7 +6009,7 @@ function RentalWorkflow({
   const depositPreview = Number(draft.depositAmount || 0);
 
   function patch(key: keyof RentalWorkflowDraft, value: string) {
-    setDraft((current) => ({ ...current, [key]: value }));
+    setDraft((current) => normalizeRentalWorkflowDates({ ...current, [key]: value }));
   }
 
   function chooseCustomer(customerId: string) {
@@ -6003,6 +6035,9 @@ function RentalWorkflow({
       selectedVehicleId: vehicleId,
     }));
   }
+
+  const quickCustomers = customers.slice(0, 4);
+  const quickVehicles = vehicles.filter((vehicle) => vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id)).slice(0, 4);
 
   async function save(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -6049,6 +6084,40 @@ function RentalWorkflow({
           ))}
         </div>
 
+        <div className="rental-workflow-summary" aria-label="Rental workflow summary">
+          <article>
+            <span>Клиент</span>
+            <strong>{draft.clientName || selectedCustomer?.displayName || "Новый клиент"}</strong>
+            <small>{draft.clientPhone || draft.clientEmail || "телефон / email"}</small>
+          </article>
+          <article>
+            <span>Автомобиль</span>
+            <strong>{selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Выберите авто"}</strong>
+            <small>{selectedVehicle?.plateNumber ?? "номер авто"}</small>
+          </article>
+          <article>
+            <span>Оплата</span>
+            <strong>{money.format(totalPreview || 0)}</strong>
+            <small>депозит {money.format(depositPreview || 0)}</small>
+          </article>
+          <article className={savedRentalId ? "saved" : ""}>
+            <span>Статус</span>
+            <strong>{savedRentalId ? "Сохранена" : "Черновик"}</strong>
+            <small>{savedRentalId || "автосохранение"}</small>
+          </article>
+        </div>
+
+        {savedRentalId ? (
+          <div className="rental-workflow-result" role="status">
+            <div>
+              <span className="eyebrow">Rental record</span>
+              <strong>Аренда структурирована и доступна в поиске</strong>
+              <p>Ищите по имени клиента, телефону, email, номеру авто, VIN, сумме, депозиту или ID аренды: {savedRentalId}.</p>
+            </div>
+            <button className="ghost-button" onClick={() => void send("whatsapp")} type="button">Отправить клиенту</button>
+          </div>
+        ) : null}
+
         <form className="rental-workflow-grid" onSubmit={(event) => void save(event)}>
           <section className="workflow-block">
             <div className="workflow-block-title">
@@ -6064,6 +6133,16 @@ function RentalWorkflow({
                 {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName} · {customer.phone}</option>)}
               </select>
             </label>
+            {quickCustomers.length ? (
+              <div className="workflow-quick-picks" aria-label="Быстрый выбор клиента">
+                {quickCustomers.map((customer) => (
+                  <button className={draft.selectedCustomerId === customer.id ? "active" : ""} key={customer.id} onClick={() => chooseCustomer(customer.id)} type="button">
+                    <strong>{customer.displayName}</strong>
+                    <span>{customer.phone}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="workflow-two">
               <label>Имя<input required value={draft.clientName} onChange={(event) => patch("clientName", event.target.value)} /></label>
               <label>Телефон<input required inputMode="tel" value={draft.clientPhone} onChange={(event) => patch("clientPhone", event.target.value)} /></label>
@@ -6103,6 +6182,16 @@ function RentalWorkflow({
                 })}
               </select>
             </label>
+            {quickVehicles.length ? (
+              <div className="workflow-quick-picks vehicle-picks" aria-label="Быстрый выбор автомобиля">
+                {quickVehicles.map((vehicle) => (
+                  <button className={draft.selectedVehicleId === vehicle.id ? "active" : ""} key={vehicle.id} onClick={() => chooseVehicle(vehicle.id)} type="button">
+                    <strong>{vehicle.make} {vehicle.model}</strong>
+                    <span>{vehicle.plateNumber} · {money.format(vehicle.dailyRate)}/day</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="vehicle-selection-preview">
               <strong>{selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Автомобиль не выбран"}</strong>
               <span>Номер: {selectedVehicle?.plateNumber ?? "-"}</span>

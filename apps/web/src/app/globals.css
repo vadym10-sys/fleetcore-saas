@@ -9048,6 +9048,76 @@ h3 {
   color: #2346d8;
 }
 
+.rental-workflow-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px 4px;
+  background: #f8fafc;
+}
+
+.rental-workflow-summary article {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+}
+
+.rental-workflow-summary span,
+.rental-workflow-summary small {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rental-workflow-summary strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rental-workflow-summary article.saved {
+  border-color: rgba(15, 159, 110, 0.32);
+  background: rgba(15, 159, 110, 0.08);
+}
+
+.rental-workflow-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 18px 0;
+  border: 1px solid rgba(15, 159, 110, 0.28);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(15, 159, 110, 0.11), rgba(35, 70, 216, 0.07));
+  padding: 14px;
+}
+
+.rental-workflow-result div {
+  display: grid;
+  gap: 4px;
+}
+
+.rental-workflow-result strong {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.rental-workflow-result p {
+  margin: 0;
+  color: #475569;
+  font-weight: 750;
+}
+
 .rental-workflow-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9128,6 +9198,50 @@ h3 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.workflow-quick-picks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflow-quick-picks button {
+  min-height: 58px;
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workflow-quick-picks button.active {
+  border-color: rgba(35, 70, 216, 0.42);
+  background: rgba(35, 70, 216, 0.08);
+}
+
+.workflow-quick-picks strong,
+.workflow-quick-picks span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-quick-picks strong {
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.workflow-quick-picks span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .vehicle-selection-preview,
@@ -9213,9 +9327,21 @@ h3 {
     min-width: 128px;
   }
 
+  .rental-workflow-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px 12px 4px;
+  }
+
+  .rental-workflow-result {
+    align-items: stretch;
+    flex-direction: column;
+    margin: 10px 12px 0;
+  }
+
   .rental-workflow-grid,
   .workflow-two,
-  .workflow-send-actions {
+  .workflow-send-actions,
+  .workflow-quick-picks {
     grid-template-columns: 1fr;
   }
 

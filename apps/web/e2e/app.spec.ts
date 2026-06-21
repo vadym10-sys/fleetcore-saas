@@ -213,10 +213,15 @@ test("desktop rental workflow creates rental, enables sending and closes return"
   await workflow.getByLabel("Способ оплаты").selectOption("card");
   await workflow.getByRole("button", { name: "Сохранить аренду" }).click();
   await expect(page.getByRole("status").getByText(/Аренда сохранена/)).toBeVisible({ timeout: 15_000 });
+  await expect(workflow.getByText("Аренда структурирована и доступна в поиске")).toBeVisible();
   await expect(workflow.getByRole("button", { name: "WhatsApp" })).toBeEnabled();
   await workflow.getByLabel("Состояние автомобиля").selectOption("ok");
   await workflow.getByRole("button", { name: "Оформить возврат" }).click();
   await expect(page.getByRole("status").getByText(/Возврат оформлен|уже закрыта/)).toBeVisible({ timeout: 15_000 });
+  await workflow.getByRole("button", { name: "Закрыть" }).click();
+  await page.getByRole("textbox", { name: "Номер, VIN, клиент, телефон" }).fill(`QA Rental ${uniqueId}`);
+  await expect(page.locator(".global-search-results")).toBeVisible();
+  await expect(page.locator(".global-search-results").getByText("Бронь")).toBeVisible();
 });
 
 test("mobile user can enter demo SaaS and navigate through drawer", async ({ page, isMobile }) => {
