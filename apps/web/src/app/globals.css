@@ -528,12 +528,13 @@ h3 {
 
 .apple-map-panel {
   background:
-    linear-gradient(90deg, rgba(190, 200, 214, 0.42) 1px, transparent 1px),
-    linear-gradient(rgba(190, 200, 214, 0.38) 1px, transparent 1px),
-    radial-gradient(circle at 76% 62%, rgba(114, 187, 255, 0.34) 0 18%, transparent 19%),
-    radial-gradient(circle at 20% 28%, rgba(62, 199, 126, 0.16), transparent 18%),
-    #f4f7f6;
-  background-size: 78px 78px, 78px 78px, auto, auto, auto;
+    linear-gradient(90deg, rgba(155, 169, 188, 0.38) 1px, transparent 1px),
+    linear-gradient(rgba(155, 169, 188, 0.34) 1px, transparent 1px),
+    radial-gradient(circle at 72% 66%, rgba(89, 181, 255, 0.42) 0 19%, transparent 20%),
+    radial-gradient(circle at 18% 27%, rgba(57, 203, 132, 0.22), transparent 20%),
+    radial-gradient(circle at 46% 18%, rgba(57, 203, 132, 0.14), transparent 13%),
+    #f1f5f3;
+  background-size: 72px 72px, 72px 72px, auto, auto, auto, auto;
 }
 
 .apple-map-canvas {
@@ -555,9 +556,9 @@ h3 {
   left: -8%;
   right: -10%;
   top: 38%;
-  height: 38px;
+  height: 42px;
   transform: rotate(-15deg);
-  background: rgba(255, 208, 92, 0.62);
+  background: rgba(255, 196, 72, 0.78);
   box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.72);
 }
 
@@ -566,9 +567,9 @@ h3 {
   right: -18%;
   top: 0;
   bottom: -8%;
-  width: 46px;
+  width: 50px;
   transform: rotate(24deg);
-  background: rgba(255, 208, 92, 0.52);
+  background: rgba(255, 196, 72, 0.68);
   box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.74);
 }
 
@@ -576,8 +577,10 @@ h3 {
   position: absolute;
   z-index: 1;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    inset 0 0 0 1px rgba(148, 163, 184, 0.24),
+    0 0 0 5px rgba(231, 235, 240, 0.55);
 }
 
 .apple-map-road.road-one {
@@ -4782,6 +4785,43 @@ h3 {
   grid-column: span 3;
 }
 
+.dashboard-map-overview {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboard-map-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid rgba(221, 227, 236, 0.92);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 44px rgba(18, 22, 45, 0.08);
+}
+
+.dashboard-map-head h2 {
+  margin: 3px 0 5px;
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.dashboard-map-head p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.dashboard-map-overview .large-map {
+  min-height: 560px;
+}
+
 .calendar-workspace {
   display: grid;
   gap: 16px;
@@ -5181,6 +5221,24 @@ h3 {
 }
 
 @media (max-width: 760px) {
+  .dashboard-map-head {
+    display: grid;
+    padding: 16px;
+  }
+
+  .dashboard-map-head h2 {
+    font-size: 24px;
+  }
+
+  .dashboard-map-head .primary-button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .dashboard-map-overview .large-map {
+    min-height: 480px;
+  }
+
   .calendar-hero {
     display: grid;
     padding: 16px;

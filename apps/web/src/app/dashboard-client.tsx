@@ -4230,18 +4230,19 @@ export default function DashboardClient() {
           ) : (
             <TodayOperationsDashboard
               cards={dashboardCards}
+              gpsDevices={data.gpsDevices}
               locale={locale}
               notifications={notifications}
               onCreateBooking={openRentalWorkflow}
-              onCreateService={() => openOperation("service")}
-              onOpenDocuments={() => selectSection("Service")}
-              onOpenFinance={() => selectSection("Finance")}
               onOpenRental={(rental) => {
                 setSelectedRentalId(rental.id);
                 setSelectedVehicleId(rental.vehicleId);
                 selectSection("Bookings");
               }}
+              onSelectVehicle={setSelectedVehicleId}
               operations={operations}
+              rentals={visibleRentals}
+              selectedVehicleId={selectedVehicle?.id}
               selectedRental={selectedRentalDetail}
               vehicles={filteredVehicles}
             />
@@ -4941,25 +4942,25 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
 
 function TodayOperationsDashboard({
   cards,
+  gpsDevices,
   locale,
   notifications,
   onCreateBooking,
-  onCreateService,
-  onOpenDocuments,
-  onOpenFinance,
   onOpenRental,
+  onSelectVehicle,
   operations,
+  rentals,
+  selectedVehicleId,
   selectedRental,
   vehicles,
 }: {
   cards: readonly (readonly [string, string | number, string])[];
+  gpsDevices: GpsDevice[];
   locale: Locale;
   notifications: UiNotification[];
   onCreateBooking: () => void;
-  onCreateService: () => void;
-  onOpenDocuments: () => void;
-  onOpenFinance: () => void;
   onOpenRental: (rental: Rental) => void;
+  onSelectVehicle: (id: string) => void;
   operations: {
     activeRentals: Rental[];
     dueToday: Rental[];
@@ -4972,6 +4973,8 @@ function TodayOperationsDashboard({
     serviceDue: Vehicle[];
     unpaidInvoices: Invoice[];
   };
+  rentals: Rental[];
+  selectedVehicleId: string | undefined;
   selectedRental: RentalDetailContext | undefined;
   vehicles: Vehicle[];
 }) {
@@ -4984,70 +4987,18 @@ function TodayOperationsDashboard({
   const priorityRentals = [...operations.overdueRentals, ...operations.dueToday, ...operations.activeRentals]
     .filter((rental, index, list) => list.findIndex((item) => item.id === rental.id) === index)
     .slice(0, 5);
-  const taskCards = [
-    ...operations.issues.map((issue) => ({ action: issue.action, label: issue.label, meta: issue.meta, tone: issue.tone })),
-    ...priorityRentals.map((rental) => {
-      const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
-      const overdue = new Date(rental.returnAt).getTime() < Date.now();
-      return {
-        action: () => onOpenRental(rental),
-        label: overdue ? "Закрыть просроченный возврат" : "Проверить активную аренду",
-        meta: `${vehicle?.plateNumber ?? "Авто"} · ${dateFmt.format(new Date(rental.returnAt))}`,
-        tone: overdue ? "red" as const : "blue" as const,
-      };
-    }),
-  ].filter((task, index, list) => list.findIndex((item) => `${item.label}-${item.meta}` === `${task.label}-${task.meta}`) === index).slice(0, 6);
-  const inboxCount = taskCards.length || 1;
-
   return (
     <section className="today-operations-board">
-      <div className="operations-hero">
-        <div>
-          <span className="eyebrow">Operations Inbox</span>
-          <h2>Что требует внимания сегодня</h2>
-          <p>Один список задач вместо длинного dashboard: возвраты, оплаты, документы, GPS и активные аренды.</p>
-        </div>
-        <div className="operations-hero-actions">
-          <button className="primary-button" onClick={onCreateBooking} type="button">Новая аренда</button>
-          <details className="action-menu">
-            <summary>Разделы</summary>
-            <div>
-              <button className="ghost-button" onClick={onOpenFinance} type="button">Финансы</button>
-              <button className="ghost-button" onClick={onOpenDocuments} type="button">Документы</button>
-              <button className="ghost-button" onClick={onCreateService} type="button">Создать ТО</button>
-            </div>
-          </details>
-        </div>
-      </div>
-
-      <section className="today-task-board operations-inbox" data-testid="operations-inbox" aria-label="Operations Inbox">
-        <div className="section-title compact-title">
+      <section className="dashboard-map-overview" data-testid="dashboard-map-overview" aria-label="Dashboard fleet map">
+        <div className="dashboard-map-head">
           <div>
-            <h2>Inbox задач</h2>
-            <p>Работайте сверху вниз. Каждая карточка ведет к нужному разделу и действию.</p>
+            <span className="eyebrow">Fleet GPS</span>
+            <h2>Карта автопарка</h2>
+            <p>Google Maps и Apple Maps прямо на главной: позиции авто, скорость, статус GPS и текущие аренды.</p>
           </div>
-          <Badge value={`${inboxCount} задач`} />
+          <button className="primary-button" onClick={onCreateBooking} type="button">Создать аренду</button>
         </div>
-        <div className="today-task-grid">
-          {taskCards.map((task) => (
-            <button className={`today-task-card ${task.tone}`} key={`${task.label}-${task.meta}`} onClick={task.action} type="button">
-              <span>{task.tone === "red" ? "!" : task.tone === "orange" ? "•" : "→"}</span>
-              <div>
-                <strong>{task.label}</strong>
-                <small>{task.meta}</small>
-              </div>
-            </button>
-          ))}
-          {!taskCards.length ? (
-            <button className="today-task-card green" onClick={onCreateBooking} type="button">
-              <span>✓</span>
-              <div>
-                <strong>Срочных задач нет</strong>
-                <small>Можно создать новую бронь или проверить документы.</small>
-              </div>
-            </button>
-          ) : null}
-        </div>
+        <MapPanel gpsDevices={gpsDevices} locale={locale} vehicles={vehicles} rentals={rentals} selectedVehicleId={selectedVehicleId} onSelect={onSelectVehicle} />
       </section>
 
       <div className="operations-kpi-grid compact">
@@ -5114,7 +5065,7 @@ function DashboardLoadingState() {
     <section className="dashboard-loading-state" data-testid="dashboard-loading-state">
       <span className="eyebrow">FleetCore</span>
       <h2>Загружаем рабочий центр</h2>
-      <p>Подтягиваем автомобили, аренды, документы, финансы и GPS. Через несколько секунд появится Operations Inbox.</p>
+      <p>Подтягиваем автомобили, аренды, документы, финансы и GPS. Через несколько секунд появится карта автопарка.</p>
       <div className="loading-card-grid">
         <i />
         <i />

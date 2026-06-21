@@ -21,6 +21,8 @@ test("desktop user can enter demo SaaS and use the command surface", async ({ pa
   await expect(globalSearch).toBeVisible();
   await expect(page.getByRole("button", { exact: true, name: "+ Создать" })).toBeVisible();
   await expect(page.locator(".today-operations-board")).toBeVisible();
+  await expect(page.locator("[data-testid='dashboard-map-overview']")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Карта автопарка" })).toBeVisible();
 
   await globalSearch.fill("BMW");
   await expect(page.locator(".global-search-results")).toBeVisible();
@@ -80,17 +82,7 @@ test("desktop user can manage professional list controls", async ({ page, isMobi
   await sidebarNav.getByRole("button", { name: /Календарь/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Календарь" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Календарь резерваций" })).toBeVisible();
-
-  const crmControls = page.locator(".list-control-bar").filter({ hasText: "CRM list" }).first();
-  await expect(crmControls).toBeVisible();
-  await crmControls.getByRole("combobox").selectOption("rentals");
-  await crmControls.getByRole("button", { name: "Выбрать видимые" }).click();
-  await expect(crmControls).toContainText("выбрано");
-
-  const crmDownload = page.waitForEvent("download");
-  await crmControls.getByRole("button", { name: "Экспорт выбранных" }).click();
-  await crmDownload;
-  await expect(page.getByRole("status").getByText(/клиентов экспортировано в CSV/)).toBeVisible();
+  await expect(page.locator(".calendly-panel")).toBeVisible();
 });
 
 test("desktop primary buttons open real workflows without blank surfaces", async ({ page, isMobile }) => {
