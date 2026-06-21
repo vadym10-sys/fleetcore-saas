@@ -39,6 +39,9 @@ type SectionFocus = {
   title: string;
 };
 type RentalWizardStep = "vehicle" | "customer" | "booking" | "contract" | "send" | "payment" | "return";
+type VehicleSortKey = "status" | "plate" | "return" | "roi";
+type CustomerSortKey = "name" | "risk" | "debt" | "rentals";
+type SavedView<T extends string> = { label: string; value: T };
 type OperationKind =
   | "booking"
   | "contract"
@@ -1277,6 +1280,22 @@ function openEmail(email: string, subject: string, body: string) {
   window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank", "noopener,noreferrer");
 }
 
+function downloadCsv(filename: string, rows: string[][]) {
+  if (typeof window === "undefined") return;
+  const csv = rows
+    .map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, "\"\"")}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 function buildClientIntakeUrl(session: AuthSession, rental?: Rental) {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const params = new URLSearchParams({
@@ -1748,6 +1767,10 @@ export default function DashboardClient() {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
+  const [vehicleSort, setVehicleSort] = useState<VehicleSortKey>("status");
+  const [customerSort, setCustomerSort] = useState<CustomerSortKey>("name");
+  const [selectedFleetIds, setSelectedFleetIds] = useState<string[]>([]);
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [selectedRentalId, setSelectedRentalId] = useState<string | undefined>();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>();
@@ -1886,6 +1909,14 @@ export default function DashboardClient() {
     if (storedLocale && locales.some((item) => item.code === storedLocale)) {
       setLocale(storedLocale as Locale);
     }
+    const storedVehicleSort = localStorage.getItem("fleetcore-vehicle-sort") as VehicleSortKey | null;
+    if (storedVehicleSort && ["status", "plate", "return", "roi"].includes(storedVehicleSort)) {
+      setVehicleSort(storedVehicleSort);
+    }
+    const storedCustomerSort = localStorage.getItem("fleetcore-customer-sort") as CustomerSortKey | null;
+    if (storedCustomerSort && ["name", "risk", "debt", "rentals"].includes(storedCustomerSort)) {
+      setCustomerSort(storedCustomerSort);
+    }
   }, []);
 
   useEffect(() => {
@@ -1897,6 +1928,16 @@ export default function DashboardClient() {
   function changeLocale(nextLocale: Locale) {
     setLocale(nextLocale);
     localStorage.setItem("fleetcore-locale", nextLocale);
+  }
+
+  function changeVehicleSort(nextSort: VehicleSortKey) {
+    setVehicleSort(nextSort);
+    localStorage.setItem("fleetcore-vehicle-sort", nextSort);
+  }
+
+  function changeCustomerSort(nextSort: CustomerSortKey) {
+    setCustomerSort(nextSort);
+    localStorage.setItem("fleetcore-customer-sort", nextSort);
   }
 
   async function loadData(currentToken = token) {
@@ -2161,6 +2202,82 @@ export default function DashboardClient() {
   }, [data.expenses, data.invoices, visibleRentals, visibleVehicles]);
   const totalDeposits = visibleRentals.reduce((sum, rental) => sum + rental.depositAmount, 0);
   const overdueInvoices = data.invoices.filter((invoice) => invoice.status === "overdue");
+
+  const sortedVehicles = useMemo(() => {
+    const returnTime = (vehicle: Vehicle) => {
+      const rental = visibleRentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+      return rental ? new Date(rental.returnAt).getTime() : Number.MAX_SAFE_INTEGER;
+    };
+    const roi = (vehicle: Vehicle) => finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id)?.roi ?? 0;
+    return [...filteredVehicles].sort((left, right) => {
+      if (vehicleSort === "plate") return left.plateNumber.localeCompare(right.plateNumber);
+      if (vehicleSort === "return") return returnTime(left) - returnTime(right);
+      if (vehicleSort === "roi") return roi(right) - roi(left);
+      return `${left.status}-${left.plateNumber}`.localeCompare(`${right.status}-${right.plateNumber}`);
+    });
+  }, [filteredVehicles, finance.incomeByVehicle, vehicleSort, visibleRentals]);
+
+  const filteredCustomers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const customerDebt = (customer: Customer) => {
+      const rentalIds = visibleRentals.filter((rental) => rental.customerId === customer.id).map((rental) => rental.id);
+      return data.invoices
+        .filter((invoice) => invoice.customerId === customer.id || (invoice.rentalId ? rentalIds.includes(invoice.rentalId) : false))
+        .filter((invoice) => invoice.status !== "paid")
+        .reduce((sum, invoice) => sum + invoice.total, 0);
+    };
+    const rentalCount = (customer: Customer) => visibleRentals.filter((rental) => rental.customerId === customer.id).length;
+    return data.customers
+      .filter((customer) => !query || `${customer.displayName} ${customer.phone} ${customer.email}`.toLowerCase().includes(query))
+      .sort((left, right) => {
+        if (customerSort === "risk") return left.riskLevel.localeCompare(right.riskLevel) || left.displayName.localeCompare(right.displayName);
+        if (customerSort === "debt") return customerDebt(right) - customerDebt(left);
+        if (customerSort === "rentals") return rentalCount(right) - rentalCount(left);
+        return left.displayName.localeCompare(right.displayName);
+      });
+  }, [customerSort, data.customers, data.invoices, search, visibleRentals]);
+
+  const selectedVehiclesForBulk = sortedVehicles.filter((vehicle) => selectedFleetIds.includes(vehicle.id));
+  const selectedCustomersForBulk = filteredCustomers.filter((customer) => selectedClientIds.includes(customer.id));
+
+  const vehicleSortViews: Array<SavedView<VehicleSortKey>> = [
+    { label: "Status", value: "status" },
+    { label: "Plate", value: "plate" },
+    { label: "Return date", value: "return" },
+    { label: "ROI", value: "roi" },
+  ];
+  const customerSortViews: Array<SavedView<CustomerSortKey>> = [
+    { label: "Name", value: "name" },
+    { label: "Risk", value: "risk" },
+    { label: "Debt", value: "debt" },
+    { label: "Rentals", value: "rentals" },
+  ];
+
+  function exportVehiclesCsv(vehicles: Vehicle[]) {
+    downloadCsv("fleetcore-vehicles.csv", [
+      ["Make", "Model", "Plate", "VIN", "Status", "Odometer", "Location", "Daily rate", "ROI"],
+      ...vehicles.map((vehicle) => {
+        const roi = finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id)?.roi ?? 0;
+        return [vehicle.make, vehicle.model, vehicle.plateNumber, vehicle.vin, vehicle.status, String(vehicle.odometerKm), vehicle.location, String(vehicle.dailyRate), `${roi}%`];
+      }),
+    ]);
+    setMessage(`${vehicles.length} автомобилей экспортировано в CSV`);
+  }
+
+  function exportCustomersCsv(customers: Customer[]) {
+    downloadCsv("fleetcore-customers.csv", [
+      ["Name", "Email", "Phone", "Type", "Risk", "Rentals"],
+      ...customers.map((customer) => [
+        customer.displayName,
+        customer.email,
+        customer.phone,
+        customer.type,
+        customer.riskLevel,
+        String(visibleRentals.filter((rental) => rental.customerId === customer.id).length),
+      ]),
+    ]);
+    setMessage(`${customers.length} клиентов экспортировано в CSV`);
+  }
 
   const notifications = useMemo<UiNotification[]>(() => {
     const now = Date.now();
@@ -3918,21 +4035,42 @@ export default function DashboardClient() {
               <article><span>{t("vehicle.documents")}</span><strong>{data.documents.length}</strong></article>
             </div>
             <div className="main-column">
+              <ListControlBar
+                count={sortedVehicles.length}
+                emptyLabel="Нет авто в текущем виде"
+                label="Fleet list"
+                onClearSelection={() => setSelectedFleetIds([])}
+                onExport={() => exportVehiclesCsv(sortedVehicles)}
+                onExportSelected={() => exportVehiclesCsv(selectedVehiclesForBulk)}
+                onSelectVisible={() => setSelectedFleetIds(sortedVehicles.map((vehicle) => vehicle.id))}
+                onSortChange={(value) => changeVehicleSort(value as VehicleSortKey)}
+                selectedCount={selectedFleetIds.length}
+                sortOptions={vehicleSortViews}
+                sortValue={vehicleSort}
+              />
               <div className="filter-row">
                 {(["all", "available", "rented", "maintenance", "offline"] as const).map((filter) => (
                   <button className={mapFilter === filter ? "active" : ""} key={filter} onClick={() => setMapFilter(filter)} type="button">{filter}</button>
                 ))}
               </div>
               <div className="vehicle-card-grid">
-                {filteredVehicles.map((vehicle) => {
+                {sortedVehicles.map((vehicle) => {
                   const rental = visibleRentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
                   const customer = data.customers.find((item) => item.id === rental?.customerId);
                   const gps = data.gpsDevices.find((item) => item.vehicleId === vehicle.id);
                   const vehicleFinance = finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id);
                   const hasRentalHistory = visibleRentals.some((item) => item.vehicleId === vehicle.id);
-                  return <VehicleGridCard canDelete={!hasRentalHistory} customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onDelete={() => void removeVehicle(vehicle)} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
+                  return <VehicleGridCard canDelete={!hasRentalHistory} customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onDelete={() => void removeVehicle(vehicle)} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} selectedForBulk={selectedFleetIds.includes(vehicle.id)} vehicle={vehicle} onToggleBulk={() => setSelectedFleetIds((current) => current.includes(vehicle.id) ? current.filter((id) => id !== vehicle.id) : [...current, vehicle.id])} />;
                 })}
               </div>
+              {!sortedVehicles.length ? (
+                <EmptyWorkspaceState
+                  action="Добавить автомобиль"
+                  description="Измените поиск или создайте новый автомобиль, чтобы начать работу с автопарком."
+                  onAction={openVehicleCreate}
+                  title="Автомобили не найдены"
+                />
+              ) : null}
             </div>
             <VehicleForm form={vehicleForm} formRef={vehicleCreateRef} locale={locale} setForm={setVehicleForm} onSubmit={submitVehicle} />
           </section>
@@ -3948,13 +4086,40 @@ export default function DashboardClient() {
                 </div>
                 <Badge value={String(data.customers.length)} />
               </div>
-              {data.customers.filter((customer) => !search || `${customer.displayName} ${customer.phone} ${customer.email}`.toLowerCase().includes(search.toLowerCase())).map((customer) => (
-                <button className={`customer-line ${selectedCustomer?.id === customer.id ? "selected" : ""}`} key={customer.id} onClick={() => setSelectedCustomerId(customer.id)} type="button">
+              <ListControlBar
+                count={filteredCustomers.length}
+                emptyLabel="Нет клиентов в текущем виде"
+                label="CRM list"
+                onClearSelection={() => setSelectedClientIds([])}
+                onExport={() => exportCustomersCsv(filteredCustomers)}
+                onExportSelected={() => exportCustomersCsv(selectedCustomersForBulk)}
+                onSelectVisible={() => setSelectedClientIds(filteredCustomers.map((customer) => customer.id))}
+                onSortChange={(value) => changeCustomerSort(value as CustomerSortKey)}
+                selectedCount={selectedClientIds.length}
+                sortOptions={customerSortViews}
+                sortValue={customerSort}
+              />
+              {filteredCustomers.map((customer) => (
+                <article className={`customer-line ${selectedCustomer?.id === customer.id ? "selected" : ""} ${selectedClientIds.includes(customer.id) ? "bulk-selected" : ""}`} key={customer.id} onClick={() => setSelectedCustomerId(customer.id)} onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") setSelectedCustomerId(customer.id);
+                }} role="button" tabIndex={0}>
+                  <button aria-pressed={selectedClientIds.includes(customer.id)} className="bulk-check" onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedClientIds((current) => current.includes(customer.id) ? current.filter((id) => id !== customer.id) : [...current, customer.id]);
+                  }} type="button">{selectedClientIds.includes(customer.id) ? "✓" : "+"}</button>
                   <div className="avatar small">{customer.displayName.slice(0, 1)}</div>
                   <div><strong>{customer.displayName}</strong><span>{customer.phone} · {customer.email}</span></div>
                   <Badge value={customer.riskLevel === "low" ? t("status.active") : customer.riskLevel} />
-                </button>
+                </article>
               ))}
+              {!filteredCustomers.length ? (
+                <EmptyWorkspaceState
+                  action="Добавить клиента"
+                  description="Измените поиск или создайте нового клиента. После создания можно сразу закрепить автомобиль."
+                  onAction={() => customerCreateRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  title="Клиенты не найдены"
+                />
+              ) : null}
             </div>
             <ClientProfilePanel
               customer={selectedCustomer}
@@ -4499,6 +4664,78 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
         <strong>{title}</strong>
         <p>{text}</p>
       </div>
+    </section>
+  );
+}
+
+function ListControlBar<T extends string>({
+  count,
+  emptyLabel,
+  label,
+  onClearSelection,
+  onExport,
+  onExportSelected,
+  onSelectVisible,
+  onSortChange,
+  selectedCount,
+  sortOptions,
+  sortValue,
+}: {
+  count: number;
+  emptyLabel: string;
+  label: string;
+  onClearSelection: () => void;
+  onExport: () => void;
+  onExportSelected: () => void;
+  onSelectVisible: () => void;
+  onSortChange: (value: T) => void;
+  selectedCount: number;
+  sortOptions: Array<SavedView<T>>;
+  sortValue: T;
+}) {
+  return (
+    <section className="list-control-bar" aria-label={label}>
+      <div className="list-control-summary">
+        <span>{count ? `${count} записей` : emptyLabel}</span>
+        {selectedCount ? <strong>{selectedCount} выбрано</strong> : <strong>Рабочий вид</strong>}
+      </div>
+      <div className="list-control-actions">
+        <label className="compact-select">
+          <span>Sort</span>
+          <select value={sortValue} onChange={(event) => onSortChange(event.target.value as T)}>
+            {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <button className="ghost-button" disabled={!count} onClick={onSelectVisible} type="button">Выбрать видимые</button>
+        <button className="ghost-button" disabled={!selectedCount} onClick={onClearSelection} type="button">Снять выбор</button>
+        <button className="ghost-button" disabled={!count} onClick={onExport} type="button">Экспорт CSV</button>
+        <button className="primary-button" disabled={!selectedCount} onClick={onExportSelected} type="button">Экспорт выбранных</button>
+      </div>
+    </section>
+  );
+}
+
+function EmptyWorkspaceState({
+  action,
+  description,
+  onAction,
+  title,
+}: {
+  action: string;
+  description: string;
+  onAction: () => void;
+  title: string;
+}) {
+  return (
+    <section className="empty-workspace-state">
+      <div>
+        <span className="empty-state-icon">⌕</span>
+      </div>
+      <div>
+        <strong>{title}</strong>
+        <p>{description}</p>
+      </div>
+      <button className="primary-button" onClick={onAction} type="button">{action}</button>
     </section>
   );
 }
@@ -6017,7 +6254,9 @@ function VehicleGridCard({
   locale,
   onDelete,
   onSelect,
+  onToggleBulk,
   rental,
+  selectedForBulk,
   vehicle,
 }: {
   canDelete: boolean;
@@ -6028,13 +6267,19 @@ function VehicleGridCard({
   locale: Locale;
   onDelete: () => void;
   onSelect: () => void;
+  onToggleBulk: () => void;
   rental: Rental | undefined;
+  selectedForBulk: boolean;
   vehicle: Vehicle;
 }) {
   return (
-    <article className={`fleet-vehicle-card ${isSelected ? "selected" : ""}`} onClick={onSelect} onKeyDown={(event) => {
+    <article className={`fleet-vehicle-card ${isSelected ? "selected" : ""} ${selectedForBulk ? "bulk-selected" : ""}`} onClick={onSelect} onKeyDown={(event) => {
       if (event.key === "Enter" || event.key === " ") onSelect();
     }} role="button" tabIndex={0}>
+      <button aria-pressed={selectedForBulk} className="bulk-select-button" onClick={(event) => {
+        event.stopPropagation();
+        onToggleBulk();
+      }} type="button">{selectedForBulk ? "✓" : "+"}</button>
       <button aria-label={translate(locale, "vehicle.delete")} className="vehicle-remove-button" data-disabled={!canDelete} onClick={(event) => {
         event.stopPropagation();
         onDelete();
