@@ -93,8 +93,7 @@ test("dashboard client keeps production account and document flows wired", () =>
     "fleetcore-onboarding-open",
     "DocumentVault",
     "document-vault",
-    "document-hub-pivots",
-    "document-center-board",
+    "document-center-tabs",
     "document-status-board",
     "rental-folder-card",
     "Папки аренды",
@@ -119,9 +118,10 @@ test("dashboard client keeps production account and document flows wired", () =>
     "Следующее лучшее действие",
     "client-priority-card",
     "rental-flow-plus",
-    "Rental Flow Plus",
+    "rental-secondary-details",
     "Финальный расчёт",
     "document-workbench-grid",
+    "calendar-collapse",
     "mapProvider",
     "apple-map-panel",
     "apple-map-canvas",
@@ -157,6 +157,9 @@ test("dashboard client keeps production account and document flows wired", () =>
     "Нет активного Rental Flow",
     "Rental Flow уже завершен",
     "Сессия не найдена",
+    "isDemoNoiseVehicle",
+    "visibleVehicles",
+    "closeTransientSurfaces",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

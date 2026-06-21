@@ -104,6 +104,8 @@ type RentalDetailContext = RentalDocumentFolder & {
   remainingAmount: number;
 };
 
+type DocumentCenterTab = "attention" | "vehicles" | "customers" | "rentals" | "files";
+
 type OperationsIssue = {
   action: () => void;
   label: string;
@@ -1018,6 +1020,12 @@ const money = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR
 const dateFmt = new Intl.DateTimeFormat("ru", { day: "2-digit", month: "short" });
 const folderPickerProps = { directory: "", webkitdirectory: "" } as Record<string, string>;
 
+function isDemoNoiseVehicle(vehicle: Vehicle) {
+  const plate = vehicle.plateNumber.toUpperCase();
+  const name = `${vehicle.make} ${vehicle.model}`.trim().toLowerCase();
+  return /^(BUG|PHOTO|QA|VAL|WEB)-/.test(plate) || name === "test vehicle";
+}
+
 const defaultOperationForm = {
   amount: "100",
   category: "maintenance",
@@ -1854,6 +1862,33 @@ export default function DashboardClient() {
   const token = session?.accessToken;
   const t = (key: string) => translate(locale, key);
 
+  function closeTransientSurfaces() {
+    setCreateSheetOpen(false);
+    setMobileDrawerOpen(false);
+    setSearchOpen(false);
+    setShareDialogOpen(false);
+    setClientIntakeDialogOpen(false);
+  }
+
+  function selectSection(section: Section) {
+    closeTransientSurfaces();
+    setActiveSection(section);
+  }
+
+  function openCreateSheet() {
+    setMobileDrawerOpen(false);
+    setProfileOpen(false);
+    setCreateSheetOpen(true);
+  }
+
+  function openProfileDialog() {
+    setCreateSheetOpen(false);
+    setMobileDrawerOpen(false);
+    setShareDialogOpen(false);
+    setClientIntakeDialogOpen(false);
+    setProfileOpen(true);
+  }
+
   useEffect(() => {
     const stored = localStorage.getItem("fleetcore-session");
     if (stored) {
@@ -1941,7 +1976,7 @@ export default function DashboardClient() {
         setOnboardingOpen(true);
       }
       if (session && localStorage.getItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`) === "1") {
-        setProfileOpen(true);
+        openProfileDialog();
         localStorage.setItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`, "0");
       }
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
@@ -1959,21 +1994,39 @@ export default function DashboardClient() {
 
   useEffect(() => {
     if (!session?.accessToken) return;
+    closeTransientSurfaces();
+    setProfileOpen(false);
+    setOperation(undefined);
+    setDocumentPreview(undefined);
+    setRentalWizardOpen(false);
     loadData().catch((error: unknown) => {
       setLoading(false);
       setMessage(error instanceof Error ? error.message : "Не удалось загрузить данные");
     });
   }, [session?.accessToken]);
 
-  const selectedVehicle = data.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? data.vehicles[0];
-  const activeRental = data.rentals.find((rental) => rental.vehicleId === selectedVehicle?.id && rental.status !== "closed");
+  useEffect(() => {
+    setCreateSheetOpen(false);
+    setMobileDrawerOpen(false);
+    setSearchOpen(false);
+  }, [activeSection]);
+
+  const visibleVehicles = useMemo(() => {
+    if (session?.companyId !== "company_atlas") return data.vehicles;
+    return data.vehicles.filter((vehicle) => !isDemoNoiseVehicle(vehicle));
+  }, [data.vehicles, session?.companyId]);
+  const visibleVehicleIds = useMemo(() => new Set(visibleVehicles.map((vehicle) => vehicle.id)), [visibleVehicles]);
+  const visibleRentals = useMemo(() => data.rentals.filter((rental) => visibleVehicleIds.has(rental.vehicleId)), [data.rentals, visibleVehicleIds]);
+
+  const selectedVehicle = visibleVehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? visibleVehicles[0] ?? data.vehicles[0];
+  const activeRental = visibleRentals.find((rental) => rental.vehicleId === selectedVehicle?.id && rental.status !== "closed");
   const selectedCustomer = data.customers.find((customer) => customer.id === selectedCustomerId)
     ?? data.customers.find((customer) => customer.id === activeRental?.customerId)
     ?? data.customers[0];
   const activeCustomer = selectedCustomer;
   const activeInvoice = data.invoices.find((invoice) => invoice.status !== "paid") ?? data.invoices[0];
   const activeRentalFlow = data.rentalFlows.find((flow) => flow.rental.id === activeRental?.id)
-    ?? data.rentalFlows.find((flow) => flow.rental.status !== "closed")
+    ?? data.rentalFlows.find((flow) => visibleVehicleIds.has(flow.rental.vehicleId) && flow.rental.status !== "closed")
     ?? data.rentalFlows[0];
 
   const globalSearchResults = useMemo<GlobalSearchResult[]>(() => {
@@ -1987,7 +2040,7 @@ export default function DashboardClient() {
         return normalized.includes(query) || normalized.replace(/\s+/g, "").includes(compactQuery);
       });
 
-    const vehicleResults = data.vehicles
+    const vehicleResults = visibleVehicles
       .filter((vehicle) => matches(vehicle.plateNumber, vehicle.vin, vehicle.make, vehicle.model, vehicle.location, vehicle.year))
       .slice(0, 5)
       .map<GlobalSearchResult>((vehicle) => ({
@@ -2011,11 +2064,11 @@ export default function DashboardClient() {
         section: "Drivers/Clients",
       }));
 
-    const rentalResults = data.rentals
+    const rentalResults = visibleRentals
       .map((rental) => ({
         customer: data.customers.find((customer) => customer.id === rental.customerId),
         rental,
-        vehicle: data.vehicles.find((vehicle) => vehicle.id === rental.vehicleId),
+        vehicle: visibleVehicles.find((vehicle) => vehicle.id === rental.vehicleId),
       }))
       .filter(({ customer, rental, vehicle }) => matches(rental.status, rental.totalAmount, rental.depositAmount, vehicle?.plateNumber, vehicle?.vin, vehicle?.make, vehicle?.model, customer?.displayName, customer?.phone, customer?.email))
       .slice(0, 5)
@@ -2033,7 +2086,7 @@ export default function DashboardClient() {
     const vehicleDocumentResults = data.documents
       .map((doc) => ({
         doc,
-        vehicle: data.vehicles.find((vehicle) => vehicle.id === doc.vehicleId),
+        vehicle: visibleVehicles.find((vehicle) => vehicle.id === doc.vehicleId),
       }))
       .filter(({ doc, vehicle }) => matches(doc.title, doc.type, vehicle?.plateNumber, vehicle?.vin, vehicle?.make, vehicle?.model))
       .slice(0, 4)
@@ -2065,7 +2118,7 @@ export default function DashboardClient() {
       }));
 
     return [...vehicleResults, ...customerResults, ...rentalResults, ...vehicleDocumentResults, ...customerDocumentResults].slice(0, 10);
-  }, [data.customerDocuments, data.customers, data.documents, data.rentals, data.vehicles, search]);
+  }, [data.customerDocuments, data.customers, data.documents, search, visibleRentals, visibleVehicles]);
 
   function openSearchResult(result: GlobalSearchResult) {
     if (result.vehicleId) {
@@ -2086,7 +2139,7 @@ export default function DashboardClient() {
     } else {
       setSearch(result.label);
     }
-    setActiveSection(result.section);
+    selectSection(result.section);
     setSearchOpen(false);
     if (result.preview) {
       setDocumentPreview(result.preview);
@@ -2095,8 +2148,8 @@ export default function DashboardClient() {
 
   const filteredVehicles = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return data.vehicles.filter((vehicle) => {
-      const rental = data.rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+    return visibleVehicles.filter((vehicle) => {
+      const rental = visibleRentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
       const customer = data.customers.find((item) => item.id === rental?.customerId);
       const matchesFilter = mapFilter === "all" || vehicle.status === mapFilter;
       const matchesSearch = !query || [
@@ -2109,15 +2162,15 @@ export default function DashboardClient() {
       ].filter(Boolean).some((value) => value!.toLowerCase().includes(query));
       return matchesFilter && matchesSearch;
     });
-  }, [data.customers, data.rentals, data.vehicles, mapFilter, search]);
+  }, [data.customers, mapFilter, search, visibleRentals, visibleVehicles]);
 
   const incomeToday = useMemo(() => data.payments
     .filter((payment) => new Date(payment.paidAt).toDateString() === new Date().toDateString())
     .reduce((sum, payment) => sum + payment.amount, 0), [data.payments]);
 
   const finance = useMemo(() => {
-    const incomeByVehicle = data.vehicles.map((vehicle) => {
-      const rentalIds = data.rentals.filter((rental) => rental.vehicleId === vehicle.id).map((rental) => rental.id);
+    const incomeByVehicle = visibleVehicles.map((vehicle) => {
+      const rentalIds = visibleRentals.filter((rental) => rental.vehicleId === vehicle.id).map((rental) => rental.id);
       const income = data.invoices.filter((invoice) => invoice.rentalId && rentalIds.includes(invoice.rentalId)).reduce((sum, invoice) => sum + invoice.total, 0);
       const expenses = data.expenses.filter((expense) => expense.vehicleId === vehicle.id).reduce((sum, expense) => sum + expense.amount, 0);
       return { expenses, income, roi: expenses ? Math.round(((income - expenses) / expenses) * 100) : 0, vehicle };
@@ -2125,16 +2178,16 @@ export default function DashboardClient() {
     const totalIncome = incomeByVehicle.reduce((sum, item) => sum + item.income, 0);
     const expenses = incomeByVehicle.reduce((sum, item) => sum + item.expenses, 0);
     return { expenses, incomeByVehicle, netProfit: totalIncome - expenses, totalIncome };
-  }, [data.expenses, data.invoices, data.rentals, data.vehicles]);
-  const totalDeposits = data.rentals.reduce((sum, rental) => sum + rental.depositAmount, 0);
+  }, [data.expenses, data.invoices, visibleRentals, visibleVehicles]);
+  const totalDeposits = visibleRentals.reduce((sum, rental) => sum + rental.depositAmount, 0);
   const overdueInvoices = data.invoices.filter((invoice) => invoice.status === "overdue");
 
   const notifications = useMemo<UiNotification[]>(() => {
     const now = Date.now();
-    const dueRentals = data.rentals
+    const dueRentals = visibleRentals
       .filter((rental) => rental.status !== "closed" && new Date(rental.returnAt).getTime() < now)
       .map((rental) => {
-        const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+        const vehicle = visibleVehicles.find((item) => item.id === rental.vehicleId);
         return { id: `rental-${rental.id}`, meta: vehicle?.plateNumber ?? sectionLabel(locale, "Vehicles"), time: t("time.now"), title: t("status.returnDue"), tone: "red" as const };
       });
     const paymentAlerts = data.invoices
@@ -2143,22 +2196,22 @@ export default function DashboardClient() {
     const docAlerts = data.documents
       .filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * 24 * 60 * 60 * 1000)
       .map((doc) => ({ id: `doc-${doc.id}`, meta: doc.title, time: doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "-", title: t("settings.documents"), tone: "orange" as const }));
-    const serviceAlerts = data.vehicles
+    const serviceAlerts = visibleVehicles
       .filter((vehicle) => vehicle.odometerKm > 40_000)
       .map((vehicle) => ({ id: `service-${vehicle.id}`, meta: vehicle.plateNumber, time: `${vehicle.odometerKm.toLocaleString()} км`, title: t("vehicle.serviceCreate"), tone: "blue" as const }));
     return [...dueRentals, ...paymentAlerts, ...docAlerts, ...serviceAlerts].slice(0, 8);
-  }, [data.documents, data.invoices, data.rentals, data.vehicles, locale]);
+  }, [data.documents, data.invoices, locale, visibleRentals, visibleVehicles]);
 
   const dashboardCards = [
-    [t("dashboard.totalVehicles"), data.vehicles.length, "blue"],
-    [t("dashboard.available"), data.vehicles.filter((vehicle) => vehicle.status === "available").length, "green"],
-    [t("dashboard.activeRentals"), data.vehicles.filter((vehicle) => vehicle.status === "rented").length, "blue"],
-    [t("dashboard.overdue"), data.vehicles.filter((vehicle) => vehicle.status === "maintenance").length, "black"],
+    [t("dashboard.totalVehicles"), visibleVehicles.length, "blue"],
+    [t("dashboard.available"), visibleVehicles.filter((vehicle) => vehicle.status === "available").length, "green"],
+    [t("dashboard.activeRentals"), visibleVehicles.filter((vehicle) => vehicle.status === "rented").length, "blue"],
+    [t("dashboard.overdue"), visibleVehicles.filter((vehicle) => vehicle.status === "maintenance").length, "black"],
     [t("dashboard.monthlyRevenue"), money.format(data.metrics.monthlyRevenue), "green"],
     [t("dashboard.todayRevenue"), money.format(incomeToday), "green"],
   ] as const;
   const workflowStats = [
-    { label: t("command.returns"), value: data.rentals.filter((rental) => rental.status === "return_due").length, tone: "orange" },
+    { label: t("command.returns"), value: visibleRentals.filter((rental) => rental.status === "return_due").length, tone: "orange" },
     { label: t("command.overdue"), value: notifications.filter((item) => item.tone === "red").length, tone: "red" },
     { label: t("command.documents"), value: data.documents.length + data.customerDocuments.length, tone: "blue" },
     { label: t("command.contracts"), value: data.rentalContracts.length, tone: "green" },
@@ -2167,24 +2220,24 @@ export default function DashboardClient() {
   const operations = useMemo(() => {
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
-    const activeRentals = data.rentals.filter((rental) => rental.status !== "closed");
+    const activeRentals = visibleRentals.filter((rental) => rental.status !== "closed");
     const dueToday = activeRentals.filter((rental) => Math.abs(new Date(rental.returnAt).getTime() - now) < dayMs);
     const overdueRentals = activeRentals.filter((rental) => new Date(rental.returnAt).getTime() < now);
     const unpaidInvoices = data.invoices.filter((invoice) => invoice.status === "issued" || invoice.status === "overdue");
     const expiringDocs = data.documents.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * dayMs);
     const offlineGps = data.gpsDevices.filter((device) => device.status === "offline" || now - new Date(device.lastSignalAt).getTime() > 2 * 60 * 60 * 1000);
-    const missingVehicleDocs = data.vehicles.filter((vehicle) => !data.documents.some((doc) => doc.vehicleId === vehicle.id));
-    const serviceDue = data.vehicles.filter((vehicle) => vehicle.odometerKm >= 40_000 || data.serviceRecords.some((record) => record.vehicleId === vehicle.id && record.status !== "completed"));
+    const missingVehicleDocs = visibleVehicles.filter((vehicle) => !data.documents.some((doc) => doc.vehicleId === vehicle.id));
+    const serviceDue = visibleVehicles.filter((vehicle) => vehicle.odometerKm >= 40_000 || data.serviceRecords.some((record) => record.vehicleId === vehicle.id && record.status !== "completed"));
     const openContracts = data.rentalContracts.filter((contract) => contract.status !== "signed");
     const issues: OperationsIssue[] = [
       ...overdueRentals.slice(0, 3).map<OperationsIssue>((rental) => {
-        const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+        const vehicle = visibleVehicles.find((item) => item.id === rental.vehicleId);
         const customer = data.customers.find((item) => item.id === rental.customerId);
         return {
           action: () => {
             setSelectedRentalId(rental.id);
             setSelectedVehicleId(rental.vehicleId);
-            setActiveSection("Bookings");
+            selectSection("Bookings");
           },
           label: "Просрочен возврат",
           meta: `${vehicle?.plateNumber ?? "Авто"} · ${customer?.displayName ?? "Клиент"} · ${dateFmt.format(new Date(rental.returnAt))}`,
@@ -2193,7 +2246,7 @@ export default function DashboardClient() {
       }),
       ...unpaidInvoices.slice(0, 3).map<OperationsIssue>((invoice) => ({
         action: () => {
-          setActiveSection("Finance");
+          selectSection("Finance");
           openOperation("payment");
         },
         label: invoice.status === "overdue" ? "Просрочен платеж" : "Ожидает оплаты",
@@ -2203,18 +2256,18 @@ export default function DashboardClient() {
       ...expiringDocs.slice(0, 2).map<OperationsIssue>((doc) => ({
         action: () => {
           setSelectedVehicleId(doc.vehicleId);
-          setActiveSection("Service");
+          selectSection("Service");
         },
         label: "Срок документа",
         meta: `${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`,
         tone: "orange",
       })),
       ...offlineGps.slice(0, 2).map<OperationsIssue>((device) => {
-        const vehicle = data.vehicles.find((item) => item.id === device.vehicleId);
+        const vehicle = visibleVehicles.find((item) => item.id === device.vehicleId);
         return {
           action: () => {
             setSelectedVehicleId(device.vehicleId);
-            setActiveSection("GPS");
+            selectSection("GPS");
           },
           label: "GPS без сигнала",
           meta: `${vehicle?.plateNumber ?? "Авто"} · ${device.provider} · ${dateFmt.format(new Date(device.lastSignalAt))}`,
@@ -2235,11 +2288,12 @@ export default function DashboardClient() {
       serviceDue,
       unpaidInvoices,
     };
-  }, [data.customers, data.documents, data.gpsDevices, data.invoices, data.rentalContracts, data.rentals, data.serviceRecords, data.vehicles]);
+  }, [data.customers, data.documents, data.gpsDevices, data.invoices, data.rentalContracts, data.serviceRecords, visibleRentals, visibleVehicles]);
 
-  const selectedRental = data.rentals.find((rental) => rental.id === selectedRentalId)
-    ?? data.rentals.find((rental) => rental.id === activeRental?.id)
-    ?? data.rentals.find((rental) => rental.status !== "closed")
+  const selectedRental = visibleRentals.find((rental) => rental.id === selectedRentalId)
+    ?? visibleRentals.find((rental) => rental.id === activeRental?.id)
+    ?? visibleRentals.find((rental) => rental.status !== "closed")
+    ?? visibleRentals[0]
     ?? data.rentals[0];
   const selectedRentalDetail = useMemo<RentalDetailContext | undefined>(() => {
     if (!selectedRental) return undefined;
@@ -2262,6 +2316,7 @@ export default function DashboardClient() {
   }, [data.customers, data.invoices, data.payments, data.rentalChecklists, data.rentalContractEvents, data.rentalContracts, data.rentalFlows, data.vehicles, selectedRental]);
 
   function openOperation(kind: OperationKind) {
+    closeTransientSurfaces();
     const vehicle = selectedVehicle ?? data.vehicles[0];
     const customer = activeCustomer ?? data.customers[0];
     const rental = activeRental ?? data.rentals[0];
@@ -2293,6 +2348,8 @@ export default function DashboardClient() {
   }
 
   function openShareDialog() {
+    setCreateSheetOpen(false);
+    setMobileDrawerOpen(false);
     setShareDialogOpen(true);
     setMessage("Выберите канал отправки договора клиенту.");
   }
@@ -2321,7 +2378,7 @@ export default function DashboardClient() {
   }
 
   function focusCreateForm(section: Section, formRef: RefObject<HTMLFormElement | null>, label: string) {
-    setActiveSection(section);
+    selectSection(section);
     setMessage(label);
     window.setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2346,19 +2403,19 @@ export default function DashboardClient() {
 
   function runOnboardingAction(action: "company" | "vehicle" | "customer" | "gps" | "contract" | "manager") {
     if (action === "company") {
-      setActiveSection("Settings");
+      selectSection("Settings");
     } else if (action === "vehicle") {
       openVehicleCreate();
     } else if (action === "customer") {
       openCustomerCreate();
     } else if (action === "gps") {
-      setActiveSection("GPS");
+      selectSection("GPS");
       openOperation("gps");
     } else if (action === "contract") {
-      setActiveSection("Bookings");
+      selectSection("Bookings");
       void createDraftContract();
     } else if (action === "manager") {
-      setProfileOpen(true);
+      openProfileDialog();
     }
     closeOnboarding();
   }
@@ -3385,7 +3442,7 @@ export default function DashboardClient() {
       await runAction("Мастер аренды: готовим автомобиль...", async () => {
         const vehicle = await ensureVehicle();
         await loadData();
-        setActiveSection("Vehicles");
+        selectSection("Vehicles");
         setSelectedVehicleId(vehicle.id);
         setMessage(`Автомобиль готов: ${vehicle.make} ${vehicle.model}`);
       });
@@ -3395,7 +3452,7 @@ export default function DashboardClient() {
       await runAction("Мастер аренды: готовим клиента...", async () => {
         const customer = await ensureCustomer();
         await loadData();
-        setActiveSection("Drivers/Clients");
+        selectSection("Drivers/Clients");
         setSelectedCustomerId(customer.id);
         setMessage(`Клиент готов: ${customer.displayName}`);
       });
@@ -3405,7 +3462,7 @@ export default function DashboardClient() {
       await runAction("Мастер аренды: создаем бронь...", async () => {
         const rental = await ensureRental();
         await loadData();
-        setActiveSection("Bookings");
+        selectSection("Bookings");
         setSelectedRentalId(rental.id);
         setMessage("Бронь создана и выбрана");
       });
@@ -3416,7 +3473,7 @@ export default function DashboardClient() {
         const rental = await ensureRental();
         await createContractRecord("draft", "manual", rental);
         await loadData();
-        setActiveSection("Bookings");
+        selectSection("Bookings");
         setSelectedRentalId(rental.id);
         setMessage("Договор создан");
       });
@@ -3429,11 +3486,11 @@ export default function DashboardClient() {
     }
     if (step === "payment") {
       await payActiveInvoice();
-      setActiveSection("Finance");
+      selectSection("Finance");
       return;
     }
     await returnActiveRental();
-    setActiveSection("Bookings");
+    selectSection("Bookings");
   }
 
   async function requestEmailVerification() {
@@ -3545,7 +3602,7 @@ export default function DashboardClient() {
           : { label: "Мастер аренды", onClick: () => setRentalWizardOpen(true) },
         secondary: [
           { label: "Быстрая бронь", onClick: () => openOperation("booking") },
-          { label: "Документы", onClick: () => setActiveSection("Service") },
+          { label: "Документы", onClick: () => selectSection("Service") },
         ],
         title: firstIssue ? "Сначала решите самое важное" : "Сегодня всё спокойно",
       };
@@ -3556,7 +3613,7 @@ export default function DashboardClient() {
         primary: { label: "Подключить GPS", onClick: () => openOperation("gps") },
         secondary: [
           { label: "Обновить данные", onClick: () => void loadData() },
-          { label: "Автомобили", onClick: () => setActiveSection("Vehicles") },
+          { label: "Автомобили", onClick: () => selectSection("Vehicles") },
         ],
         title: operations.offlineGps.length ? "Проверьте автомобили без сигнала" : "GPS-мониторинг работает",
       };
@@ -3623,7 +3680,7 @@ export default function DashboardClient() {
     }
     return {
       meta: `${session.companyId} · ${session.user.role}`,
-      primary: { label: "Профиль владельца", onClick: () => setProfileOpen(true) },
+      primary: { label: "Профиль владельца", onClick: openProfileDialog },
       secondary: [
         { label: "Мастер настройки", onClick: () => setOnboardingOpen(true) },
         { label: "Выйти", onClick: () => void logout() },
@@ -3732,7 +3789,7 @@ export default function DashboardClient() {
         type="file"
       />
       <aside className="desktop-sidebar">
-        <button className="profile profile-button" onClick={() => setProfileOpen(true)} type="button">
+        <button className="profile profile-button" onClick={openProfileDialog} type="button">
           <div className="avatar">{profilePhoto ? <img alt="" src={profilePhoto} /> : session.user.fullName.slice(0, 1)}</div>
           <div>
             <strong>{session.user.fullName}</strong>
@@ -3742,7 +3799,7 @@ export default function DashboardClient() {
         </button>
         <nav className="side-nav">
           {sections.map((item) => (
-            <button className={activeSection === item ? "active" : ""} key={item} onClick={() => setActiveSection(item)} type="button">
+            <button className={activeSection === item ? "active" : ""} key={item} onClick={() => selectSection(item)} type="button">
               <span className="nav-icon">{sectionIcon(item)}</span>
               <span className="nav-label">{sectionLabel(locale, item)}</span>
               {item === "Service" && notifications.length ? <em>{notifications.length}</em> : null}
@@ -3753,7 +3810,7 @@ export default function DashboardClient() {
           <span>{session.user.role === "owner" ? t("tariff.name") : "Team"}</span>
           <strong>€499 <small>/ {t("tariff.month")}</small></strong>
           <div className="usage"><i /></div>
-          <button onClick={() => setActiveSection("Settings")} type="button">{t("tariff.manage")}</button>
+          <button onClick={() => selectSection("Settings")} type="button">{t("tariff.manage")}</button>
         </div>
         <button className="sidebar-signout-button" onClick={() => void logout()} type="button">
           <span>↩</span>
@@ -3764,7 +3821,7 @@ export default function DashboardClient() {
       <section className="desktop-workspace">
         <header className="desktop-header">
           <div className="header-title-block">
-            <button className="mobile-menu-button" onClick={() => setMobileDrawerOpen(true)} type="button" aria-label="Open menu">☰</button>
+            <button className="mobile-menu-button" onClick={() => { setCreateSheetOpen(false); setProfileOpen(false); setMobileDrawerOpen(true); }} type="button" aria-label="Open menu">☰</button>
             <div>
               <h1>{sectionLabel(locale, activeSection)}</h1>
               <p className={`api-status ${message ? "has-message" : ""}`}>{loading ? t("common.loading") : message || sectionSubtitle(locale, activeSection)}</p>
@@ -3811,7 +3868,7 @@ export default function DashboardClient() {
             </div>
             <LanguageSelect locale={locale} onChange={changeLocale} />
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void loadData()} title={t("common.refresh")} type="button">↻</button>
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setCreateSheetOpen(true)} type="button">{busyAction ? "..." : "+ Создать"}</button>
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={openCreateSheet} type="button">{busyAction ? "..." : "+ Создать"}</button>
           </div>
         </header>
 
@@ -3833,21 +3890,6 @@ export default function DashboardClient() {
           title={t("command.title")}
         />
 
-        {activeSection === "Bookings" && activeRentalFlow ? (
-          <RentalFlowPanel
-            busy={Boolean(busyAction)}
-            events={activeRentalFlow.contract ? data.rentalContractEvents.filter((event) => event.contractId === activeRentalFlow.contract?.id) : []}
-            flow={activeRentalFlow}
-            locale={locale}
-            money={money}
-            onOpenPdf={() => void openRentalContractPdf(activeRentalFlow)}
-            onPrimaryAction={() => void processFlowAction(activeRentalFlow)}
-            onShare={(channel) => void shareRentalContract(channel, activeRentalFlow.rental)}
-            onSign={() => void signRentalFlow(activeRentalFlow)}
-            onSettle={() => void finalizeRentalFlowAction(activeRentalFlow)}
-          />
-        ) : null}
-
         {activeSection === "Dashboard" ? (
           loading && !data.vehicles.length && !data.rentals.length ? (
             <DashboardLoadingState />
@@ -3859,12 +3901,12 @@ export default function DashboardClient() {
               notifications={notifications}
               onCreateBooking={() => openOperation("booking")}
               onCreateService={() => openOperation("service")}
-              onOpenDocuments={() => setActiveSection("Service")}
-              onOpenFinance={() => setActiveSection("Finance")}
+              onOpenDocuments={() => selectSection("Service")}
+              onOpenFinance={() => selectSection("Finance")}
               onOpenRental={(rental) => {
                 setSelectedRentalId(rental.id);
                 setSelectedVehicleId(rental.vehicleId);
-                setActiveSection("Bookings");
+                selectSection("Bookings");
               }}
               operations={operations}
               selectedRental={selectedRentalDetail}
@@ -3876,7 +3918,7 @@ export default function DashboardClient() {
         {activeSection === "GPS" ? (
           <section className="workspace-grid">
             <div className="main-column">
-              <MapPanel gpsDevices={data.gpsDevices} locale={locale} vehicles={filteredVehicles} rentals={data.rentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
+              <MapPanel gpsDevices={data.gpsDevices} locale={locale} vehicles={filteredVehicles} rentals={visibleRentals} selectedVehicleId={selectedVehicle?.id} onSelect={setSelectedVehicleId} />
               <div className="quick-actions-grid">
                 <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("gps")} type="button">{t("gps.connectVehicle")}</button>
                 <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void connectGps()} type="button">{t("gps.fastConnect")}</button>
@@ -3896,7 +3938,7 @@ export default function DashboardClient() {
               <div className="table-panel">
                 <h2>{t("gps.devices")}</h2>
                 {data.gpsDevices.map((device) => {
-                  const vehicle = data.vehicles.find((item) => item.id === device.vehicleId);
+                  const vehicle = visibleVehicles.find((item) => item.id === device.vehicleId);
                   return <p className="history-row" key={device.id}>{vehicle?.plateNumber} · {device.provider} · {device.status} · {device.speedKph} км/ч</p>;
                 })}
                 {!data.gpsDevices.length ? <p className="history-row">{t("gps.empty")}</p> : null}
@@ -3922,9 +3964,9 @@ export default function DashboardClient() {
               vehicle={selectedVehicle}
             />
             <div className="vehicle-kpi-strip">
-              <article><span>{t("dashboard.totalVehicles")}</span><strong>{data.vehicles.length}</strong></article>
-              <article><span>{t("dashboard.available")}</span><strong>{data.vehicles.filter((vehicle) => vehicle.status === "available").length}</strong></article>
-              <article><span>{t("dashboard.activeRentals")}</span><strong>{data.vehicles.filter((vehicle) => vehicle.status === "rented").length}</strong></article>
+              <article><span>{t("dashboard.totalVehicles")}</span><strong>{visibleVehicles.length}</strong></article>
+              <article><span>{t("dashboard.available")}</span><strong>{visibleVehicles.filter((vehicle) => vehicle.status === "available").length}</strong></article>
+              <article><span>{t("dashboard.activeRentals")}</span><strong>{visibleVehicles.filter((vehicle) => vehicle.status === "rented").length}</strong></article>
               <article><span>{t("vehicle.documents")}</span><strong>{data.documents.length}</strong></article>
             </div>
             <div className="main-column">
@@ -3935,11 +3977,11 @@ export default function DashboardClient() {
               </div>
               <div className="vehicle-card-grid">
                 {filteredVehicles.map((vehicle) => {
-                  const rental = data.rentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
+                  const rental = visibleRentals.find((item) => item.vehicleId === vehicle.id && item.status !== "closed");
                   const customer = data.customers.find((item) => item.id === rental?.customerId);
                   const gps = data.gpsDevices.find((item) => item.vehicleId === vehicle.id);
                   const vehicleFinance = finance.incomeByVehicle.find((item) => item.vehicle.id === vehicle.id);
-                  const hasRentalHistory = data.rentals.some((item) => item.vehicleId === vehicle.id);
+                  const hasRentalHistory = visibleRentals.some((item) => item.vehicleId === vehicle.id);
                   return <VehicleGridCard canDelete={!hasRentalHistory} customer={customer} finance={vehicleFinance} gps={gps} isSelected={selectedVehicleId === vehicle.id} key={vehicle.id} locale={locale} onDelete={() => void removeVehicle(vehicle)} onSelect={() => setSelectedVehicleId(vehicle.id)} rental={rental} vehicle={vehicle} />;
                 })}
               </div>
@@ -3977,8 +4019,8 @@ export default function DashboardClient() {
               onUploadDocument={requestCustomerDocumentUpload}
               onUploadFolder={requestCustomerFolderUpload}
               payments={data.payments}
-              rentals={data.rentals}
-              vehicles={data.vehicles}
+              rentals={visibleRentals}
+              vehicles={visibleVehicles}
             />
             <aside className="side-column client-create-column">
               <CustomerForm
@@ -3988,9 +4030,9 @@ export default function DashboardClient() {
                 onAssignVehicle={() => void assignVehicleToNewCustomer()}
                 onCreateVehicle={openVehicleCreate}
                 onSubmit={submitCustomer}
-                rentals={data.rentals}
+                rentals={visibleRentals}
                 setForm={setCustomerForm}
-                vehicles={data.vehicles}
+                vehicles={visibleVehicles}
               />
             </aside>
           </section>
@@ -4029,11 +4071,14 @@ export default function DashboardClient() {
                   <p>Создайте бронь, а FleetCore дальше проведёт по договору, оплате, выдаче и возврату.</p>
                   <button className="primary-button full" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Создать аренду</button>
                 </section>
-                <BookingCalendar customers={data.customers} locale={locale} rentals={data.rentals} vehicles={data.vehicles} />
+                <details className="calendar-collapse">
+                  <summary>Календарь доступности</summary>
+                  <BookingCalendar customers={data.customers} locale={locale} rentals={visibleRentals} vehicles={visibleVehicles.slice(0, 6)} />
+                </details>
               </aside>
             </div>
-            {data.rentals.slice(0, 6).map((rental) => {
-              const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId);
+            {visibleRentals.slice(0, 6).map((rental) => {
+              const vehicle = visibleVehicles.find((item) => item.id === rental.vehicleId);
               const customer = data.customers.find((item) => item.id === rental.customerId);
               const contract = data.rentalContracts.find((item) => item.rentalId === rental.id);
               const contractEvents = contract
@@ -4071,7 +4116,7 @@ export default function DashboardClient() {
                 </article>
               );
             })}
-            {data.rentals.length > 6 ? (
+            {visibleRentals.length > 6 ? (
               <p className="history-row">Показаны 6 ближайших аренд. Используйте поиск сверху, чтобы быстро найти клиента, номер авто или договор.</p>
             ) : null}
           </section>
@@ -4126,11 +4171,11 @@ export default function DashboardClient() {
               onVehicleFolder={requestVehicleFolderUpload}
               rentalContracts={data.rentalContracts}
               rentalContractEvents={data.rentalContractEvents}
-              rentals={data.rentals}
+              rentals={visibleRentals}
               customers={data.customers}
               payments={data.payments}
               serviceRecords={data.serviceRecords}
-              vehicles={data.vehicles}
+              vehicles={visibleVehicles}
               vehicleDocuments={data.documents}
             />
           </section>
@@ -4303,7 +4348,7 @@ export default function DashboardClient() {
         />
       ) : null}
 
-      <button className="mobile-fab" disabled={Boolean(busyAction)} onClick={() => setCreateSheetOpen(true)} type="button" aria-label="Create">+</button>
+      <button className="mobile-fab" disabled={Boolean(busyAction)} onClick={openCreateSheet} type="button" aria-label="Create">+</button>
 
       <CreateActionSheet
         busy={Boolean(busyAction)}
@@ -4329,11 +4374,14 @@ export default function DashboardClient() {
         onLocaleChange={changeLocale}
         onLogin={() => void logout("login")}
         onLogout={() => void logout()}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenProfile={() => {
+          setMobileDrawerOpen(false);
+          setCreateSheetOpen(false);
+          openProfileDialog();
+        }}
         onRegister={() => void logout("register")}
         onSelect={(section) => {
-          setActiveSection(section);
-          setMobileDrawerOpen(false);
+          selectSection(section);
         }}
         open={mobileDrawerOpen}
         photo={profilePhoto}
@@ -4806,7 +4854,7 @@ function RentalDetailPanel({
       </div>
 
       <div className="rental-health-strip" aria-label="Rental health">
-        {operationalHealth.map((item) => (
+        {operationalHealth.slice(0, 4).map((item) => (
           <article className={item.done ? "done" : "attention"} key={item.label}>
             <span>{item.done ? "✓" : "!"}</span>
             <div>
@@ -4817,44 +4865,37 @@ function RentalDetailPanel({
         ))}
       </div>
 
-      <div className="rental-document-strip">
-        <div>
-          <strong>Договор</strong>
-          {detail.contract ? <FilePreviewLink fileUrl={detail.contract.documentUrl} title={contractStatusLabel(locale, detail.contract.status)} /> : <span>не создан</span>}
-          <small>{contractSigned ? "Подписан клиентом" : "Создайте, отправьте и получите подпись"}</small>
+      <details className="rental-secondary-details">
+        <summary>Документы и контроль закрытия</summary>
+        <div className="rental-document-strip">
+          <div>
+            <strong>Договор</strong>
+            {detail.contract ? <FilePreviewLink fileUrl={detail.contract.documentUrl} title={contractStatusLabel(locale, detail.contract.status)} /> : <span>не создан</span>}
+            <small>{contractSigned ? "Подписан клиентом" : "Создайте, отправьте и получите подпись"}</small>
+          </div>
+          <div>
+            <strong>История</strong>
+            {detail.contractEvents.slice(0, 3).map((event) => <span key={event.id}>{contractEventLabel(locale, event)} · {event.channel}</span>)}
+            {!detail.contractEvents.length ? <span>Событий пока нет</span> : null}
+          </div>
         </div>
-        <div>
-          <strong>История</strong>
-          {detail.contractEvents.slice(0, 3).map((event) => <span key={event.id}>{contractEventLabel(locale, event)} · {event.channel}</span>)}
-          {!detail.contractEvents.length ? <span>Событий пока нет</span> : null}
+        <div className="rental-flow-plus-grid compact" data-testid="rental-flow-plus">
+          <section>
+            <h3>Контроль</h3>
+            <p className={detail.contract ? "done" : "pending"}><span>{detail.contract ? "✓" : "•"}</span><strong>PDF договора</strong></p>
+            <p className={contractSigned ? "done" : "pending"}><span>{contractSigned ? "✓" : "•"}</span><strong>Подпись клиента</strong></p>
+            <p className={rentalReady ? "done" : "pending"}><span>{rentalReady ? "✓" : "•"}</span><strong>Выдача разрешена</strong></p>
+            <p className={settlementReady ? "done" : "pending"}><span>{settlementReady ? "✓" : "•"}</span><strong>Можно закрывать аренду</strong></p>
+          </section>
+          <section className="settlement-mini-card">
+            <h3>Финальный расчёт</h3>
+            <div><span>Аренда</span><strong>{rentalMoney.format(detail.rental.totalAmount)}</strong></div>
+            <div><span>Депозит</span><strong>{rentalMoney.format(detail.rental.depositAmount)}</strong></div>
+            <div><span>Остаток</span><strong>{rentalMoney.format(detail.remainingAmount)}</strong></div>
+            <small>{returned ? "Акт возврата готов" : "Сначала создайте акт возврата"}</small>
+          </section>
         </div>
-      </div>
-
-      <div className="rental-flow-plus-grid" data-testid="rental-flow-plus">
-        <section>
-          <h3>Rental Flow Plus</h3>
-          {(detail.flow?.steps ?? steps.map((step) => ({ key: step.label, label: step.label, status: step.done ? "done" : "pending" }))).map((step) => (
-            <p className={step.status === "done" ? "done" : step.status === "blocked" ? "blocked" : "pending"} key={step.key}>
-              <span>{step.status === "done" ? "✓" : step.status === "blocked" ? "!" : "•"}</span>
-              <strong>{step.label}</strong>
-            </p>
-          ))}
-        </section>
-        <section>
-          <h3>Контроль закрытия</h3>
-          <p className={detail.contract ? "done" : "pending"}><span>{detail.contract ? "✓" : "•"}</span><strong>PDF договора</strong></p>
-          <p className={contractSigned ? "done" : "pending"}><span>{contractSigned ? "✓" : "•"}</span><strong>Подпись клиента</strong></p>
-          <p className={rentalReady ? "done" : "pending"}><span>{rentalReady ? "✓" : "•"}</span><strong>Выдача разрешена</strong></p>
-          <p className={settlementReady ? "done" : "pending"}><span>{settlementReady ? "✓" : "•"}</span><strong>Можно закрывать аренду</strong></p>
-        </section>
-        <section className="settlement-mini-card">
-          <h3>Финальный расчёт</h3>
-          <div><span>Аренда</span><strong>{rentalMoney.format(detail.rental.totalAmount)}</strong></div>
-          <div><span>Депозит</span><strong>{rentalMoney.format(detail.rental.depositAmount)}</strong></div>
-          <div><span>Остаток</span><strong>{rentalMoney.format(detail.remainingAmount)}</strong></div>
-          <small>{returned ? "Акт возврата готов" : "Сначала создайте акт возврата"}</small>
-        </section>
-      </div>
+      </details>
 
       <div className="rental-action-bar">
         <button className="primary-button" disabled={primaryAction.disabled} onClick={primaryAction.onClick} type="button">{primaryAction.label}</button>
@@ -4924,12 +4965,6 @@ function DocumentVault({
     .filter((doc) => doc.expiresAt)
     .filter((doc) => new Date(doc.expiresAt ?? "").getTime() - now < 30 * 24 * 60 * 60 * 1000)
     .slice(0, 5);
-  const folders = [
-    { action: onVehicleFolder, count: vehicleDocuments.length, label: "Папка авто", text: "Страховка, регистрация, техосмотр, PDF и фото." },
-    { action: onCustomerFolder, count: customerDocuments.length, label: "Папка клиента", text: "Паспорт, ID, водительские права и KYC." },
-    { action: onDeposit, count: customerDocuments.filter((doc) => doc.title.toLowerCase().includes("депозит")).length, label: "Депозит / возврат", text: "Чеки, подтверждения и документы возврата." },
-    { action: onVehicleDocument, count: rentalContracts.length, label: "Договоры", text: "PDF, публичная ссылка, статус и история действий." },
-  ];
   const rentalFolders: RentalDocumentFolder[] = rentals.slice(0, 8).map((rental) => {
     const invoice = invoices.find((item) => item.rentalId === rental.id);
     const paymentTotal = invoice ? payments.filter((payment) => payment.invoiceId === invoice.id).reduce((sum, payment) => sum + payment.amount, 0) : 0;
@@ -4944,8 +4979,6 @@ function DocumentVault({
     };
   });
   const signedContracts = rentalContracts.filter((contract) => contract.status === "signed").length;
-  const sentContracts = rentalContracts.filter((contract) => contract.status === "sent" || contract.status === "viewed").length;
-  const openReturnActs = checklists.filter((item) => item.phase === "return").length;
   const overdueDocuments = expiringDocuments.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now);
   const verifiedCustomerDocs = customerDocuments.filter((doc) => doc.verified).length;
   const activeRentalFolders = rentalFolders.filter((folder) => folder.rental.status !== "closed").length;
@@ -4956,6 +4989,14 @@ function DocumentVault({
     { label: "Сроки", meta: "истекающие и просроченные документы", status: `${overdueDocuments.length} overdue · ${expiringDocuments.length} soon`, tone: overdueDocuments.length ? "red" : expiringDocuments.length ? "orange" : "green" },
     { label: "Статус", meta: "создан, отправлен, открыт, подписан", status: `${signedContracts}/${rentalContracts.length} signed`, tone: rentalContracts.length && signedContracts === rentalContracts.length ? "green" : "blue" },
   ];
+  const [activeTab, setActiveTab] = useState<DocumentCenterTab>("attention");
+  const tabs: Array<{ count: number; key: DocumentCenterTab; label: string }> = [
+    { count: expiringDocuments.length + overdueDocuments.length, key: "attention", label: "Требует внимания" },
+    { count: vehicleDocuments.length, key: "vehicles", label: "Авто" },
+    { count: customerDocuments.length, key: "customers", label: "Клиенты" },
+    { count: rentalFolders.length, key: "rentals", label: "Аренды" },
+    { count: files.length, key: "files", label: "Файлы" },
+  ];
 
   return (
     <div className="document-vault">
@@ -4963,7 +5004,7 @@ function DocumentVault({
         <div>
           <span className="eyebrow">Document Vault</span>
           <h2>Документы, сроки и операционные акты</h2>
-          <p>Одна рабочая зона для авто, клиента, договора, депозита, выдачи, возврата и ТО.</p>
+          <p>Одна рабочая зона. Откройте нужную папку: авто, клиент, аренда или файлы.</p>
         </div>
         <div className="vault-actions">
           <button className="primary-button" onClick={onVehicleDocument} type="button">Загрузить документ</button>
@@ -4971,190 +5012,158 @@ function DocumentVault({
         </div>
       </section>
 
-      <section className="document-status-board" aria-label="Document status matrix">
-        {documentStatusCards.map((card) => (
-          <article className={card.tone} key={card.label}>
-            <span>{card.label}</span>
-            <strong>{card.status}</strong>
-            <small>{card.meta}</small>
-          </article>
-        ))}
-      </section>
-
-      <section className="document-hub-pivots" aria-label="Document hub folders">
-        <button onClick={onVehicleFolder} type="button">
-          <strong>Авто</strong>
-          <span>Страховка, регистрация, техосмотр, сервисные PDF</span>
-          <em>{vehicleDocuments.length}</em>
-        </button>
-        <button onClick={onCustomerFolder} type="button">
-          <strong>Клиенты</strong>
-          <span>Паспорт, ID, права, KYC и проверка</span>
-          <em>{customerDocuments.length}</em>
-        </button>
-        <button onClick={onVehicleDocument} type="button">
-          <strong>Аренды</strong>
-          <span>Договор, акты выдачи/возврата, подпись</span>
-          <em>{rentalContracts.length + checklists.length}</em>
-        </button>
-      </section>
-
-      <section className="document-center-board" aria-label="Document center">
-        <article>
-          <span>Договоры</span>
-          <strong>{rentalContracts.length}</strong>
-          <small>{signedContracts} подписано · {sentContracts} в работе</small>
-        </article>
-        <article>
-          <span>Акты</span>
-          <strong>{checklists.length}</strong>
-          <small>{openReturnActs} актов возврата · выдача и возврат</small>
-        </article>
-        <article>
-          <span>Файлы</span>
-          <strong>{files.length + vehicleDocuments.length + customerDocuments.length}</strong>
-          <small>Авто, клиент, депозит, PDF</small>
-        </article>
-        <article>
-          <span>История</span>
-          <strong>{rentalContractEvents.length}</strong>
-          <small>Создан, отправлен, открыт, подписан</small>
-        </article>
-      </section>
-
-      <section className="vault-folder-grid">
-        {folders.map((folder) => (
-          <button className="vault-folder" key={folder.label} onClick={folder.action} type="button">
-            <span>{folder.count}</span>
-            <strong>{folder.label}</strong>
-            <small>{folder.text}</small>
+      <section className="document-center-tabs" aria-label="Document center tabs">
+        {tabs.map((tab) => (
+          <button className={activeTab === tab.key ? "active" : ""} key={tab.key} onClick={() => setActiveTab(tab.key)} type="button">
+            <strong>{tab.label}</strong>
+            <span>{tab.count}</span>
           </button>
         ))}
       </section>
 
-      <section className="document-workbench-grid" data-testid="document-workbench-grid">
-        <article className="table-panel">
-          <h2>Авто-документы</h2>
-          {vehicles.slice(0, 5).map((vehicle) => {
-            const docs = vehicleDocuments.filter((doc) => doc.vehicleId === vehicle.id);
-            const soon = docs.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * 24 * 60 * 60 * 1000).length;
-            return (
-              <p className="document-workbench-row" key={vehicle.id}>
-                <strong>{vehicle.plateNumber}</strong>
-                <span>{docs.length} файлов · {soon} сроков</span>
-              </p>
-            );
-          })}
-        </article>
-        <article className="table-panel">
-          <h2>Клиентские папки</h2>
-          {customers.slice(0, 5).map((customer) => {
-            const docs = customerDocuments.filter((doc) => doc.customerId === customer.id);
-            return (
-              <p className="document-workbench-row" key={customer.id}>
-                <strong>{customer.displayName}</strong>
-                <span>{docs.filter((doc) => doc.verified).length}/{docs.length} verified</span>
-              </p>
-            );
-          })}
-        </article>
-        <article className="table-panel">
-          <h2>Папки аренды</h2>
-          {rentalFolders.slice(0, 5).map((folder) => (
-            <p className="document-workbench-row" key={folder.rental.id}>
-              <strong>{folder.vehicle?.plateNumber ?? "Авто"} · {folder.customer?.displayName ?? "Клиент"}</strong>
-              <span>{contractStatusLabel(locale, folder.contract?.status)} · {folder.checklists.length}/2 акта</span>
-            </p>
-          ))}
-        </article>
-      </section>
-
-      <section className="table-panel rental-folder-panel">
-        <div className="section-title compact-title">
-          <h2>Папки аренды</h2>
-          <Badge value={`${rentalFolders.length} активных`} />
-        </div>
-        <div className="rental-folder-grid">
-          {rentalFolders.map((folder) => {
-            const paid = folder.paymentTotal >= (folder.invoice?.total ?? folder.rental.totalAmount);
-            const pickup = folder.checklists.some((item) => item.phase === "pickup");
-            const returned = folder.checklists.some((item) => item.phase === "return");
-            return (
-              <article className="rental-folder-card" key={folder.rental.id}>
-                <div>
-                  <strong>{folder.vehicle ? `${folder.vehicle.make} ${folder.vehicle.model}` : "Автомобиль"}</strong>
-                  <span>{folder.vehicle?.plateNumber ?? "без номера"} · {folder.customer?.displayName ?? "Клиент"}</span>
-                </div>
-                <Badge value={rentalStatusLabel(locale, folder.rental.status)} />
-                <div className="document-center-row">
-                  <span>Договор</span>
-                  {folder.contract ? (
-                    <FilePreviewLink fileUrl={folder.contract.documentUrl} onPreview={onDocumentPreview} title={contractStatusLabel(locale, folder.contract.status)} />
-                  ) : <strong>не создан</strong>}
-                </div>
-                <div className="document-center-row">
-                  <span>Оплата</span>
-                  <strong>{money.format(folder.paymentTotal)} / {money.format(folder.invoice?.total ?? folder.rental.totalAmount)}</strong>
-                </div>
-                <div className="rental-folder-statuses">
-                  <span className={folder.contract?.status === "signed" ? "done" : ""}>PDF</span>
-                  <span className={paid ? "done" : ""}>Оплата</span>
-                  <span className={pickup ? "done" : ""}>Выдача</span>
-                  <span className={returned ? "done" : ""}>Возврат</span>
-                </div>
+      {activeTab === "attention" ? (
+        <>
+          <section className="document-status-board" aria-label="Document status matrix">
+            {documentStatusCards.map((card) => (
+              <article className={card.tone} key={card.label}>
+                <span>{card.label}</span>
+                <strong>{card.status}</strong>
+                <small>{card.meta}</small>
               </article>
-            );
-          })}
-          {!rentalFolders.length ? <p className="history-row">Создайте первую бронь, и здесь появится полная папка аренды.</p> : null}
-        </div>
-      </section>
+            ))}
+          </section>
+          <section className="split-panels">
+            <div className="table-panel">
+              <h2>Сроки документов</h2>
+              {expiringDocuments.map((doc) => (
+                <p className="history-row" key={doc.id}>
+                  <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} />
+                </p>
+              ))}
+              {!expiringDocuments.length ? <p className="history-row">Нет документов, которые истекают в ближайшие 30 дней.</p> : null}
+            </div>
+            <div className="table-panel">
+              <h2>Выдача и возврат</h2>
+              {checklists.slice(0, 5).map((item) => (
+                <p className="history-row" key={item.id}>{item.phase === "pickup" ? "Акт выдачи" : "Акт возврата"} · {item.odometerKm.toLocaleString()} км · топливо {item.fuelLevel}%</p>
+              ))}
+              {!checklists.length ? <p className="history-row">Акты выдачи/возврата появятся после первого rental flow.</p> : null}
+            </div>
+          </section>
+        </>
+      ) : null}
 
-      <section className="split-panels">
-        <div className="table-panel">
-          <h2>Сроки документов</h2>
-          {expiringDocuments.map((doc) => (
-            <p className="history-row" key={doc.id}>
-              <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`} />
-            </p>
-          ))}
-          {!expiringDocuments.length ? <p className="history-row">Нет документов, которые истекают в ближайшие 30 дней.</p> : null}
-        </div>
-        <div className="table-panel">
-          <h2>Выдача и возврат</h2>
-          {checklists.slice(0, 6).map((item) => (
-            <p className="history-row" key={item.id}>{item.phase === "pickup" ? "Акт выдачи" : "Акт возврата"} · {item.odometerKm.toLocaleString()} км · топливо {item.fuelLevel}%</p>
-          ))}
-          {!checklists.length ? <p className="history-row">Акты выдачи/возврата появятся после первого rental flow.</p> : null}
-        </div>
-      </section>
+      {activeTab === "vehicles" ? (
+        <section className="document-workbench-grid" data-testid="document-workbench-grid">
+          <article className="table-panel">
+            <div className="section-title compact-title">
+              <h2>Авто-документы</h2>
+              <button className="ghost-button" onClick={onVehicleFolder} type="button">Загрузить папку авто</button>
+            </div>
+            {vehicles.slice(0, 8).map((vehicle) => {
+              const docs = vehicleDocuments.filter((doc) => doc.vehicleId === vehicle.id);
+              const soon = docs.filter((doc) => doc.expiresAt && new Date(doc.expiresAt).getTime() < now + 30 * 24 * 60 * 60 * 1000).length;
+              return (
+                <p className="document-workbench-row" key={vehicle.id}>
+                  <strong>{vehicle.plateNumber}</strong>
+                  <span>{docs.length} файлов · {soon} сроков</span>
+                </p>
+              );
+            })}
+          </article>
+        </section>
+      ) : null}
 
-      <section className="split-panels">
-        <div className="table-panel">
-          <h2>Документы клиентов</h2>
-          {customerDocuments.slice(0, 6).map((doc) => (
-            <p className="history-row" key={doc.id}>
-              <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.verified ? "verified" : "pending"}`} />
-            </p>
-          ))}
-          {!customerDocuments.length ? <p className="history-row">Загрузите паспорт, ID или водительское удостоверение клиента.</p> : null}
-        </div>
-        <div className="table-panel">
-          <h2>История договоров</h2>
-          {rentalContractEvents.slice(0, 7).map((event) => (
-            <p className="history-row" key={event.id}>{contractEventLabel(locale, event)} · {event.channel} · {dateFmt.format(new Date(event.createdAt))}</p>
-          ))}
-          {!rentalContractEvents.length ? <p className="history-row">История появится после создания и отправки первого договора.</p> : null}
-        </div>
-      </section>
+      {activeTab === "customers" ? (
+        <section className="split-panels">
+          <div className="table-panel">
+            <div className="section-title compact-title">
+              <h2>Клиентские папки</h2>
+              <button className="ghost-button" onClick={onCustomerFolder} type="button">Загрузить папку клиента</button>
+            </div>
+            {customers.slice(0, 8).map((customer) => {
+              const docs = customerDocuments.filter((doc) => doc.customerId === customer.id);
+              return (
+                <p className="document-workbench-row" key={customer.id}>
+                  <strong>{customer.displayName}</strong>
+                  <span>{docs.filter((doc) => doc.verified).length}/{docs.length} verified</span>
+                </p>
+              );
+            })}
+          </div>
+          <div className="table-panel">
+            <h2>Документы клиентов</h2>
+            {customerDocuments.slice(0, 6).map((doc) => (
+              <p className="history-row" key={doc.id}>
+                <FilePreviewLink fileUrl={doc.fileUrl} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.verified ? "verified" : "pending"}`} />
+              </p>
+            ))}
+            {!customerDocuments.length ? <p className="history-row">Загрузите паспорт, ID или водительское удостоверение клиента.</p> : null}
+          </div>
+        </section>
+      ) : null}
 
-      <section className="table-panel">
-        <h2>Последние файлы и ТО</h2>
-        <div className="file-object-list">
-          {files.slice(0, 6).map((file) => <FileObjectRow file={file} key={file.id} onPreview={onDocumentPreview} />)}
-          {serviceRecords.slice(0, 4).map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
-          {!files.length && !serviceRecords.length ? <p className="history-row">Загрузите первый документ или создайте ТО.</p> : null}
-        </div>
-      </section>
+      {activeTab === "rentals" ? (
+        <section className="table-panel rental-folder-panel">
+          <div className="section-title compact-title">
+            <h2>Папки аренды</h2>
+            <Badge value={`${rentalFolders.length} активных`} />
+          </div>
+          <div className="rental-folder-grid">
+            {rentalFolders.map((folder) => {
+              const paid = folder.paymentTotal >= (folder.invoice?.total ?? folder.rental.totalAmount);
+              const pickup = folder.checklists.some((item) => item.phase === "pickup");
+              const returned = folder.checklists.some((item) => item.phase === "return");
+              return (
+                <article className="rental-folder-card" key={folder.rental.id}>
+                  <div>
+                    <strong>{folder.vehicle ? `${folder.vehicle.make} ${folder.vehicle.model}` : "Автомобиль"}</strong>
+                    <span>{folder.vehicle?.plateNumber ?? "без номера"} · {folder.customer?.displayName ?? "Клиент"}</span>
+                  </div>
+                  <Badge value={rentalStatusLabel(locale, folder.rental.status)} />
+                  <div className="document-center-row">
+                    <span>Договор</span>
+                    {folder.contract ? (
+                      <FilePreviewLink fileUrl={folder.contract.documentUrl} onPreview={onDocumentPreview} title={contractStatusLabel(locale, folder.contract.status)} />
+                    ) : <strong>не создан</strong>}
+                  </div>
+                  <div className="document-center-row">
+                    <span>Оплата</span>
+                    <strong>{money.format(folder.paymentTotal)} / {money.format(folder.invoice?.total ?? folder.rental.totalAmount)}</strong>
+                  </div>
+                  <div className="rental-folder-statuses">
+                    <span className={folder.contract?.status === "signed" ? "done" : ""}>PDF</span>
+                    <span className={paid ? "done" : ""}>Оплата</span>
+                    <span className={pickup ? "done" : ""}>Выдача</span>
+                    <span className={returned ? "done" : ""}>Возврат</span>
+                  </div>
+                </article>
+              );
+            })}
+            {!rentalFolders.length ? <p className="history-row">Создайте первую бронь, и здесь появится полная папка аренды.</p> : null}
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === "files" ? (
+        <section className="split-panels">
+          <div className="table-panel">
+            <h2>Последние файлы и ТО</h2>
+            <div className="file-object-list">
+              {files.slice(0, 6).map((file) => <FileObjectRow file={file} key={file.id} onPreview={onDocumentPreview} />)}
+              {serviceRecords.slice(0, 4).map((record) => <p className="history-row" key={record.id}>{record.type} · {record.status} · {money.format(record.cost)} · {record.odometerKm.toLocaleString()} км</p>)}
+              {!files.length && !serviceRecords.length ? <p className="history-row">Загрузите первый документ или создайте ТО.</p> : null}
+            </div>
+          </div>
+          <div className="table-panel">
+            <h2>История договоров</h2>
+            {rentalContractEvents.slice(0, 7).map((event) => (
+              <p className="history-row" key={event.id}>{contractEventLabel(locale, event)} · {event.channel} · {dateFmt.format(new Date(event.createdAt))}</p>
+            ))}
+            {!rentalContractEvents.length ? <p className="history-row">История появится после создания и отправки первого договора.</p> : null}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -5761,6 +5770,8 @@ function CreateActionSheet({
   onUploadDocument: () => void;
   open: boolean;
 }) {
+  if (!open) return null;
+
   function run(action: () => void) {
     if (busy) return;
     action();
@@ -5785,9 +5796,9 @@ function CreateActionSheet({
   ];
 
   return (
-    <div className={`create-action-sheet ${open ? "open" : ""}`} aria-hidden={!open}>
+    <div className="create-action-sheet open" role="dialog" aria-modal="true" aria-label={createLabel}>
       <button className="create-action-backdrop" onClick={onClose} type="button" aria-label={closeLabel} />
-      <section className="create-action-panel" aria-label={createLabel}>
+      <section className="create-action-panel">
         <div className="section-title compact-title">
           <div>
             <span className="eyebrow">FleetCore</span>
