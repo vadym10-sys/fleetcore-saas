@@ -4768,6 +4768,36 @@ h3 {
   box-shadow: 0 28px 90px rgba(15, 23, 42, 0.16);
 }
 
+.client-intake-success {
+  max-width: 520px;
+  text-align: center;
+}
+
+.client-intake-success h1 {
+  margin: 0;
+  font-size: 34px;
+}
+
+.client-intake-success p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 780;
+  line-height: 1.5;
+}
+
+.client-intake-success-mark {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #15b981, #2346d8);
+  color: white;
+  font-size: 34px;
+  font-weight: 950;
+}
+
 .client-intake-hero {
   padding: 18px;
   border-radius: 10px;
@@ -4788,6 +4818,58 @@ h3 {
   font-size: 13px;
   font-weight: 780;
   line-height: 1.45;
+}
+
+.client-intake-hero strong {
+  display: inline-flex;
+  margin-top: 10px;
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.client-intake-progress {
+  height: 8px;
+  margin-top: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.client-intake-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #15b981, #f2c879);
+  transition: width 180ms ease;
+}
+
+.client-intake-steps,
+.client-intake-requirements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.client-intake-steps span,
+.client-intake-requirements span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.client-intake-steps span.done,
+.client-intake-requirements span.done {
+  border-color: rgba(21, 185, 129, 0.34);
+  background: rgba(21, 185, 129, 0.1);
+  color: #0f7f5d;
 }
 
 .client-intake-upload-grid {
@@ -4811,6 +4893,14 @@ h3 {
   font-weight: 900;
 }
 
+.client-intake-upload-grid label span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .client-intake-upload-grid input {
   color: var(--muted);
   font-size: 12px;
@@ -4825,7 +4915,29 @@ h3 {
   background: white;
 }
 
-.client-intake-files span,
+.client-intake-files span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.4;
+}
+
+.client-intake-files button {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 900;
+}
+
 .client-intake-message {
   color: var(--muted);
   font-size: 12px;

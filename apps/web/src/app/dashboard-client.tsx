@@ -1338,13 +1338,68 @@ function LanguageSelect({ locale, onChange }: { locale: Locale; onChange: (local
 }
 
 function ClientIntakeScreen({ params }: { params: { companyId: string; rentalId?: string; tenantId: string } }) {
-  const [form, setForm] = useState({ displayName: "", email: "", note: "", phone: "", type: "individual" as Customer["type"] });
+  const draftKey = `fleetcore-client-intake:${params.tenantId}:${params.companyId}:${params.rentalId ?? "general"}`;
+  const [form, setForm] = useState({
+    address: "",
+    birthDate: "",
+    displayName: "",
+    driverLicenseNumber: "",
+    email: "",
+    note: "",
+    phone: "",
+    pickupLocation: "",
+    type: "individual" as Customer["type"],
+  });
   const [files, setFiles] = useState<{ file: File; title: string; type: CustomerDocument["type"] }[]>([]);
   const [message, setMessage] = useState("Заполните данные и загрузите документы для аренды.");
   const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(draftKey);
+    if (!saved) return;
+    try {
+      setForm((current) => ({ ...current, ...JSON.parse(saved) }));
+      setMessage("Мы восстановили черновик заявки на этом телефоне.");
+    } catch {
+      localStorage.removeItem(draftKey);
+    }
+  }, [draftKey]);
+
+  useEffect(() => {
+    localStorage.setItem(draftKey, JSON.stringify(form));
+  }, [draftKey, form]);
+
+  const requiredDocuments = [
+    { done: files.some((item) => item.title === "Фото клиента"), label: "Фото клиента" },
+    { done: files.some((item) => item.type === "passport" || item.type === "id_card"), label: "Паспорт или ID" },
+    { done: files.some((item) => item.type === "driver_license"), label: "Водительские права" },
+  ];
+  const completedFields = [
+    form.displayName.trim(),
+    form.phone.trim(),
+    form.email.trim(),
+    form.birthDate.trim(),
+    form.driverLicenseNumber.trim(),
+  ].filter(Boolean).length;
+  const progress = Math.round(((completedFields + requiredDocuments.filter((item) => item.done).length) / 8) * 100);
+
+  function intakeNote() {
+    return [
+      form.note ? `Комментарий: ${form.note}` : undefined,
+      form.birthDate ? `Дата рождения: ${form.birthDate}` : undefined,
+      form.address ? `Адрес проживания: ${form.address}` : undefined,
+      form.driverLicenseNumber ? `Номер водительских прав: ${form.driverLicenseNumber}` : undefined,
+      form.pickupLocation ? `Место выдачи/получения авто: ${form.pickupLocation}` : undefined,
+    ].filter(Boolean).join("\n");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!requiredDocuments.every((item) => item.done)) {
+      setMessage("Добавьте обязательные документы: фото клиента, паспорт/ID и водительские права.");
+      return;
+    }
     setSaving(true);
     setMessage("Отправляем заявку...");
     try {
@@ -1365,7 +1420,7 @@ function ClientIntakeScreen({ params }: { params: { companyId: string; rentalId?
             type: form.type,
           },
           files: payloadFiles,
-          note: form.note,
+          note: intakeNote(),
           rentalId: params.rentalId,
           tenantId: params.tenantId,
         }),
@@ -1375,6 +1430,8 @@ function ClientIntakeScreen({ params }: { params: { companyId: string; rentalId?
       if (!response.ok) throw new Error(await response.text());
       setMessage("Заявка отправлена. Компания получила ваши данные и документы.");
       setFiles([]);
+      localStorage.removeItem(draftKey);
+      setSubmitted(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Не удалось отправить заявку");
     } finally {
@@ -1390,37 +1447,79 @@ function ClientIntakeScreen({ params }: { params: { companyId: string; rentalId?
     ]);
   }
 
+  function removeFile(indexToRemove: number) {
+    setFiles((current) => current.filter((_, index) => index !== indexToRemove));
+  }
+
+  if (submitted) {
+    return (
+      <main className="client-intake-page">
+        <section className="client-intake-card client-intake-success" data-testid="client-intake-success">
+          <div className="client-intake-success-mark">✓</div>
+          <span className="eyebrow">FleetCore</span>
+          <h1>Заявка отправлена</h1>
+          <p>Компания получила ваши данные и документы. Менеджер проверит заявку и свяжется с вами по телефону или email.</p>
+          <button className="secondary-button full" type="button" onClick={() => window.close()}>Закрыть страницу</button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="client-intake-page">
       <section className="client-intake-card" data-testid="client-intake-form">
         <div className="client-intake-hero">
           <span className="eyebrow">FleetCore</span>
           <h1>Заявка на аренду автомобиля</h1>
-          <p>Заполните данные, приложите фото и документы. Это безопасно попадёт в систему компании.</p>
+          <p>Заполните данные со своего телефона и загрузите документы. Компания получит заявку в своей системе.</p>
+          <div className="client-intake-progress">
+            <span style={{ width: `${progress}%` }} />
+          </div>
+          <strong>{progress}% готово</strong>
+        </div>
+        <div className="client-intake-steps" aria-label="Client intake checklist">
+          <span className="done">1. Контакты</span>
+          <span className={completedFields >= 5 ? "done" : ""}>2. Личные данные</span>
+          <span className={requiredDocuments.every((item) => item.done) ? "done" : ""}>3. Документы</span>
         </div>
         <form onSubmit={submit}>
           <div className="form-grid">
             <label>Имя и фамилия<input required value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} /></label>
             <label>Телефон<input required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
             <label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+            <label>Дата рождения<input required type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} /></label>
+            <label>Номер водительских прав<input required value={form.driverLicenseNumber} onChange={(event) => setForm({ ...form, driverLicenseNumber: event.target.value })} /></label>
+            <label>Место выдачи авто<input value={form.pickupLocation} onChange={(event) => setForm({ ...form, pickupLocation: event.target.value })} placeholder="Аэропорт, офис, адрес" /></label>
             <label>Тип клиента
               <select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as Customer["type"] })}>
                 <option value="individual">Физическое лицо</option>
                 <option value="business">Компания</option>
               </select>
             </label>
+            <label>Адрес проживания<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></label>
             <label className="wide-field">Комментарий<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Дата аренды, место выдачи, пожелания" /></label>
           </div>
 
+          <div className="client-intake-requirements">
+            {requiredDocuments.map((item) => (
+              <span key={item.label} className={item.done ? "done" : ""}>{item.done ? "✓" : "•"} {item.label}</span>
+            ))}
+          </div>
+
           <div className="client-intake-upload-grid">
-            <label>Фото клиента<input accept="image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "other", "Фото клиента")} /></label>
-            <label>Паспорт<input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "passport", "Паспорт")} /></label>
-            <label>ID карта<input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "id_card", "ID карта")} /></label>
-            <label>Водительские права<input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "driver_license", "Водительские права")} /></label>
+            <label>Фото клиента<span>Селфи или фото лица</span><input accept="image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "other", "Фото клиента")} /></label>
+            <label>Паспорт<span>Фото или PDF основной страницы</span><input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "passport", "Паспорт")} /></label>
+            <label>ID карта<span>Если паспорт не используется</span><input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "id_card", "ID карта")} /></label>
+            <label>Водительские права<span>Лицевая/обратная сторона</span><input accept=".pdf,image/*" multiple type="file" onChange={(event) => addFiles(event.currentTarget.files, "driver_license", "Водительские права")} /></label>
           </div>
 
           <div className="client-intake-files">
-            {files.map((item, index) => <span key={`${item.file.name}-${index}`}>{item.title}: {item.file.name}</span>)}
+            {files.map((item, index) => (
+              <span key={`${item.file.name}-${index}`}>
+                {item.title}: {item.file.name}
+                <button aria-label={`Удалить ${item.file.name}`} type="button" onClick={() => removeFile(index)}>×</button>
+              </span>
+            ))}
             {!files.length ? <span>Файлы ещё не выбраны. Загрузите фото, паспорт/ID и водительские права.</span> : null}
           </div>
 
