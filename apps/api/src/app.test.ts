@@ -818,3 +818,33 @@ test("owners can read company audit log", async () => {
   assert.ok(response.json().data.some((entry: { action: string }) => entry.action === "file.uploaded"));
   assert.ok(response.json().data.some((entry: { action: string }) => entry.action === "rental.contract.signed"));
 });
+
+test("public client intake creates a customer and uploaded documents", async () => {
+  const response = await app.inject({
+    method: "POST",
+    payload: {
+      companyId: "company_atlas",
+      customer: {
+        displayName: "Public Intake Client",
+        email: "public-intake@example.com",
+        phone: "+48 600 222 333",
+        type: "individual",
+      },
+      files: [{
+        base64: Buffer.from("passport scan").toString("base64"),
+        documentType: "passport",
+        mimeType: "text/plain",
+        originalName: "passport.txt",
+        title: "Passport",
+      }],
+      note: "Arriving at airport",
+      tenantId: "tenant_atlas",
+    },
+    url: "/operations/client-intake/public",
+  });
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(response.json().data.customer.email, "public-intake@example.com");
+  assert.equal(response.json().data.documents.length, 1);
+  assert.equal(response.json().data.documents[0].type, "passport");
+});

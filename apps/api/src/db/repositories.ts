@@ -555,6 +555,14 @@ export async function getCustomer(scope: TenantScope, customerId: string) {
   return result.rows[0] ? mapCustomer(result.rows[0]) : undefined;
 }
 
+export async function findCustomerByEmail(scope: TenantScope, email: string) {
+  const result = await pool.query(
+    "select * from customers where tenant_id = $1 and company_id = $2 and lower(email) = lower($3) limit 1",
+    [scope.tenantId, scope.companyId, email],
+  );
+  return result.rows[0] ? mapCustomer(result.rows[0]) : undefined;
+}
+
 export async function createCustomer(scope: TenantScope, input: CustomerInput): Promise<Customer> {
   const result = await pool.query(
     `insert into customers (

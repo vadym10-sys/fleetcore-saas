@@ -1,10 +1,13 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import {
+  createCustomer,
   createCustomerDocument,
   createExpense,
+  createFileObject,
   createRentalContract,
   createRentalContractEvent,
   createServiceRecord,
+  findCustomerByEmail,
   getPublicRentalContract,
   listCustomerDocuments,
   listExpenses,
@@ -13,12 +16,15 @@ import {
   listRentalContracts,
   listServiceRecords,
   signPublicRentalContract,
+  updateCustomer,
   upsertRentalChecklist,
   writeAuditLog,
 } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
-import { customerDocumentInput, expenseInput, publicContractSignatureInput, rentalChecklistInput, rentalContractInput, serviceRecordInput } from "../schemas.js";
+import { customerDocumentInput, expenseInput, publicClientIntakeInput, publicContractSignatureInput, rentalChecklistInput, rentalContractInput, serviceRecordInput } from "../schemas.js";
+
+const maxPublicIntakeFileBytes = Number(process.env.MAX_UPLOAD_BYTES ?? 8 * 1024 * 1024);
 
 function htmlEscape(value: string) {
   return value
@@ -27,6 +33,18 @@ function htmlEscape(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function publicBaseUrl(request: FastifyRequest) {
+  if (process.env.API_PUBLIC_URL) return process.env.API_PUBLIC_URL;
+
+  const forwardedProto = request.headers["x-forwarded-proto"];
+  const protocol = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+  return `${protocol ?? request.protocol}://${request.headers.host}`;
+}
+
+function publicFileUrl(request: FastifyRequest, fileId: string, originalName: string) {
+  return `${publicBaseUrl(request)}/uploads/${fileId}/${encodeURIComponent(originalName)}`;
 }
 
 function contractHtml(contract: { documentUrl: string; id: string; rentalId: string; signedAt?: string; status: string }, token: string) {
@@ -266,6 +284,66 @@ export const operationRoutes: FastifyPluginAsync = async (app) => {
     });
     reply.header("content-type", "text/html; charset=utf-8");
     return reply.send(contractHtml(signed.contract, token));
+  });
+
+  app.post("/operations/client-intake/public", async (request, reply) => {
+    const parsed = publicClientIntakeInput.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid client intake payload", issues: parsed.error.flatten() });
+    }
+
+    const scope = { companyId: parsed.data.companyId, tenantId: parsed.data.tenantId };
+    const existingCustomer = await findCustomerByEmail(scope, parsed.data.customer.email);
+    const customer = existingCustomer
+      ? await updateCustomer(scope, existingCustomer.id, {
+        displayName: parsed.data.customer.displayName,
+        phone: parsed.data.customer.phone,
+        riskLevel: existingCustomer.riskLevel,
+        type: parsed.data.customer.type,
+      }) ?? existingCustomer
+      : await createCustomer(scope, {
+        displayName: parsed.data.customer.displayName,
+        email: parsed.data.customer.email,
+        phone: parsed.data.customer.phone,
+        riskLevel: "low",
+        type: parsed.data.customer.type,
+      });
+    const documents = [];
+
+    for (const intakeFile of parsed.data.files) {
+      const data = Buffer.from(intakeFile.base64, "base64");
+      if (!data.byteLength || data.byteLength > maxPublicIntakeFileBytes) {
+        return reply.code(413).send({ error: `File must be between 1 byte and ${maxPublicIntakeFileBytes} bytes` });
+      }
+
+      const file = await createFileObject(scope, {
+        base64: intakeFile.base64,
+        mimeType: intakeFile.mimeType,
+        originalName: intakeFile.originalName,
+      }, (fileId, originalName) => publicFileUrl(request, fileId, originalName));
+      const document = await createCustomerDocument(scope, {
+        customerId: customer.id,
+        fileUrl: file.publicUrl,
+        title: intakeFile.title,
+        type: intakeFile.documentType,
+        verified: false,
+      });
+      if (document) documents.push(document);
+    }
+
+    await writeAuditLog({
+      action: "client.intake.submitted",
+      actorEmail: customer.email,
+      companyId: scope.companyId,
+      entityId: customer.id,
+      entityType: "customer",
+      ipAddress: request.ip,
+      metadata: { documents: documents.length, note: parsed.data.note, rentalId: parsed.data.rentalId },
+      tenantId: scope.tenantId,
+      userAgent: request.headers["user-agent"]?.toString(),
+    });
+
+    return reply.code(201).send(envelope({ customer, documents }));
   });
 
   app.post("/operations/rental-contracts", async (request, reply) => {

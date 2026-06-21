@@ -210,6 +210,26 @@ export const publicContractSignatureInput = z.object({
   signerName: z.string().trim().min(2),
 });
 
+export const publicClientIntakeInput = z.object({
+  companyId: z.string().min(1),
+  tenantId: z.string().min(1),
+  customer: z.object({
+    displayName: z.string().trim().min(2).max(160),
+    email: z.string().trim().toLowerCase().email(),
+    phone: z.string().trim().min(5).max(80),
+    type: z.enum(["individual", "business"]).default("individual"),
+  }),
+  files: z.array(z.object({
+    base64: z.string().min(1),
+    documentType: z.enum(["passport", "id_card", "driver_license", "other"]).default("other"),
+    mimeType: z.string().min(1).max(120).default("application/octet-stream"),
+    originalName: z.string().min(1).max(255),
+    title: z.string().trim().min(2).max(255),
+  })).max(8).default([]),
+  note: z.string().trim().max(1000).optional(),
+  rentalId: z.string().trim().min(1).optional(),
+});
+
 export const rentalChecklistInput = z.object({
   rentalId: z.string().min(1),
   phase: z.enum(["pickup", "return"]),

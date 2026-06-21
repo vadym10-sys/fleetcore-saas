@@ -1283,6 +1283,17 @@ function openEmail(email: string, subject: string, body: string) {
   window.open(`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, "_blank", "noopener,noreferrer");
 }
 
+function buildClientIntakeUrl(session: AuthSession, rental?: Rental) {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const params = new URLSearchParams({
+    clientIntake: "1",
+    companyId: session.companyId,
+    tenantId: session.tenantId,
+  });
+  if (rental) params.set("rentalId", rental.id);
+  return `${origin}/?${params.toString()}`;
+}
+
 let googleMapsPromise: Promise<GoogleMapsNamespace | undefined> | undefined;
 
 function loadGoogleMaps(apiKey: string) {
@@ -1323,6 +1334,101 @@ function LanguageSelect({ locale, onChange }: { locale: Locale; onChange: (local
         {locales.map((item) => <option key={item.code} value={item.code}>{item.label}</option>)}
       </select>
     </label>
+  );
+}
+
+function ClientIntakeScreen({ params }: { params: { companyId: string; rentalId?: string; tenantId: string } }) {
+  const [form, setForm] = useState({ displayName: "", email: "", note: "", phone: "", type: "individual" as Customer["type"] });
+  const [files, setFiles] = useState<{ file: File; title: string; type: CustomerDocument["type"] }[]>([]);
+  const [message, setMessage] = useState("Заполните данные и загрузите документы для аренды.");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("Отправляем заявку...");
+    try {
+      const payloadFiles = await Promise.all(files.map(async (item) => ({
+        base64: await fileToBase64(item.file),
+        documentType: item.type,
+        mimeType: item.file.type || "application/octet-stream",
+        originalName: item.file.name,
+        title: item.title || item.file.name,
+      })));
+      const response = await fetch(`${API_URL}/operations/client-intake/public`, {
+        body: JSON.stringify({
+          companyId: params.companyId,
+          customer: {
+            displayName: form.displayName,
+            email: form.email,
+            phone: form.phone,
+            type: form.type,
+          },
+          files: payloadFiles,
+          note: form.note,
+          rentalId: params.rentalId,
+          tenantId: params.tenantId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) throw new Error(await response.text());
+      setMessage("Заявка отправлена. Компания получила ваши данные и документы.");
+      setFiles([]);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Не удалось отправить заявку");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function addFiles(list: FileList | null, type: CustomerDocument["type"], title: string) {
+    if (!list?.length) return;
+    setFiles((current) => [
+      ...current,
+      ...Array.from(list).map((file) => ({ file, title, type })),
+    ]);
+  }
+
+  return (
+    <main className="client-intake-page">
+      <section className="client-intake-card" data-testid="client-intake-form">
+        <div className="client-intake-hero">
+          <span className="eyebrow">FleetCore</span>
+          <h1>Заявка на аренду автомобиля</h1>
+          <p>Заполните данные, приложите фото и документы. Это безопасно попадёт в систему компании.</p>
+        </div>
+        <form onSubmit={submit}>
+          <div className="form-grid">
+            <label>Имя и фамилия<input required value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} /></label>
+            <label>Телефон<input required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
+            <label>Email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+            <label>Тип клиента
+              <select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as Customer["type"] })}>
+                <option value="individual">Физическое лицо</option>
+                <option value="business">Компания</option>
+              </select>
+            </label>
+            <label className="wide-field">Комментарий<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Дата аренды, место выдачи, пожелания" /></label>
+          </div>
+
+          <div className="client-intake-upload-grid">
+            <label>Фото клиента<input accept="image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "other", "Фото клиента")} /></label>
+            <label>Паспорт<input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "passport", "Паспорт")} /></label>
+            <label>ID карта<input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "id_card", "ID карта")} /></label>
+            <label>Водительские права<input accept=".pdf,image/*" type="file" onChange={(event) => addFiles(event.currentTarget.files, "driver_license", "Водительские права")} /></label>
+          </div>
+
+          <div className="client-intake-files">
+            {files.map((item, index) => <span key={`${item.file.name}-${index}`}>{item.title}: {item.file.name}</span>)}
+            {!files.length ? <span>Файлы ещё не выбраны. Загрузите фото, паспорт/ID и водительские права.</span> : null}
+          </div>
+
+          <p className="client-intake-message">{message}</p>
+          <button className="primary-button full" disabled={saving} type="submit">{saving ? "Отправляем..." : "Отправить заявку"}</button>
+        </form>
+      </section>
+    </main>
   );
 }
 
@@ -1543,6 +1649,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
 
 export default function DashboardClient() {
   const [locale, setLocale] = useState<Locale>("ru");
+  const [clientIntakeParams, setClientIntakeParams] = useState<{ companyId: string; rentalId?: string; tenantId: string } | undefined>();
   const [session, setSession] = useState<AuthSession | undefined>();
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [activeSection, setActiveSection] = useState<Section>("Dashboard");
@@ -1560,6 +1667,7 @@ export default function DashboardClient() {
   const [documentPreview, setDocumentPreview] = useState<DocumentPreview | undefined>();
   const [profileOpen, setProfileOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [clientIntakeDialogOpen, setClientIntakeDialogOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
@@ -1604,6 +1712,18 @@ export default function DashboardClient() {
     teamUsers: [],
     vehicles: [],
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("clientIntake") !== "1") return;
+    const companyId = params.get("companyId");
+    const tenantId = params.get("tenantId");
+    if (companyId && tenantId) {
+      const rentalId = params.get("rentalId");
+      setClientIntakeParams({ companyId, tenantId, ...(rentalId ? { rentalId } : {}) });
+    }
+  }, []);
   const [vehicleForm, setVehicleForm] = useState({
     dailyRate: "90",
     location: "Warsaw",
@@ -2081,6 +2201,24 @@ export default function DashboardClient() {
   function closeShareDialog() {
     setShareDialogOpen(false);
     setMessage("");
+  }
+
+  function shareClientIntake(channel: "email" | "telegram" | "whatsapp") {
+    if (!session) return;
+    const rental = selectedRental ?? activeRental;
+    const customer = activeCustomer ?? selectedCustomer ?? data.customers[0];
+    const vehicle = selectedVehicle ?? data.vehicles.find((item) => item.id === rental?.vehicleId) ?? data.vehicles[0];
+    const url = buildClientIntakeUrl(session, rental);
+    const text = `Здравствуйте${customer ? `, ${customer.displayName}` : ""}. Заполните, пожалуйста, заявку на аренду FleetCore и загрузите фото/документы: ${url}`;
+    if (channel === "whatsapp") {
+      openWhatsApp(customer?.phone ?? "", text);
+    } else if (channel === "telegram") {
+      openTelegram(vehicle ? `Заявка на аренду ${vehicle.make} ${vehicle.model}` : "Заявка на аренду FleetCore", url);
+    } else {
+      openEmail(customer?.email ?? "", "FleetCore rental application", text);
+    }
+    setClientIntakeDialogOpen(false);
+    setMessage(`Ссылка заявки клиента открыта для отправки: ${channel}`);
   }
 
   function focusCreateForm(section: Section, formRef: RefObject<HTMLFormElement | null>, label: string) {
@@ -3290,6 +3428,10 @@ export default function DashboardClient() {
     setSession(undefined);
   }
 
+  if (clientIntakeParams) {
+    return <ClientIntakeScreen params={clientIntakeParams} />;
+  }
+
   if (!session) {
     return <AuthScreen initialMode={authMode} locale={locale} onLocaleChange={changeLocale} onSession={setSession} />;
   }
@@ -4048,6 +4190,17 @@ export default function DashboardClient() {
         />
       ) : null}
 
+      {clientIntakeDialogOpen ? (
+        <ClientIntakeShareDialog
+          busy={Boolean(busyAction)}
+          customer={activeCustomer ?? selectedCustomer ?? data.customers[0]}
+          intakeUrl={buildClientIntakeUrl(session, selectedRental ?? activeRental)}
+          onClose={() => setClientIntakeDialogOpen(false)}
+          onShare={shareClientIntake}
+          vehicle={selectedVehicle}
+        />
+      ) : null}
+
       {rentalWizardOpen ? (
         <RentalScenarioWizard
           busy={Boolean(busyAction)}
@@ -4078,6 +4231,7 @@ export default function DashboardClient() {
         onCreateExpense={() => openOperation("expense")}
         onCreateService={() => openOperation("service")}
         onCreateVehicle={openVehicleCreate}
+        onOpenClientIntake={() => setClientIntakeDialogOpen(true)}
         onOpenRentalWizard={() => setRentalWizardOpen(true)}
         onShareContract={openShareDialog}
         onUploadDocument={requestVehicleDocumentUpload}
@@ -5438,6 +5592,7 @@ function CreateActionSheet({
   onCreateExpense,
   onCreateService,
   onCreateVehicle,
+  onOpenClientIntake,
   onOpenRentalWizard,
   onShareContract,
   onUploadDocument,
@@ -5451,6 +5606,7 @@ function CreateActionSheet({
   onCreateExpense: () => void;
   onCreateService: () => void;
   onCreateVehicle: () => void;
+  onOpenClientIntake: () => void;
   onOpenRentalWizard: () => void;
   onShareContract: () => void;
   onUploadDocument: () => void;
@@ -5469,6 +5625,7 @@ function CreateActionSheet({
     : "Choose one action. FleetCore will guide the next steps inside the workflow.";
   const actions = [
     { description: locale === "ru" ? "Авто, клиент, бронь, договор, оплата и возврат." : "Vehicle, customer, booking, contract, payment and return.", label: locale === "ru" ? "Мастер аренды" : "Rental wizard", onClick: onOpenRentalWizard },
+    { description: locale === "ru" ? "Клиент сам заполнит данные и загрузит документы." : "Client fills data and uploads documents.", label: locale === "ru" ? "Заявка клиента" : "Client intake", onClick: onOpenClientIntake },
     { description: locale === "ru" ? "Бронь, договор, депозит, выдача и возврат." : "Booking, contract, deposit, pickup and return.", label: locale === "ru" ? "Новая аренда" : "New rental", onClick: onCreateBooking },
     { description: locale === "ru" ? "Добавить машину в автопарк." : "Add a vehicle to the fleet.", label: locale === "ru" ? "Автомобиль" : "Vehicle", onClick: onCreateVehicle },
     { description: locale === "ru" ? "CRM-карточка клиента и документы." : "Customer CRM profile and documents.", label: locale === "ru" ? "Клиент" : "Customer", onClick: onCreateCustomer },
@@ -5771,6 +5928,48 @@ function ShareContractDialog({ busy, customer, onClose, onShare, rental, vehicle
           <button disabled={busy} onClick={() => onShare("telegram")} type="button">
             <strong>Telegram</strong>
             <span>Открыть отправку ссылки</span>
+          </button>
+          <button disabled={busy} onClick={() => onShare("email")} type="button">
+            <strong>Email</strong>
+            <span>Создать письмо клиенту</span>
+          </button>
+        </div>
+        <div className="modal-actions">
+          <button className="ghost-button" disabled={busy} onClick={onClose} type="button">Отмена</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ClientIntakeShareDialog({ busy, customer, intakeUrl, onClose, onShare, vehicle }: { busy: boolean; customer: Customer | undefined; intakeUrl: string; onClose: () => void; onShare: (channel: "email" | "telegram" | "whatsapp") => void; vehicle: Vehicle | undefined }) {
+  const title = vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}` : "Заявка клиента";
+  const customerLabel = customer ? `${customer.displayName} · ${customer.phone}` : "Можно отправить новому клиенту";
+
+  return (
+    <div className="modal-backdrop">
+      <section className="operation-modal share-modal" role="dialog" aria-modal="true" aria-label="Отправка заявки клиента">
+        <div className="modal-title">
+          <div>
+            <span>Client intake</span>
+            <h2>Отправить заявку клиенту</h2>
+          </div>
+          <button onClick={onClose} type="button">×</button>
+        </div>
+        <div className="share-hero">
+          <strong>{title}</strong>
+          <span>{customerLabel}</span>
+          <p>Клиент откроет ссылку, заполнит данные, загрузит фото, паспорт/ID и водительские права. После отправки клиент и документы появятся в CRM и Document Center.</p>
+        </div>
+        <div className="client-intake-link-box">{intakeUrl}</div>
+        <div className="share-channel-grid">
+          <button disabled={busy} onClick={() => onShare("whatsapp")} type="button">
+            <strong>WhatsApp</strong>
+            <span>Открыть чат с заявкой</span>
+          </button>
+          <button disabled={busy} onClick={() => onShare("telegram")} type="button">
+            <strong>Telegram</strong>
+            <span>Отправить ссылку заявки</span>
           </button>
           <button disabled={busy} onClick={() => onShare("email")} type="button">
             <strong>Email</strong>

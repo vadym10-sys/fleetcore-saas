@@ -4734,6 +4734,109 @@ h3 {
   line-height: 1.35;
 }
 
+.client-intake-link-box {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.client-intake-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(35, 70, 216, 0.12), transparent 30%),
+    linear-gradient(135deg, #f8fafc, #eef2f7);
+}
+
+.client-intake-card {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.16);
+}
+
+.client-intake-hero {
+  padding: 18px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(35, 70, 216, 0.82));
+  color: white;
+}
+
+.client-intake-hero h1 {
+  margin: 6px 0;
+  color: white;
+  font-size: 30px;
+}
+
+.client-intake-hero p {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.45;
+}
+
+.client-intake-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.client-intake-upload-grid label {
+  min-height: 92px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px dashed rgba(35, 70, 216, 0.3);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.client-intake-upload-grid input {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.client-intake-files {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.client-intake-files span,
+.client-intake-message {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1.4;
+}
+
+.client-intake-message {
+  margin: 12px 0;
+}
+
 .document-preview-frame {
   height: min(58vh, 560px);
   overflow: hidden;
@@ -6999,6 +7102,24 @@ h3 {
 
   .share-channel-grid button {
     min-height: 84px;
+  }
+
+  .client-intake-page {
+    padding: 10px;
+    place-items: stretch;
+  }
+
+  .client-intake-card {
+    align-self: start;
+    padding: 12px;
+  }
+
+  .client-intake-upload-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-intake-hero h1 {
+    font-size: 26px;
   }
 
   .document-preview-actions {
