@@ -208,6 +208,8 @@ erDiagram
 
 ## Target DMS
 
+Implementation status: the first production-safe DMS migration is implemented in `infra/postgres/migrations/0019_unified_dms.sql`. It adds the canonical tables, backfills legacy vehicle/customer/contract documents, and keeps legacy tables online for compatibility while the frontend is migrated.
+
 FleetCore should use one DMS instead of separate vehicle/customer/rental document tables.
 
 ### Tables
@@ -614,6 +616,8 @@ Add `documents`, `document_versions`, `document_links`, `document_tags`, `docume
 
 Keep existing tables read-compatible.
 
+Status: implemented in `0019_unified_dms.sql`.
+
 ### Phase 2: Backfill Existing Documents
 
 Backfill:
@@ -622,6 +626,8 @@ Backfill:
 - `customer_documents` into `documents` + `document_links`.
 - `rental_contracts` into `documents` + links to rental/customer/vehicle/contract.
 - `file_objects` into `document_versions` where possible.
+
+Status: legacy vehicle documents, customer documents, and rental contracts are backfilled. File versions remain the next storage migration because existing legacy rows primarily store URLs, not canonical file object ids.
 
 ### Phase 3: Move UI To Document Center
 
@@ -650,4 +656,3 @@ The user experience becomes:
 - rental details show one workflow from booking to final settlement;
 - document center becomes the single source of truth;
 - global search can find customer, vehicle, rental, contract, payment, and document without guessing where it was uploaded.
-

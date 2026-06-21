@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, Expense, FileObject, FleetDocument, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 
 type DbRow = Record<string, unknown>;
 
@@ -238,6 +238,62 @@ export function mapCustomerDocument(row: DbRow): CustomerDocument {
     title: String(row.title),
     fileUrl: String(row.file_url),
     verified: Boolean(row.verified),
+  };
+}
+
+function jsonArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function jsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+export function mapFleetDocument(row: DbRow): FleetDocument {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    ...(row.document_number ? { documentNumber: String(row.document_number) } : {}),
+    title: String(row.title),
+    category: row.category as FleetDocument["category"],
+    type: String(row.type),
+    status: row.status as FleetDocument["status"],
+    source: row.source as FleetDocument["source"],
+    ...(row.current_version_id ? { currentVersionId: String(row.current_version_id) } : {}),
+    ...(row.issued_at ? { issuedAt: iso(row.issued_at) } : {}),
+    ...(row.expires_at ? { expiresAt: iso(row.expires_at) } : {}),
+    ...(row.verified_at ? { verifiedAt: iso(row.verified_at) } : {}),
+    metadata: jsonObject(row.metadata),
+    tags: jsonArray(row.tags).map(String),
+    links: jsonArray(row.links).map((link) => {
+      const item = jsonObject(link);
+      return {
+        entityId: String(item.entityId ?? item.entity_id ?? ""),
+        entityType: String(item.entityType ?? item.entity_type ?? "company") as FleetDocument["links"][number]["entityType"],
+        relationType: String(item.relationType ?? item.relation_type ?? "attached"),
+      };
+    }).filter((link) => link.entityId.length > 0),
   };
 }
 

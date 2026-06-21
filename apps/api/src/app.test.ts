@@ -763,6 +763,21 @@ test("authenticated API can manage business operations", async () => {
   assert.equal(customerDocument.statusCode, 201);
   assert.equal(customerDocument.json().data.customerId, customer.id);
 
+  const vehicleDocument = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+      fileUrl: "https://example.com/insurance.pdf",
+      title: "Insurance certificate",
+      type: "insurance",
+      vehicleId: vehicle.id,
+    },
+    url: "/documents/vehicles",
+  });
+  assert.equal(vehicleDocument.statusCode, 201);
+  assert.equal(vehicleDocument.json().data.vehicleId, vehicle.id);
+
   const checklist = await app.inject({
     headers: { authorization: `Bearer ${token}` },
     method: "POST",
@@ -826,6 +841,15 @@ test("authenticated API can manage business operations", async () => {
   assert.equal(contract.json().data.rentalId, rental.id);
   assert.equal(contract.json().data.status, "sent");
   assert.equal(typeof contract.json().data.publicUrl, "string");
+
+  const unifiedDocuments = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: `/documents?entityType=vehicle&entityId=${vehicle.id}`,
+  });
+  assert.equal(unifiedDocuments.statusCode, 200);
+  assert.ok(unifiedDocuments.json().data.some((item: { category: string; title: string }) => item.category === "vehicle_compliance" && item.title === "Insurance certificate"));
+  assert.ok(unifiedDocuments.json().data.some((item: { category: string }) => item.category === "rental_contract"));
 
   const publicUrl = new URL(contract.json().data.publicUrl);
   const viewed = await app.inject({

@@ -1,10 +1,21 @@
 import type { FastifyPluginAsync } from "fastify";
-import { createVehicleDocument, listVehicleDocuments, writeAuditLog } from "../db/repositories.js";
+import { createVehicleDocument, listFleetDocuments, listVehicleDocuments, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
 import { vehicleDocumentInput } from "../schemas.js";
 
 export const documentRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/documents", async (request) => {
+    const { category, entityId, entityType, query, status } = request.query as {
+      category?: string;
+      entityId?: string;
+      entityType?: string;
+      query?: string;
+      status?: string;
+    };
+    return envelope(await listFleetDocuments(getTenantScope(request), { category, entityId, entityType, query, status }));
+  });
+
   app.get("/documents/vehicles", async (request) => {
     const { vehicleId } = request.query as { vehicleId?: string };
     return envelope(await listVehicleDocuments(getTenantScope(request), vehicleId));

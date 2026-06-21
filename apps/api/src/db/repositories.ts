@@ -1,9 +1,9 @@
-import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, FleetDocument, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
 import { createId } from "../lib/http.js";
-import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalChecklist, mapRentalContract, mapRentalContractEvent, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
+import { mapCompany, mapCustomer, mapCustomerDocument, mapExpense, mapFileObject, mapFleetDocument, mapGpsDevice, mapInvoice, mapPayment, mapRental, mapRentalChecklist, mapRentalContract, mapRentalContractEvent, mapServiceRecord, mapUser, mapVehicle, mapVehicleDocument } from "./mappers.js";
 import type {
   customerInput,
   customerPatchInput,
@@ -1143,7 +1143,170 @@ export async function createVehicleDocument(scope: TenantScope, input: VehicleDo
       input.expiresAt ?? null,
     ],
   );
-  return mapVehicleDocument(result.rows[0]);
+  const document = mapVehicleDocument(result.rows[0]);
+  await upsertCanonicalDocument({
+    category: input.type === "rental_contract" ? "rental_contract" : input.type === "other" ? "other" : "vehicle_compliance",
+    companyId: scope.companyId,
+    expiresAt: input.expiresAt,
+    id: `doc_vehicle_${document.id}`,
+    links: [{ entityId: input.vehicleId, entityType: "vehicle", relationType: "attached" }],
+    metadata: { fileUrl: input.fileUrl, legacyId: document.id, legacyTable: "vehicle_documents" },
+    source: "upload",
+    status: input.expiresAt && new Date(input.expiresAt) < new Date() ? "expired" : "valid",
+    tenantId: scope.tenantId,
+    title: input.title,
+    type: input.type,
+  });
+  return document;
+}
+
+async function upsertCanonicalDocument(input: {
+  category: FleetDocument["category"];
+  companyId: string;
+  expiresAt?: string | undefined;
+  id: string;
+  links: Array<{ entityId: string; entityType: FleetDocument["links"][number]["entityType"]; relationType: string }>;
+  metadata: Record<string, unknown>;
+  source: FleetDocument["source"];
+  status: FleetDocument["status"];
+  tenantId: string;
+  title: string;
+  type: string;
+  verifiedAt?: string | undefined;
+}) {
+  await pool.query(
+    `insert into documents (
+      id, tenant_id, company_id, title, category, type, status, source, expires_at, verified_at, search_text, metadata
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+    on conflict (id) do update set
+      title = excluded.title,
+      category = excluded.category,
+      type = excluded.type,
+      status = excluded.status,
+      source = excluded.source,
+      expires_at = excluded.expires_at,
+      verified_at = excluded.verified_at,
+      search_text = excluded.search_text,
+      metadata = excluded.metadata,
+      updated_at = now()`,
+    [
+      input.id,
+      input.tenantId,
+      input.companyId,
+      input.title,
+      input.category,
+      input.type,
+      input.status,
+      input.source,
+      input.expiresAt ?? null,
+      input.verifiedAt ?? null,
+      `${input.title} ${input.type} ${Object.values(input.metadata).join(" ")}`.trim(),
+      JSON.stringify(input.metadata),
+    ],
+  );
+
+  for (const link of input.links) {
+    await pool.query(
+      `insert into document_links (
+        id, tenant_id, company_id, document_id, entity_type, entity_id, relation_type
+      ) values ($1, $2, $3, $4, $5, $6, $7)
+      on conflict do nothing`,
+      [
+        `link_${input.id}_${link.entityType}_${link.entityId}_${link.relationType}`.replace(/[^a-zA-Z0-9_]/g, "_"),
+        input.tenantId,
+        input.companyId,
+        input.id,
+        link.entityType,
+        link.entityId,
+        link.relationType,
+      ],
+    );
+  }
+}
+
+export async function listFleetDocuments(
+  scope: TenantScope,
+  filters: {
+    category?: string | undefined;
+    entityId?: string | undefined;
+    entityType?: string | undefined;
+    query?: string | undefined;
+    status?: string | undefined;
+  } = {},
+): Promise<FleetDocument[]> {
+  const values: unknown[] = [scope.tenantId, scope.companyId];
+  const where = ["documents.tenant_id = $1", "documents.company_id = $2", "documents.archived_at is null"];
+
+  if (filters.category) {
+    values.push(filters.category);
+    where.push(`documents.category = $${values.length}`);
+  }
+
+  if (filters.status) {
+    values.push(filters.status);
+    where.push(`documents.status = $${values.length}`);
+  }
+
+  if (filters.query) {
+    values.push(`%${filters.query.toLowerCase()}%`);
+    where.push(`lower(documents.search_text) like $${values.length}`);
+  }
+
+  if (filters.entityType || filters.entityId) {
+    if (filters.entityType) {
+      values.push(filters.entityType);
+      where.push(`exists (
+        select 1 from document_links entity_filter
+        where entity_filter.tenant_id = documents.tenant_id
+          and entity_filter.company_id = documents.company_id
+          and entity_filter.document_id = documents.id
+          and entity_filter.entity_type = $${values.length}
+      )`);
+    }
+
+    if (filters.entityId) {
+      values.push(filters.entityId);
+      where.push(`exists (
+        select 1 from document_links entity_filter
+        where entity_filter.tenant_id = documents.tenant_id
+          and entity_filter.company_id = documents.company_id
+          and entity_filter.document_id = documents.id
+          and entity_filter.entity_id = $${values.length}
+      )`);
+    }
+  }
+
+  const result = await pool.query(
+    `select
+       documents.*,
+       coalesce(
+         json_agg(distinct jsonb_build_object(
+           'entityId', document_links.entity_id,
+           'entityType', document_links.entity_type,
+           'relationType', document_links.relation_type
+         )) filter (where document_links.id is not null),
+         '[]'::json
+       ) as links,
+       coalesce(
+         json_agg(distinct document_tags.tag) filter (where document_tags.id is not null),
+         '[]'::json
+       ) as tags
+     from documents
+     left join document_links
+       on document_links.tenant_id = documents.tenant_id
+      and document_links.company_id = documents.company_id
+      and document_links.document_id = documents.id
+     left join document_tags
+       on document_tags.tenant_id = documents.tenant_id
+      and document_tags.company_id = documents.company_id
+      and document_tags.document_id = documents.id
+     where ${where.join(" and ")}
+     group by documents.id
+     order by documents.created_at desc
+     limit 100`,
+    values,
+  );
+  return result.rows.map(mapFleetDocument);
 }
 
 export async function customerExists(scope: TenantScope, customerId: string) {
@@ -1270,7 +1433,21 @@ export async function createCustomerDocument(scope: TenantScope, input: Customer
       input.verified,
     ],
   );
-  return mapCustomerDocument(result.rows[0]);
+  const document = mapCustomerDocument(result.rows[0]);
+  await upsertCanonicalDocument({
+    category: "customer_identity",
+    companyId: scope.companyId,
+    id: `doc_customer_${document.id}`,
+    links: [{ entityId: input.customerId, entityType: "customer", relationType: "identity" }],
+    metadata: { fileUrl: input.fileUrl, legacyId: document.id, legacyTable: "customer_documents", verified: input.verified },
+    source: "upload",
+    status: input.verified ? "valid" : "pending_review",
+    tenantId: scope.tenantId,
+    title: input.title,
+    type: input.type,
+    verifiedAt: input.verified ? new Date().toISOString() : undefined,
+  });
+  return document;
 }
 
 export async function listRentalContracts(scope: TenantScope): Promise<RentalContract[]> {
@@ -1372,6 +1549,24 @@ export async function createRentalContract(scope: TenantScope, input: RentalCont
     ],
   );
   const contract = mapRentalContract(result.rows[0]);
+  await upsertCanonicalDocument({
+    category: "rental_contract",
+    companyId: scope.companyId,
+    id: `doc_contract_${contract.id}`,
+    links: [
+      { entityId: contract.id, entityType: "contract", relationType: "canonical" },
+      { entityId: contract.rentalId, entityType: "rental", relationType: "contract" },
+      { entityId: contract.customerId, entityType: "customer", relationType: "contract" },
+      { entityId: rental.vehicleId, entityType: "vehicle", relationType: "contract" },
+    ],
+    metadata: { fileUrl: contract.documentUrl, legacyId: contract.id, legacyTable: "rental_contracts", sentVia: contract.sentVia },
+    source: "contract_flow",
+    status: contract.status === "signed" ? "valid" : contract.status === "draft" ? "draft" : "pending_review",
+    tenantId: scope.tenantId,
+    title: `Rental contract ${contract.id}`,
+    type: "rental_agreement",
+    verifiedAt: contract.signedAt,
+  });
   if (publicToken && publicTokenHash) {
     await pool.query(
       `insert into rental_contract_links (

@@ -186,6 +186,44 @@ export interface CustomerDocument extends TenantScopedEntity {
   verified: boolean;
 }
 
+export type DocumentCategory =
+  | "customer_identity"
+  | "vehicle_compliance"
+  | "rental_contract"
+  | "rental_handover"
+  | "payment"
+  | "damage"
+  | "service"
+  | "company"
+  | "other";
+
+export type DocumentStatus = "draft" | "pending_review" | "valid" | "expired" | "rejected" | "archived";
+
+export type DocumentSource = "upload" | "generated" | "client_intake" | "contract_flow" | "system";
+
+export interface DocumentLink {
+  entityId: string;
+  entityType: "customer" | "vehicle" | "rental" | "contract" | "invoice" | "payment" | "damage" | "service_record" | "company";
+  relationType: string;
+}
+
+export interface FleetDocument extends TenantScopedEntity {
+  companyId: string;
+  category: DocumentCategory;
+  currentVersionId?: string;
+  documentNumber?: string;
+  expiresAt?: string;
+  issuedAt?: string;
+  links: DocumentLink[];
+  metadata: Record<string, unknown>;
+  source: DocumentSource;
+  status: DocumentStatus;
+  tags: string[];
+  title: string;
+  type: string;
+  verifiedAt?: string;
+}
+
 export interface RentalContract extends TenantScopedEntity {
   companyId: string;
   rentalId: string;

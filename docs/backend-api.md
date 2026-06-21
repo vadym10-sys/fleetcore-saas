@@ -245,6 +245,16 @@ Creates or updates a GPS device state by provider and external device id.
 
 ## Documents
 
+### `GET /documents`
+
+Returns the unified Document Center records from the new DMS layer. Supports optional query filters: `query`, `category`, `status`, `entityType`, and `entityId`.
+
+Example:
+
+```http
+GET /documents?entityType=vehicle&entityId=veh_001
+```
+
 ### `GET /documents/vehicles`
 
 Returns vehicle documents. Optional query: `?vehicleId=veh_001`.
