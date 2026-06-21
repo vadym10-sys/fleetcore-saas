@@ -38,7 +38,7 @@ test("dashboard client keeps production account and document flows wired", () =>
     "command-create-service",
     "command-share-contract",
     "OwnerProfileDialog",
-    "fleetcore-profile-open",
+    "openProfileDialog",
     "/auth/team",
     "/auth/me",
     "saveProfilePhoto",

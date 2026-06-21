@@ -12,7 +12,8 @@
     "build": "pnpm --recursive build",
     "typecheck": "pnpm --recursive typecheck",
     "lint": "pnpm --recursive lint",
-    "test": "pnpm --recursive test"
+    "test": "pnpm --recursive test",
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": ">=22"
@@ -21,6 +22,7 @@
     "pg": "^8.13.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@types/pg": "^8.11.10",
     "tsx": "^4.19.0"
   }

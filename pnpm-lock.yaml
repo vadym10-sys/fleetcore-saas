@@ -12,6 +12,9 @@ importers:
         specifier: ^8.13.1
         version: 8.21.0
     devDependencies:
+      '@playwright/test':
+        specifier: ^1.61.0
+        version: 1.61.0
       '@types/pg':
         specifier: ^8.11.10
         version: 8.20.0
@@ -54,7 +57,7 @@ importers:
         version: link:../../packages/shared
       next:
         specifier: ^15.0.0
-        version: 15.5.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 15.5.19(@playwright/test@1.61.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react:
         specifier: ^19.0.0
         version: 19.2.7
@@ -451,6 +454,11 @@ packages:
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
+  '@playwright/test@1.61.0':
+    resolution: {integrity: sha512-cKA5B6lpFEMyMGjxF54QihfYpB4FkEGH+qZhtArDEG+wezQAJY8Pq6C7T1SjWz+FFzt3TbyoXBQYk/0292TdJA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
@@ -539,6 +547,11 @@ packages:
   find-my-way@9.6.0:
     resolution: {integrity: sha512-Zf4Xve4RymLl7NgaavNebZ01joJ8MfVerOG43wy7SHLO+r+K0C6d/SE0BiR7AV5V1VOCFlOP7ecdo+I4qmiHrQ==}
     engines: {node: '>=20'}
+
+  fsevents@2.3.2:
+    resolution: {integrity: sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==}
+    engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
+    os: [darwin]
 
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
@@ -633,6 +646,16 @@ packages:
 
   pino@10.3.1:
     resolution: {integrity: sha512-r34yH/GlQpKZbU1BvFFqOjhISRo1MNx1tWYsYvmj6KIRHSPMT2+yHOEb1SG6NMvRoHRF0a07kCOox/9yakl1vg==}
+    hasBin: true
+
+  playwright-core@1.61.0:
+    resolution: {integrity: sha512-caX7TrY3Ml6egyDX0WUcTHDxodl/b51y5wJOdCEA36QviK/s2g081hvmGs8eaE3DWb6NYZQ6BjO/QkNRPenoPA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.61.0:
+    resolution: {integrity: sha512-Z+7BeeqQPRRzklHsVFP4KTGIyMxKUmfeRA4WisM6G3/XW6nwGeX6fX9qYaDa+CiUqpOkb2f6X3nar05R3kSuJQ==}
+    engines: {node: '>=18'}
     hasBin: true
 
   postcss@8.4.31:
@@ -1009,6 +1032,10 @@ snapshots:
 
   '@pinojs/redact@0.4.0': {}
 
+  '@playwright/test@1.61.0':
+    dependencies:
+      playwright: 1.61.0
+
   '@swc/helpers@0.5.15':
     dependencies:
       tslib: 2.8.1
@@ -1140,6 +1167,9 @@ snapshots:
       fast-querystring: 1.1.2
       safe-regex2: 5.1.1
 
+  fsevents@2.3.2:
+    optional: true
+
   fsevents@2.3.3:
     optional: true
 
@@ -1159,7 +1189,7 @@ snapshots:
 
   nanoid@3.3.12: {}
 
-  next@15.5.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  next@15.5.19(@playwright/test@1.61.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       '@next/env': 15.5.19
       '@swc/helpers': 0.5.15
@@ -1177,6 +1207,7 @@ snapshots:
       '@next/swc-linux-x64-musl': 15.5.19
       '@next/swc-win32-arm64-msvc': 15.5.19
       '@next/swc-win32-x64-msvc': 15.5.19
+      '@playwright/test': 1.61.0
       sharp: 0.34.5
     transitivePeerDependencies:
       - '@babel/core'
@@ -1240,6 +1271,14 @@ snapshots:
       safe-stable-stringify: 2.5.0
       sonic-boom: 4.2.1
       thread-stream: 4.2.0
+
+  playwright-core@1.61.0: {}
+
+  playwright@1.61.0:
+    dependencies:
+      playwright-core: 1.61.0
+    optionalDependencies:
+      fsevents: 2.3.2
 
   postcss@8.4.31:
     dependencies:

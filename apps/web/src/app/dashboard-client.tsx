@@ -1072,12 +1072,6 @@ function saveStoredSession(session: AuthSession) {
   }
 }
 
-function requestProfileSetup(session: AuthSession) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`, "1");
-  }
-}
-
 async function parseApiError(response: Response) {
   const body = await response.text();
   let message = body || `Request failed: ${response.status}`;
@@ -1121,10 +1115,11 @@ async function warmApi() {
 }
 
 async function api<T>(path: string, options: RequestInit = {}, token?: string, retry = true) {
+  const hasBody = options.body !== undefined && options.body !== null;
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      "content-type": "application/json",
+      ...(hasBody ? { "content-type": "application/json" } : {}),
       ...(token ? { authorization: `Bearer ${token}` } : { "x-tenant-id": TENANT_ID }),
       ...options.headers,
     },
@@ -1614,7 +1609,6 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
       saveStoredSession(response.data);
       if (mode === "register") {
         localStorage.setItem(`fleetcore-onboarding-open:${response.data.companyId}`, "1");
-        requestProfileSetup(response.data);
       }
       setLoading(false);
       onSession(response.data);
@@ -1636,7 +1630,6 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
         method: "POST",
       });
       saveStoredSession(response.data);
-      requestProfileSetup(response.data);
       setLoading(false);
       onSession(response.data);
     } catch (error) {
@@ -1965,10 +1958,6 @@ export default function DashboardClient() {
       });
       if (session && localStorage.getItem(`fleetcore-onboarding-open:${session.companyId}`) === "1") {
         setOnboardingOpen(true);
-      }
-      if (session && localStorage.getItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`) === "1") {
-        openProfileDialog();
-        localStorage.setItem(`fleetcore-profile-open:${session.companyId}:${session.user.id}`, "0");
       }
       setSelectedVehicleId((current) => current ?? vehicles.data[0]?.id);
       setMessage("");
