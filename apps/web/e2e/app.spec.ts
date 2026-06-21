@@ -117,12 +117,10 @@ test("desktop primary buttons open real workflows without blank surfaces", async
   await openCreateAction("Создать аренду");
   const workflow = page.locator(".rental-workflow");
   await expect(workflow).toBeVisible();
-  await expect(workflow).toContainText("Клиент");
-  await expect(workflow).toContainText("Автомобиль");
-  await expect(workflow).toContainText("Оплата");
-  await expect(workflow).toContainText("Отправка клиенту");
-  await expect(workflow).toContainText("Возврат");
-  await workflow.getByRole("button", { name: "Закрыть" }).click();
+  await expect(workflow.locator(".rental-workflow-progress")).toContainText("Создать аренду");
+  await expect(workflow.locator(".rental-workflow-progress")).toContainText("Закрыть аренду");
+  await expect(workflow).toContainText("Детали карточки аренды");
+  await workflow.getByRole("button", { exact: true, name: "Закрыть" }).click();
 
   await openCreateAction("Заявка клиента");
   await expect(page.locator(".share-modal")).toBeVisible();
@@ -202,6 +200,10 @@ test("desktop rental workflow creates rental, enables sending and closes return"
   await workflow.getByLabel("WhatsApp").fill("+48 600 777 888");
 
   const vehicleSelect = workflow.getByLabel("Автомобиль");
+  await expect.poll(async () => vehicleSelect.evaluate((node) => {
+    const select = node as HTMLSelectElement;
+    return Array.from(select.options).some((option) => option.value && !option.disabled);
+  })).toBe(true);
   const vehicleValue = await vehicleSelect.evaluate((node) => {
     const select = node as HTMLSelectElement;
     return Array.from(select.options).find((option) => option.value && !option.disabled)?.value ?? "";
@@ -213,12 +215,12 @@ test("desktop rental workflow creates rental, enables sending and closes return"
   await workflow.getByLabel("Способ оплаты").selectOption("card");
   await workflow.getByRole("button", { name: "Сохранить аренду" }).click();
   await expect(page.getByRole("status").getByText(/Аренда сохранена/)).toBeVisible({ timeout: 15_000 });
-  await expect(workflow.getByText("Аренда структурирована и доступна в поиске")).toBeVisible();
+  await expect(workflow.getByText("Карточка аренды создана и доступна в поиске")).toBeVisible();
   await expect(workflow.getByRole("button", { name: "WhatsApp" })).toBeEnabled();
   await workflow.getByLabel("Состояние автомобиля").selectOption("ok");
-  await workflow.getByRole("button", { name: "Оформить возврат" }).click();
+  await workflow.getByRole("button", { exact: true, name: "Закрыть аренду" }).click();
   await expect(page.getByRole("status").getByText(/Возврат оформлен|уже закрыта/)).toBeVisible({ timeout: 15_000 });
-  await workflow.getByRole("button", { name: "Закрыть" }).click();
+  await workflow.getByRole("button", { exact: true, name: "Закрыть" }).click();
   await page.getByRole("textbox", { name: "Номер, VIN, клиент, телефон" }).fill(`QA Rental ${uniqueId}`);
   await expect(page.locator(".global-search-results")).toBeVisible();
   await expect(page.locator(".global-search-results").getByText("Бронь")).toBeVisible();

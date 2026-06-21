@@ -6073,14 +6073,14 @@ function RentalWorkflow({
           <div>
             <span className="eyebrow">FleetCore Rental Flow</span>
             <h2>Создать аренду</h2>
-            <p>Один постоянный сценарий работы менеджера: клиент, автомобиль, оплата, отправка и возврат без переходов по разделам.</p>
+            <p>Два рабочих события для менеджера: создать аренду за 60 секунд и закрыть аренду за 30 секунд.</p>
           </div>
           <button className="ghost-button" onClick={onClose} type="button">Закрыть</button>
         </div>
 
-        <div className="rental-workflow-progress" aria-label="Client to return workflow">
-          {["Клиент", "Автомобиль", "Оплата", "Отправка", "Возврат"].map((step, index) => (
-            <span className={index < (savedRentalId ? 4 : 2) ? "active" : ""} key={step}>{index + 1}. {step}</span>
+        <div className="rental-workflow-progress two-events" aria-label="Rental workflow events">
+          {["Создать аренду", "Закрыть аренду"].map((step, index) => (
+            <span className={index < (savedRentalId ? 2 : 1) ? "active" : ""} key={step}>{index + 1}. {step}</span>
           ))}
         </div>
 
@@ -6096,7 +6096,7 @@ function RentalWorkflow({
             <small>{selectedVehicle?.plateNumber ?? "номер авто"}</small>
           </article>
           <article>
-            <span>Оплата</span>
+            <span>Детали</span>
             <strong>{money.format(totalPreview || 0)}</strong>
             <small>депозит {money.format(depositPreview || 0)}</small>
           </article>
@@ -6111,8 +6111,8 @@ function RentalWorkflow({
           <div className="rental-workflow-result" role="status">
             <div>
               <span className="eyebrow">Rental record</span>
-              <strong>Аренда структурирована и доступна в поиске</strong>
-              <p>Ищите по имени клиента, телефону, email, номеру авто, VIN, сумме, депозиту или ID аренды: {savedRentalId}.</p>
+              <strong>Карточка аренды создана и доступна в поиске</strong>
+              <p>Оплата, депозит, документы, отправка и возврат хранятся внутри карточки. Ищите по клиенту, авто, сумме, депозиту или ID: {savedRentalId}.</p>
             </div>
             <button className="ghost-button" onClick={() => void send("whatsapp")} type="button">Отправить клиенту</button>
           </div>
@@ -6123,8 +6123,8 @@ function RentalWorkflow({
             <div className="workflow-block-title">
               <span>1</span>
               <div>
-                <h3>Клиент</h3>
-                <p>Новый клиент или выбор из CRM.</p>
+                <h3>Создать аренду</h3>
+                <p>Клиент, автомобиль и детали карточки аренды в одном действии.</p>
               </div>
             </div>
             <label>Выбрать из CRM
@@ -6163,10 +6163,10 @@ function RentalWorkflow({
 
           <section className="workflow-block">
             <div className="workflow-block-title">
-              <span>2</span>
+              <span>•</span>
               <div>
                 <h3>Автомобиль</h3>
-                <p>Ручной выбор автомобиля из текущего автопарка.</p>
+                <p>Выберите свободный автомобиль из текущего автопарка.</p>
               </div>
             </div>
             <label>Автомобиль
@@ -6207,10 +6207,10 @@ function RentalWorkflow({
 
           <section className="workflow-block">
             <div className="workflow-block-title">
-              <span>3</span>
+              <span>•</span>
               <div>
-                <h3>Оплата</h3>
-                <p>Сумма, депозит, способ и статус оплаты.</p>
+                <h3>Детали карточки аренды</h3>
+                <p>Оплата, депозит и статус хранятся внутри аренды.</p>
               </div>
             </div>
             <div className="workflow-two">
@@ -6238,10 +6238,10 @@ function RentalWorkflow({
 
           <section className="workflow-block workflow-send-block">
             <div className="workflow-block-title">
-              <span>4</span>
+              <span>•</span>
               <div>
-                <h3>Отправка клиенту</h3>
-                <p>После сохранения отправьте подтверждение с документом.</p>
+                <h3>Подтверждение клиенту</h3>
+                <p>Отправьте клиенту ссылку после сохранения аренды.</p>
               </div>
             </div>
             <div className="workflow-confirmation-card">
@@ -6259,10 +6259,10 @@ function RentalWorkflow({
 
           <section className="workflow-block">
             <div className="workflow-block-title">
-              <span>5</span>
+              <span>2</span>
               <div>
-                <h3>Возврат</h3>
-                <p>Простой финальный блок возврата и закрытия аренды.</p>
+                <h3>Закрыть аренду</h3>
+                <p>Состояние авто, фото, повреждения и возврат депозита.</p>
               </div>
             </div>
             <div className="workflow-two">
@@ -6278,7 +6278,7 @@ function RentalWorkflow({
             <label>Фото до/после<input multiple accept="image/*" onChange={(event) => setReturnFiles(event.target.files)} type="file" /></label>
             <label>Повреждения<textarea value={draft.returnDamages} onChange={(event) => patch("returnDamages", event.target.value)} /></label>
             <label>Возврат депозита<input inputMode="decimal" value={draft.depositRefund} onChange={(event) => patch("depositRefund", event.target.value)} /></label>
-            <button className="secondary-button full" disabled={busy || !savedRentalId} onClick={() => void closeReturn()} type="button">Оформить возврат</button>
+            <button className="secondary-button full" disabled={busy || !savedRentalId} onClick={() => void closeReturn()} type="button">Закрыть аренду</button>
           </section>
 
           <div className="rental-workflow-footer">
@@ -6498,7 +6498,7 @@ function CreateActionSheet({
     ? "Выберите одно действие. Остальные шаги FleetCore предложит внутри процесса."
     : "Choose one action. FleetCore will guide the next steps inside the workflow.";
   const actions = [
-    { description: locale === "ru" ? "Клиент, авто, оплата, отправка и возврат в одном экране." : "Client, vehicle, payment, sending and return in one screen.", label: locale === "ru" ? "Создать аренду" : "Create rental", onClick: onOpenRentalWizard },
+    { description: locale === "ru" ? "Клиент, авто и детали аренды в одной карточке." : "Client, vehicle and rental details in one card.", label: locale === "ru" ? "Создать аренду" : "Create rental", onClick: onOpenRentalWizard },
     { description: locale === "ru" ? "Клиент сам заполнит данные и загрузит документы." : "Client fills data and uploads documents.", label: locale === "ru" ? "Заявка клиента" : "Client intake", onClick: onOpenClientIntake },
     { description: locale === "ru" ? "Добавить машину в автопарк." : "Add a vehicle to the fleet.", label: locale === "ru" ? "Автомобиль" : "Vehicle", onClick: onCreateVehicle },
     { description: locale === "ru" ? "CRM-карточка клиента и документы." : "Customer CRM profile and documents.", label: locale === "ru" ? "Клиент" : "Customer", onClick: onCreateCustomer },
