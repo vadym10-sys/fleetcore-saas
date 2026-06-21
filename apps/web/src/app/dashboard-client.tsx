@@ -963,6 +963,41 @@ function sectionSubtitle(locale: Locale, section: Section) {
   return translate(locale, `section.subtitle.${section}`);
 }
 
+function moreLabel(locale: Locale) {
+  if (locale === "ru") return "Ещё";
+  if (locale === "es") return "Más";
+  if (locale === "fr") return "Plus";
+  if (locale === "de") return "Mehr";
+  return "More";
+}
+
+function rentalStatusLabel(locale: Locale, status: Rental["status"]) {
+  if (status === "quote") return locale === "ru" ? "Черновик" : "Quote";
+  if (status === "reserved") return translate(locale, "status.reserved");
+  if (status === "active") return translate(locale, "status.rented");
+  if (status === "return_due") return translate(locale, "status.returnDue");
+  if (status === "closed") return locale === "ru" ? "Закрыто" : "Closed";
+  return status;
+}
+
+function contractStatusLabel(locale: Locale, status?: RentalContract["status"]) {
+  if (!status) return locale === "ru" ? "Не создан" : "Not created";
+  if (status === "draft") return locale === "ru" ? "Черновик" : "Draft";
+  if (status === "sent") return locale === "ru" ? "Отправлен" : "Sent";
+  if (status === "viewed") return locale === "ru" ? "Открыт" : "Viewed";
+  if (status === "signed") return locale === "ru" ? "Подписан" : "Signed";
+  return status;
+}
+
+function invoiceStatusLabel(locale: Locale, status?: Invoice["status"]) {
+  if (!status) return locale === "ru" ? "Нет счёта" : "No invoice";
+  if (status === "draft") return locale === "ru" ? "Черновик" : "Draft";
+  if (status === "issued") return locale === "ru" ? "Выставлен" : "Issued";
+  if (status === "paid") return locale === "ru" ? "Оплачен" : "Paid";
+  if (status === "overdue") return locale === "ru" ? "Просрочен" : "Overdue";
+  return status;
+}
+
 const emptyMetrics: DashboardMetrics = {
   activeRentals: 0,
   availableVehicles: 0,
@@ -1518,6 +1553,7 @@ export default function DashboardClient() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [profileName, setProfileName] = useState("");
   const [teamForm, setTeamForm] = useState({
@@ -3364,7 +3400,7 @@ export default function DashboardClient() {
             </div>
             <LanguageSelect locale={locale} onChange={changeLocale} />
             <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void loadData()} title={t("common.refresh")} type="button">↻</button>
-            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setActiveSection("GPS")} type="button">{busyAction ? "..." : "⊕ GPS"}</button>
+            <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => setCreateSheetOpen(true)} type="button">{busyAction ? "..." : "+ Создать"}</button>
           </div>
         </header>
 
@@ -3599,7 +3635,7 @@ export default function DashboardClient() {
                     <button className="ghost-button" disabled={Boolean(busyAction)} onClick={requestSignatureUpload} type="button">Подпись</button>
                   </div>
                 </details>
-                <BookingCalendar customers={data.customers} rentals={data.rentals} vehicles={data.vehicles} />
+                <BookingCalendar customers={data.customers} locale={locale} rentals={data.rentals} vehicles={data.vehicles} />
               </aside>
             </div>
             {data.rentals.map((rental) => {
@@ -3615,7 +3651,7 @@ export default function DashboardClient() {
               return (
                 <article className={`booking-card ${selectedRental?.id === rental.id ? "selected" : ""}`} key={rental.id} onClick={() => setSelectedRentalId(rental.id)}>
                   <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
-                  <Badge value={rental.status} />
+                  <Badge value={rentalStatusLabel(locale, rental.status)} />
                   <span>Депозит {money.format(rental.depositAmount)}</span>
                   <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
                   <div className="checklist-cell">
@@ -3628,7 +3664,7 @@ export default function DashboardClient() {
                     {checklists.length ? <span>{checklists.length}/2 чек-листа</span> : null}
                   </div>
                   <div className="contract-cell">
-                    {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contract.status}`} /> : null}
+                    {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contractStatusLabel(locale, contract.status)}`} /> : null}
                     <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void openRentalContractPdfForRental(rental)} type="button">PDF</button>
                     {contractEvents.length ? (
                       <div className="contract-timeline">
@@ -3847,7 +3883,21 @@ export default function DashboardClient() {
         />
       ) : null}
 
-      <button className="mobile-fab" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button" aria-label="Create booking">+</button>
+      <button className="mobile-fab" disabled={Boolean(busyAction)} onClick={() => setCreateSheetOpen(true)} type="button" aria-label="Create">+</button>
+
+      <CreateActionSheet
+        busy={Boolean(busyAction)}
+        locale={locale}
+        onClose={() => setCreateSheetOpen(false)}
+        onCreateBooking={() => openOperation("booking")}
+        onCreateCustomer={openCustomerCreate}
+        onCreateExpense={() => openOperation("expense")}
+        onCreateService={() => openOperation("service")}
+        onCreateVehicle={openVehicleCreate}
+        onShareContract={openShareDialog}
+        onUploadDocument={requestVehicleDocumentUpload}
+        open={createSheetOpen}
+      />
 
       <MobileDrawer
         activeSection={activeSection}
@@ -4272,14 +4322,14 @@ function RentalDetailPanel({
   const operationalHealth = [
     { done: Boolean(detail.customer), label: "Клиент", meta: detail.customer?.email ?? "нет email" },
     { done: Boolean(detail.vehicle), label: "Авто", meta: detail.vehicle?.vin ?? "нет VIN" },
-    { done: Boolean(detail.contract), label: "PDF", meta: detail.contract?.status ?? "не создан" },
+    { done: Boolean(detail.contract), label: "PDF", meta: contractStatusLabel(locale, detail.contract?.status) },
     { done: contractSigned, label: "Подпись", meta: contractSigned ? "получена" : "ожидает" },
-    { done: paymentReady, label: "Оплата", meta: detail.remainingAmount > 0 ? rentalMoney.format(detail.remainingAmount) : "paid" },
+    { done: paymentReady, label: "Оплата", meta: detail.remainingAmount > 0 ? rentalMoney.format(detail.remainingAmount) : invoiceStatusLabel(locale, "paid") },
     { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
   ];
   const steps = [
-    { done: true, label: "Бронь", meta: detail.rental.status },
-    { done: Boolean(detail.contract), label: "Договор", meta: detail.contract?.status ?? "not created" },
+    { done: true, label: "Бронь", meta: rentalStatusLabel(locale, detail.rental.status) },
+    { done: Boolean(detail.contract), label: "Договор", meta: contractStatusLabel(locale, detail.contract?.status) },
     { done: paymentReady, label: "Оплата", meta: `${rentalMoney.format(detail.paidAmount)} / ${rentalMoney.format(detail.invoice?.total ?? detail.rental.totalAmount)}` },
     { done: pickup, label: "Выдача", meta: pickup ? "акт готов" : "нужен акт" },
     { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
@@ -4307,7 +4357,7 @@ function RentalDetailPanel({
           <h2>{detail.vehicle ? `${detail.vehicle.make} ${detail.vehicle.model}` : "Автомобиль"} · {detail.vehicle?.plateNumber ?? "без номера"}</h2>
           <p>{detail.customer?.displayName ?? "Клиент"} · {dateFmt.format(new Date(detail.rental.pickupAt))} - {dateFmt.format(new Date(detail.rental.returnAt))}</p>
         </div>
-        <Badge value={detail.rental.status} />
+        <Badge value={rentalStatusLabel(locale, detail.rental.status)} />
       </div>
 
       <div className="rental-master-card" data-testid="rental-step-master">
@@ -4363,7 +4413,7 @@ function RentalDetailPanel({
       <div className="rental-document-strip">
         <div>
           <strong>Договор</strong>
-          {detail.contract ? <FilePreviewLink fileUrl={detail.contract.documentUrl} title={detail.contract.status} /> : <span>не создан</span>}
+          {detail.contract ? <FilePreviewLink fileUrl={detail.contract.documentUrl} title={contractStatusLabel(locale, detail.contract.status)} /> : <span>не создан</span>}
           <small>{contractSigned ? "Подписан клиентом" : "Создайте, отправьте и получите подпись"}</small>
         </div>
         <div>
@@ -4606,7 +4656,7 @@ function DocumentVault({
           {rentalFolders.slice(0, 5).map((folder) => (
             <p className="document-workbench-row" key={folder.rental.id}>
               <strong>{folder.vehicle?.plateNumber ?? "Авто"} · {folder.customer?.displayName ?? "Клиент"}</strong>
-              <span>{folder.contract?.status ?? "нет договора"} · {folder.checklists.length}/2 акта</span>
+              <span>{contractStatusLabel(locale, folder.contract?.status)} · {folder.checklists.length}/2 акта</span>
             </p>
           ))}
         </article>
@@ -4628,11 +4678,11 @@ function DocumentVault({
                   <strong>{folder.vehicle ? `${folder.vehicle.make} ${folder.vehicle.model}` : "Автомобиль"}</strong>
                   <span>{folder.vehicle?.plateNumber ?? "без номера"} · {folder.customer?.displayName ?? "Клиент"}</span>
                 </div>
-                <Badge value={folder.rental.status} />
+                <Badge value={rentalStatusLabel(locale, folder.rental.status)} />
                 <div className="document-center-row">
                   <span>Договор</span>
                   {folder.contract ? (
-                    <FilePreviewLink fileUrl={folder.contract.documentUrl} onPreview={onDocumentPreview} title={folder.contract.status} />
+                    <FilePreviewLink fileUrl={folder.contract.documentUrl} onPreview={onDocumentPreview} title={contractStatusLabel(locale, folder.contract.status)} />
                   ) : <strong>не создан</strong>}
                 </div>
                 <div className="document-center-row">
@@ -4865,7 +4915,7 @@ function OwnerProfileDialog({
   );
 }
 
-function BookingCalendar({ customers, rentals, vehicles }: { customers: Customer[]; rentals: Rental[]; vehicles: Vehicle[] }) {
+function BookingCalendar({ customers, locale, rentals, vehicles }: { customers: Customer[]; locale: Locale; rentals: Rental[]; vehicles: Vehicle[] }) {
   const days = Array.from({ length: 14 }, (_, index) => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
@@ -4905,7 +4955,7 @@ function BookingCalendar({ customers, rentals, vehicles }: { customers: Customer
                 const customer = customers.find((item) => item.id === rental?.customerId);
                 return (
                   <div className={`calendar-slot ${rental ? rental.status : "free"}`} key={`${vehicle.id}-${day.toISOString()}`}>
-                    <strong>{rental ? rental.status.replaceAll("_", " ") : "free"}</strong>
+                    <strong>{rental ? rentalStatusLabel(locale, rental.status) : translate(locale, "status.available")}</strong>
                     <span>{customer?.displayName ?? ""}</span>
                   </div>
                 );
@@ -4956,7 +5006,7 @@ function RentalFlowPanel({
         <div>
           <span className="eyebrow">Rental Flow</span>
           <h2>{flow.vehicle.make} {flow.vehicle.model} · {flow.vehicle.plateNumber}</h2>
-          <p>{flow.customer.displayName} · {completed}/{flow.steps.length} steps · {flow.rental.status}</p>
+          <p>{flow.customer.displayName} · {completed}/{flow.steps.length} steps · {rentalStatusLabel(locale, flow.rental.status)}</p>
         </div>
         <div className="flow-actions">
           <button className="ghost-button" disabled={busy} onClick={onOpenPdf} type="button">PDF договор</button>
@@ -4971,18 +5021,18 @@ function RentalFlowPanel({
       <div className="flow-control-grid">
         <article>
           <span>Договор</span>
-          <strong>{flow.contract?.status ?? "not created"}</strong>
-          <small>{flow.contract?.publicUrl ? "public link ready" : "PDF available"}</small>
+          <strong>{contractStatusLabel(locale, flow.contract?.status)}</strong>
+          <small>{flow.contract?.publicUrl ? "ссылка готова" : "PDF доступен"}</small>
         </article>
         <article>
           <span>Оплата</span>
           <strong>{money.format(paidAmount)}</strong>
-          <small>{remaining ? `Осталось ${money.format(remaining)}` : "paid"}</small>
+          <small>{remaining ? `Осталось ${money.format(remaining)}` : invoiceStatusLabel(locale, "paid")}</small>
         </article>
         <article>
           <span>Депозит</span>
           <strong>{money.format(flow.rental.depositAmount)}</strong>
-          <small>{flow.rental.status === "closed" ? "settled" : "held / pending"}</small>
+          <small>{flow.rental.status === "closed" ? "закрыт" : "удержан / ожидает"}</small>
         </article>
         <article>
           <span>Выдача / возврат</span>
@@ -5089,6 +5139,77 @@ function FinalSettlementPanel({ busy, canSettle, flow, money, onSettle }: { busy
   );
 }
 
+function CreateActionSheet({
+  busy,
+  locale,
+  onClose,
+  onCreateBooking,
+  onCreateCustomer,
+  onCreateExpense,
+  onCreateService,
+  onCreateVehicle,
+  onShareContract,
+  onUploadDocument,
+  open,
+}: {
+  busy: boolean;
+  locale: Locale;
+  onClose: () => void;
+  onCreateBooking: () => void;
+  onCreateCustomer: () => void;
+  onCreateExpense: () => void;
+  onCreateService: () => void;
+  onCreateVehicle: () => void;
+  onShareContract: () => void;
+  onUploadDocument: () => void;
+  open: boolean;
+}) {
+  function run(action: () => void) {
+    if (busy) return;
+    action();
+    onClose();
+  }
+
+  const createLabel = locale === "ru" ? "Создать" : "Create";
+  const closeLabel = locale === "ru" ? "Закрыть" : "Close";
+  const helper = locale === "ru"
+    ? "Выберите одно действие. Остальные шаги FleetCore предложит внутри процесса."
+    : "Choose one action. FleetCore will guide the next steps inside the workflow.";
+  const actions = [
+    { description: locale === "ru" ? "Бронь, договор, депозит, выдача и возврат." : "Booking, contract, deposit, pickup and return.", label: locale === "ru" ? "Новая аренда" : "New rental", onClick: onCreateBooking },
+    { description: locale === "ru" ? "Добавить машину в автопарк." : "Add a vehicle to the fleet.", label: locale === "ru" ? "Автомобиль" : "Vehicle", onClick: onCreateVehicle },
+    { description: locale === "ru" ? "CRM-карточка клиента и документы." : "Customer CRM profile and documents.", label: locale === "ru" ? "Клиент" : "Customer", onClick: onCreateCustomer },
+    { description: locale === "ru" ? "Паспорт, договор, страховка, депозит." : "Passport, contract, insurance or deposit.", label: locale === "ru" ? "Документ" : "Document", onClick: onUploadDocument },
+    { description: locale === "ru" ? "Сервис, мойка, штраф, ремонт." : "Service, cleaning, fine or repair.", label: locale === "ru" ? "Расход" : "Expense", onClick: onCreateExpense },
+    { description: locale === "ru" ? "Плановое обслуживание автомобиля." : "Scheduled vehicle maintenance.", label: locale === "ru" ? "ТО" : "Service", onClick: onCreateService },
+    { description: locale === "ru" ? "Отправить ссылку клиенту." : "Send a client link.", label: "WhatsApp / Telegram", onClick: onShareContract },
+  ];
+
+  return (
+    <div className={`create-action-sheet ${open ? "open" : ""}`} aria-hidden={!open}>
+      <button className="create-action-backdrop" onClick={onClose} type="button" aria-label={closeLabel} />
+      <section className="create-action-panel" aria-label={createLabel}>
+        <div className="section-title compact-title">
+          <div>
+            <span className="eyebrow">FleetCore</span>
+            <h2>{createLabel}</h2>
+            <p>{helper}</p>
+          </div>
+          <button className="ghost-button" onClick={onClose} type="button">{closeLabel}</button>
+        </div>
+        <div className="create-action-grid">
+          {actions.map((action) => (
+            <button className="create-action-item" disabled={busy} key={action.label} onClick={() => run(action.onClick)} type="button">
+              <strong>{action.label}</strong>
+              <span>{action.description}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function MobileDrawer({
   activeSection,
   locale,
@@ -5150,6 +5271,9 @@ function MobileDrawer({
     onRegister();
   }
 
+  const primarySections: Section[] = ["Dashboard", "Bookings", "Vehicles", "Drivers/Clients"];
+  const secondarySections = sections.filter((section) => !primarySections.includes(section));
+
   return (
     <div className={`mobile-drawer-shell ${open ? "open" : ""}`} aria-hidden={!open}>
       <button className="mobile-drawer-backdrop" onClick={onClose} type="button" aria-label="Close menu" />
@@ -5166,13 +5290,25 @@ function MobileDrawer({
         </div>
 
         <nav className="mobile-drawer-nav">
-          {sections.map((item) => (
+          {primarySections.map((item) => (
             <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
               <span className="nav-icon">{sectionIcon(item)}</span>
               <span>{sectionLabel(locale, item)}</span>
               {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
             </button>
           ))}
+          <details className="mobile-drawer-more">
+            <summary>{moreLabel(locale)}</summary>
+            <div>
+              {secondarySections.map((item) => (
+                <button className={activeSection === item ? "active" : ""} key={item} onClick={() => onSelect(item)} type="button">
+                  <span className="nav-icon">{sectionIcon(item)}</span>
+                  <span>{sectionLabel(locale, item)}</span>
+                  {item === "Service" && notificationsCount ? <em>{notificationsCount}</em> : null}
+                </button>
+              ))}
+            </div>
+          </details>
         </nav>
 
         <div className="mobile-drawer-tools">
