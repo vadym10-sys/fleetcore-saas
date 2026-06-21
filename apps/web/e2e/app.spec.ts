@@ -23,6 +23,17 @@ test("desktop user can enter demo SaaS and use the command surface", async ({ pa
   const createSheet = page.locator(".create-action-sheet");
   await expect(createSheet).toBeVisible();
   await expect(createSheet.getByRole("button", { name: /Новая аренда/ })).toBeVisible();
+  await createSheet.locator(".create-action-panel").getByRole("button", { name: "Закрыть" }).click();
+
+  const commandMenu = page.locator(".command-action-menu").first();
+  await commandMenu.getByText("Другие действия").click();
+  await expect(commandMenu).toHaveAttribute("open", "");
+  await expect(commandMenu.getByRole("button", { name: "Мастер аренды" })).toBeVisible();
+  await expect(commandMenu.getByRole("button", { name: "Новая аренда" })).toBeVisible();
+  await expect(commandMenu.getByRole("button", { name: "Автомобиль" })).toBeVisible();
+
+  const firstMenuButtonColor = await commandMenu.getByRole("button", { name: "Мастер аренды" }).evaluate((node) => getComputedStyle(node).color);
+  expect(firstMenuButtonColor).not.toBe("rgb(255, 255, 255)");
 });
 
 test("desktop user can open every main SaaS section", async ({ page, isMobile }) => {

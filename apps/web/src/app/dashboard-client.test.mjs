@@ -226,3 +226,15 @@ test("dashboard client keeps forms, uploads and mobile shell actionable", () => 
   assert.match(source, /window\.location\.search/);
   assert.match(source, /companyId && tenantId/);
 });
+
+test("command dropdown has visible compact actions", () => {
+  for (const marker of [
+    ".command-action-menu > div",
+    "max-height: min(420px, calc(100vh - 220px))",
+    ".command-action-menu > div .ghost-button",
+    "color: var(--ink)",
+    "text-align: left",
+  ]) {
+    assert.match(css, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
