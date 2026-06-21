@@ -12,14 +12,14 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: "API_PORT=4000 WEB_ORIGIN=http://127.0.0.1:3000 API_PUBLIC_URL=http://127.0.0.1:4000 pnpm --filter @fleetcore/api start",
-      reuseExistingServer: true,
+      command: "API_PORT=4000 WEB_ORIGIN=http://127.0.0.1:3000 API_PUBLIC_URL=http://127.0.0.1:4000 pnpm --filter @fleetcore/api dev",
+      reuseExistingServer: false,
       timeout: 30_000,
       url: "http://127.0.0.1:4000/health",
     },
     {
-      command: "PORT=3000 pnpm --filter @fleetcore/web start",
-      reuseExistingServer: true,
+      command: "PORT=3000 pnpm --filter @fleetcore/web dev",
+      reuseExistingServer: false,
       timeout: 30_000,
       url: "http://127.0.0.1:3000",
     },

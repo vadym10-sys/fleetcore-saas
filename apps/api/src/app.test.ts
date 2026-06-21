@@ -657,6 +657,18 @@ test("rental API rejects invalid dates, overlapping bookings and settlement with
   });
   assert.equal(returnAct.statusCode, 201);
 
+  const equalReturnDate = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      finalAmount: 600,
+      odometerKm: vehicle.odometerKm + 100,
+      returnedAt: pickupAt,
+    },
+    url: `/rentals/${rental.id}/return`,
+  });
+  assert.equal(equalReturnDate.statusCode, 422);
+
   const settlement = await app.inject({
     headers: { authorization: `Bearer ${token}` },
     method: "POST",

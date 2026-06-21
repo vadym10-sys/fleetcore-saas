@@ -109,6 +109,30 @@ type RentalDetailContext = RentalDocumentFolder & {
   remainingAmount: number;
 };
 
+type RentalWorkflowDraft = {
+  clientEmail: string;
+  clientName: string;
+  clientNote: string;
+  clientPassportId: string;
+  clientPhone: string;
+  clientTelegram: string;
+  clientWhatsApp: string;
+  depositAmount: string;
+  depositRefund: string;
+  paymentAmount: string;
+  paymentMethod: "bank_transfer" | "card" | "cash";
+  paymentStatus: "paid" | "partial" | "unpaid";
+  pickupAt: string;
+  rentalAmount: string;
+  returnAt: string;
+  returnCondition: string;
+  returnDamages: string;
+  returnDate: string;
+  selectedCustomerId: string;
+  selectedRentalId: string;
+  selectedVehicleId: string;
+};
+
 type DocumentCenterTab = "attention" | "vehicles" | "customers" | "rentals" | "files";
 
 type OperationsIssue = {
@@ -1787,6 +1811,7 @@ export default function DashboardClient() {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
+  const [rentalWorkflowOpen, setRentalWorkflowOpen] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState("");
   const [profileName, setProfileName] = useState("");
   const [teamForm, setTeamForm] = useState({
@@ -1877,6 +1902,7 @@ export default function DashboardClient() {
     setSearchOpen(false);
     setShareDialogOpen(false);
     setClientIntakeDialogOpen(false);
+    setRentalWorkflowOpen(false);
   }
 
   function selectSection(section: Section) {
@@ -1890,11 +1916,20 @@ export default function DashboardClient() {
     setCreateSheetOpen(true);
   }
 
+  function openRentalWorkflow() {
+    closeTransientSurfaces();
+    setProfileOpen(false);
+    setOperation(undefined);
+    setRentalWizardOpen(false);
+    setRentalWorkflowOpen(true);
+  }
+
   function openProfileDialog() {
     setCreateSheetOpen(false);
     setMobileDrawerOpen(false);
     setShareDialogOpen(false);
     setClientIntakeDialogOpen(false);
+    setRentalWorkflowOpen(false);
     setProfileOpen(true);
   }
 
@@ -2022,6 +2057,7 @@ export default function DashboardClient() {
     setOperation(undefined);
     setDocumentPreview(undefined);
     setRentalWizardOpen(false);
+    setRentalWorkflowOpen(false);
     loadData().catch((error: unknown) => {
       setLoading(false);
       setMessage(error instanceof Error ? error.message : "Не удалось загрузить данные");
@@ -2519,17 +2555,18 @@ export default function DashboardClient() {
     closeOnboarding();
   }
 
-  async function runAction(label: string, action: () => Promise<void>) {
+  async function runAction<T>(label: string, action: () => Promise<T>) {
     if (busyAction) {
       setMessage(`Дождитесь завершения операции: ${busyAction}`);
-      return;
+      return undefined;
     }
     setBusyAction(label);
     setMessage(label);
     try {
-      await action();
+      return await action();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Операция не выполнена");
+      return undefined;
     } finally {
       setBusyAction(undefined);
     }
@@ -3343,6 +3380,197 @@ export default function DashboardClient() {
     }, token);
   }
 
+  async function saveRentalWorkflowReturnChecklist(rental: Rental, draft: RentalWorkflowDraft, files: FileList | null) {
+    const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+    const uploadedPhotos = await Promise.all(Array.from(files ?? []).map(async (file) => {
+      const storedFile = await uploadFile(file);
+      return storedFile.publicUrl;
+    }));
+    await api<RentalChecklist>("/operations/rental-checklists", {
+      body: JSON.stringify({
+        depositConfirmed: Number(draft.depositRefund || 0) >= 0,
+        documentsOk: true,
+        exteriorOk: draft.returnCondition !== "damaged",
+        fuelLevel: 100,
+        interiorOk: draft.returnCondition !== "dirty",
+        notes: [
+          `Возврат: ${draft.returnCondition || "ok"}`,
+          draft.returnDamages ? `Повреждения: ${draft.returnDamages}` : "",
+          draft.clientNote ? `Заметка: ${draft.clientNote}` : "",
+        ].filter(Boolean).join(" · "),
+        odometerKm: vehicle.odometerKm,
+        phase: "return",
+        photoUrls: uploadedPhotos.length ? uploadedPhotos : vehicle.photoUrl ? [vehicle.photoUrl] : [],
+        rentalId: rental.id,
+      }),
+      method: "POST",
+    }, token);
+  }
+
+  async function saveRentalWorkflow(draft: RentalWorkflowDraft, customerFiles: FileList | null) {
+    return runAction("Сохраняем аренду...", async () => {
+      const selectedExistingCustomer = data.customers.find((item) => item.id === draft.selectedCustomerId);
+      const customer = selectedExistingCustomer ?? await createCustomerRecord({
+        displayName: draft.clientName || "Новый клиент",
+        email: draft.clientEmail || `client-${Date.now().toString().slice(-5)}@example.com`,
+        phone: draft.clientPhone || draft.clientWhatsApp || "+48 600 111 222",
+      });
+      const pickupAt = new Date(draft.pickupAt || Date.now());
+      const returnAt = new Date(draft.returnAt || Date.now() + 2 * 24 * 60 * 60 * 1000);
+      const overlaps = (vehicle: Vehicle) => data.rentals.some((rental) => (
+        rental.status !== "closed"
+        && rental.id !== draft.selectedRentalId
+        && rental.vehicleId === vehicle.id
+        && new Date(rental.pickupAt).getTime() < returnAt.getTime()
+        && new Date(rental.returnAt).getTime() > pickupAt.getTime()
+      ));
+      const requestedVehicle = data.vehicles.find((item) => item.id === draft.selectedVehicleId);
+      const vehicle = requestedVehicle && requestedVehicle.status === "available" && !overlaps(requestedVehicle)
+        ? requestedVehicle
+        : data.vehicles.find((item) => item.status === "available" && !overlaps(item));
+      if (!vehicle) throw new Error("Нет свободного автомобиля на выбранные даты");
+
+      await Promise.all(Array.from(customerFiles ?? []).map(async (file) => {
+        const storedFile = await uploadFile(file);
+        return api<CustomerDocument>("/operations/customer-documents", {
+          body: JSON.stringify({
+            customerId: customer.id,
+            fileUrl: storedFile.publicUrl,
+            title: file.name,
+            type: customerDocumentTypeFromName(file.name),
+            verified: false,
+          }),
+          method: "POST",
+        }, token);
+      }));
+
+      const existingRental = data.rentals.find((item) => item.id === draft.selectedRentalId && item.status !== "closed");
+      const rentalPayload = {
+        customerId: customer.id,
+        depositAmount: Number(draft.depositAmount || vehicle.dailyRate || 0),
+        pickupAt: pickupAt.toISOString(),
+        returnAt: returnAt.toISOString(),
+        status: "reserved" as const,
+        totalAmount: Number(draft.rentalAmount || vehicle.dailyRate || 0),
+        vehicleId: vehicle.id,
+      };
+      const rental = existingRental
+        ? (await api<Rental>(`/rentals/${existingRental.id}`, { body: JSON.stringify(rentalPayload), method: "PATCH" }, token)).data
+        : (await api<Rental>("/rentals", { body: JSON.stringify(rentalPayload), method: "POST" }, token)).data;
+
+      const invoice = data.invoices.find((item) => item.rentalId === rental.id)
+        ?? (await api<Invoice>("/finance/invoices", {
+          body: JSON.stringify({
+            currency: data.company?.currency ?? "EUR",
+            customerId: customer.id,
+            dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            rentalId: rental.id,
+            status: "issued",
+            subtotal: rental.totalAmount,
+            tax: 0,
+          }),
+          method: "POST",
+        }, token)).data;
+
+      const existingPaid = data.payments.filter((payment) => payment.invoiceId === invoice.id).reduce((sum, payment) => sum + payment.amount, 0);
+      const targetPaid = draft.paymentStatus === "paid"
+        ? invoice.total
+        : draft.paymentStatus === "partial"
+          ? Math.max(1, Math.min(invoice.total - 1, Number(draft.paymentAmount || invoice.total / 2)))
+          : 0;
+      const amountToPay = Math.max(0, targetPaid - existingPaid);
+      if (amountToPay > 0) {
+        await api<Payment>(`/finance/invoices/${invoice.id}/payments`, {
+          body: JSON.stringify({
+            amount: amountToPay,
+            currency: invoice.currency,
+            method: draft.paymentMethod,
+            reference: `RENTAL-WORKFLOW-${Date.now()}`,
+          }),
+          method: "POST",
+        }, token);
+      }
+
+      setSelectedCustomerId(customer.id);
+      setSelectedVehicleId(vehicle.id);
+      setSelectedRentalId(rental.id);
+      await loadData();
+      setMessage(`Аренда сохранена: ${customer.displayName} · ${vehicle.plateNumber}`);
+      return rental;
+    });
+  }
+
+  async function sendRentalWorkflowConfirmation(channel: "email" | "telegram" | "whatsapp", draft: RentalWorkflowDraft) {
+    return runAction(`Отправляем клиенту: ${channel}`, async () => {
+      const rental = data.rentals.find((item) => item.id === draft.selectedRentalId) ?? await saveRentalWorkflow(draft, null);
+      if (!rental) throw new Error("Сначала сохраните аренду");
+      const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
+      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+      const contract = await createContractRecord("sent", channel, rental);
+      const contractUrl = contract.publicUrl ?? contract.documentUrl;
+      const text = [
+        `Здравствуйте, ${customer.displayName}. Подтверждение аренды FleetCore:`,
+        `Автомобиль: ${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})`,
+        `Даты: ${new Date(rental.pickupAt).toLocaleString()} - ${new Date(rental.returnAt).toLocaleString()}`,
+        `Сумма: ${money.format(rental.totalAmount)}`,
+        `Депозит: ${money.format(rental.depositAmount)}`,
+        `Оплата: ${draft.paymentMethod}, статус ${draft.paymentStatus}`,
+        `Документ: ${contractUrl}`,
+      ].join("\n");
+      await loadData();
+      if (channel === "whatsapp") {
+        openWhatsApp(draft.clientWhatsApp || customer.phone, text);
+      } else if (channel === "telegram") {
+        openTelegram(text, contractUrl);
+      } else {
+        openEmail(draft.clientEmail || customer.email, "FleetCore rental confirmation", text);
+      }
+      setMessage(`Подтверждение аренды открыто для отправки: ${channel}`);
+      return rental;
+    });
+  }
+
+  async function closeRentalWorkflowReturn(draft: RentalWorkflowDraft, returnFiles: FileList | null) {
+    return runAction("Оформляем возврат...", async () => {
+      const rental = data.rentals.find((item) => item.id === draft.selectedRentalId) ?? await saveRentalWorkflow(draft, null);
+      if (!rental) throw new Error("Сначала сохраните аренду");
+      if (rental.status === "closed") {
+        setMessage("Эта аренда уже закрыта");
+        return rental;
+      }
+      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+      await saveRentalWorkflowReturnChecklist(rental, draft, returnFiles);
+      const closedRental = (await api<Rental>(`/rentals/${rental.id}/return`, {
+        body: JSON.stringify({
+          finalAmount: Number(draft.rentalAmount || rental.totalAmount),
+          odometerKm: vehicle.odometerKm + 25,
+          returnedAt: rentalWorkflowReturnAt(draft.returnDate, rental.pickupAt),
+        }),
+        method: "POST",
+      }, token)).data;
+      const refund = Number(draft.depositRefund || 0);
+      if (refund > 0) {
+        try {
+          await api<Expense>("/operations/expenses", {
+            body: JSON.stringify({
+              amount: refund,
+              category: "other",
+              currency: data.company?.currency ?? "EUR",
+              note: `Возврат депозита по аренде ${closedRental.id}`,
+              vehicleId: vehicle.id,
+            }),
+            method: "POST",
+          }, token);
+        } catch {
+          setMessage("Аренда закрыта. Возврат депозита нужно проверить в финансах.");
+        }
+      }
+      await loadData();
+      setMessage("Возврат оформлен, аренда закрыта");
+      return closedRental;
+    });
+  }
+
   async function createRentalChecklist(phase: RentalChecklist["phase"], rentalOverride?: Rental) {
     await runAction(phase === "pickup" ? "Сохраняем чек-лист выдачи..." : "Сохраняем чек-лист возврата...", async () => {
       await saveRentalChecklist(phase, rentalOverride);
@@ -3656,9 +3884,9 @@ export default function DashboardClient() {
         meta: firstIssue ? firstIssue.meta : `${operations.activeRentals.length} активных аренд · ${notifications.length} уведомлений`,
         primary: firstIssue
           ? { label: firstIssue.label, onClick: firstIssue.action }
-          : { label: "Мастер аренды", onClick: () => setRentalWizardOpen(true) },
+          : { label: "Создать аренду", onClick: openRentalWorkflow },
         secondary: [
-          { label: "Быстрая бронь", onClick: () => openOperation("booking") },
+          { label: "Новая аренда", onClick: openRentalWorkflow },
           { label: "Документы", onClick: () => selectSection("Service") },
         ],
         title: firstIssue ? "Сначала решите самое важное" : "Сегодня всё спокойно",
@@ -3705,9 +3933,9 @@ export default function DashboardClient() {
           : `${data.rentals.length} аренд`,
         primary: activeRentalFlow && nextLabel
           ? { disabled: activeRentalFlow.nextAction?.status === "blocked", label: nextLabel, onClick: () => void processFlowAction(activeRentalFlow) }
-          : { label: "Мастер аренды", onClick: () => setRentalWizardOpen(true) },
+          : { label: "Создать аренду", onClick: openRentalWorkflow },
         secondary: [
-          { label: "Новая бронь", onClick: () => openOperation("booking") },
+          { label: "Новая аренда", onClick: openRentalWorkflow },
           { label: "Отправить ссылку", onClick: openShareDialog },
         ],
         title: "Ведите аренду от брони до финального расчёта",
@@ -3943,12 +4171,11 @@ export default function DashboardClient() {
           busyAction={busyAction}
           focus={sectionFocus}
           message={message}
-          onCreateBooking={() => openOperation("booking")}
           onCreateCustomer={openCustomerCreate}
           onCreateExpense={() => openOperation("expense")}
           onCreateService={() => openOperation("service")}
           onCreateVehicle={openVehicleCreate}
-          onOpenWizard={() => setRentalWizardOpen(true)}
+          onOpenWizard={openRentalWorkflow}
           onShareContract={openShareDialog}
           onUploadDocument={requestVehicleDocumentUpload}
           stats={workflowStats}
@@ -3974,7 +4201,7 @@ export default function DashboardClient() {
               invoices={data.invoices}
               locale={locale}
               notifications={notifications}
-              onCreateBooking={() => openOperation("booking")}
+              onCreateBooking={openRentalWorkflow}
               onCreateCustomer={openCustomerCreate}
               onCreateService={() => openOperation("service")}
               onOpenDocuments={() => selectSection("Service")}
@@ -4141,7 +4368,7 @@ export default function DashboardClient() {
               customerDocuments={data.customerDocuments}
               invoices={data.invoices}
               onAssignVehicle={() => void assignVehicleToNewCustomer()}
-              onCreateBooking={() => openOperation("booking")}
+              onCreateBooking={openRentalWorkflow}
               onCreateVehicle={openVehicleCreate}
               onDocumentPreview={setDocumentPreview}
               onUploadDocument={requestCustomerDocumentUpload}
@@ -4173,7 +4400,7 @@ export default function DashboardClient() {
                 <h2>Rental Details</h2>
                 <p>Бронь, договор, ссылка клиенту, подпись, депозит, выдача, возврат и финальный расчёт.</p>
               </div>
-              <button className="primary-button" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Новая бронь</button>
+              <button className="primary-button" disabled={Boolean(busyAction)} onClick={openRentalWorkflow} type="button">Создать аренду</button>
             </div>
             <div className="rental-details-layout">
               <RentalDetailPanel
@@ -4197,7 +4424,7 @@ export default function DashboardClient() {
                   <span className="eyebrow">Быстро</span>
                   <h3>Новая аренда</h3>
                   <p>Создайте бронь, а FleetCore дальше проведёт по договору, оплате, выдаче и возврату.</p>
-                  <button className="primary-button full" disabled={Boolean(busyAction)} onClick={() => openOperation("booking")} type="button">Создать аренду</button>
+                  <button className="primary-button full" disabled={Boolean(busyAction)} onClick={openRentalWorkflow} type="button">Создать аренду</button>
                 </section>
                 <details className="calendar-collapse">
                   <summary>Календарь доступности</summary>
@@ -4432,6 +4659,23 @@ export default function DashboardClient() {
         />
       ) : null}
 
+      {rentalWorkflowOpen ? (
+        <RentalWorkflow
+          busy={Boolean(busyAction)}
+          customers={data.customers}
+          initialCustomer={activeCustomer ?? selectedCustomer}
+          initialRental={selectedRental}
+          initialVehicle={selectedVehicle}
+          money={money}
+          onClose={() => setRentalWorkflowOpen(false)}
+          onReturn={closeRentalWorkflowReturn}
+          onSave={saveRentalWorkflow}
+          onSend={sendRentalWorkflowConfirmation}
+          rentals={visibleRentals}
+          vehicles={visibleVehicles}
+        />
+      ) : null}
+
       {rentalWizardOpen ? (
         <RentalScenarioWizard
           busy={Boolean(busyAction)}
@@ -4457,13 +4701,12 @@ export default function DashboardClient() {
         busy={Boolean(busyAction)}
         locale={locale}
         onClose={() => setCreateSheetOpen(false)}
-        onCreateBooking={() => openOperation("booking")}
         onCreateCustomer={openCustomerCreate}
         onCreateExpense={() => openOperation("expense")}
         onCreateService={() => openOperation("service")}
         onCreateVehicle={openVehicleCreate}
         onOpenClientIntake={() => setClientIntakeDialogOpen(true)}
-        onOpenRentalWizard={() => setRentalWizardOpen(true)}
+        onOpenRentalWizard={openRentalWorkflow}
         onShareContract={openShareDialog}
         onUploadDocument={requestVehicleDocumentUpload}
         open={createSheetOpen}
@@ -5619,6 +5862,349 @@ function BookingCalendar({ customers, locale, rentals, vehicles }: { customers: 
   );
 }
 
+function toDatetimeLocal(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function rentalWorkflowReturnAt(returnDate: string, pickupAt: string) {
+  const pickupMs = new Date(pickupAt).getTime();
+  const requestedMs = returnDate ? new Date(returnDate).getTime() : Date.now();
+  const safeMs = Number.isFinite(requestedMs) && requestedMs > pickupMs ? requestedMs : pickupMs + 60_000;
+  return new Date(safeMs).toISOString();
+}
+
+function buildRentalWorkflowDraft(vehicle: Vehicle | undefined, customer: Customer | undefined, rental: Rental | undefined): RentalWorkflowDraft {
+  const pickupAt = rental?.pickupAt ?? new Date().toISOString();
+  const returnAt = rental?.returnAt ?? new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+  const rentalAmount = String(rental?.totalAmount ?? Math.max(1, (vehicle?.dailyRate ?? 90) * 2));
+  const depositAmount = String(rental?.depositAmount ?? 500);
+  return {
+    clientEmail: customer?.email ?? "",
+    clientName: customer?.displayName ?? "",
+    clientNote: "",
+    clientPassportId: "",
+    clientPhone: customer?.phone ?? "",
+    clientTelegram: "",
+    clientWhatsApp: customer?.phone ?? "",
+    depositAmount,
+    depositRefund: depositAmount,
+    paymentAmount: rentalAmount,
+    paymentMethod: "card",
+    paymentStatus: "unpaid",
+    pickupAt: toDatetimeLocal(pickupAt),
+    rentalAmount,
+    returnAt: toDatetimeLocal(returnAt),
+    returnCondition: "ok",
+    returnDamages: "",
+    returnDate: toDatetimeLocal(new Date()),
+    selectedCustomerId: customer?.id ?? "",
+    selectedRentalId: rental?.id ?? "",
+    selectedVehicleId: vehicle?.id ?? "",
+  };
+}
+
+function RentalWorkflow({
+  busy,
+  customers,
+  initialCustomer,
+  initialRental,
+  initialVehicle,
+  money,
+  onClose,
+  onReturn,
+  onSave,
+  onSend,
+  rentals,
+  vehicles,
+}: {
+  busy: boolean;
+  customers: Customer[];
+  initialCustomer: Customer | undefined;
+  initialRental: Rental | undefined;
+  initialVehicle: Vehicle | undefined;
+  money: Intl.NumberFormat;
+  onClose: () => void;
+  onReturn: (draft: RentalWorkflowDraft, returnFiles: FileList | null) => Promise<Rental | undefined>;
+  onSave: (draft: RentalWorkflowDraft, customerFiles: FileList | null) => Promise<Rental | undefined>;
+  onSend: (channel: "email" | "telegram" | "whatsapp", draft: RentalWorkflowDraft) => Promise<Rental | undefined>;
+  rentals: Rental[];
+  vehicles: Vehicle[];
+}) {
+  const storageKey = "fleetcore-rental-workflow-draft";
+  const initialWorkflowVehicle = initialVehicle?.status === "available"
+    ? initialVehicle
+    : vehicles.find((vehicle) => vehicle.status === "available" && !rentals.some((rental) => rental.status !== "closed" && rental.vehicleId === vehicle.id))
+      ?? vehicles.find((vehicle) => vehicle.status === "available")
+      ?? initialVehicle;
+  const [draft, setDraft] = useState<RentalWorkflowDraft>(() => {
+    const fallback = buildRentalWorkflowDraft(initialWorkflowVehicle, initialCustomer, initialRental);
+    if (typeof window === "undefined") return fallback;
+    const stored = localStorage.getItem(storageKey);
+    if (!stored) return fallback;
+    try {
+      const parsed = { ...fallback, ...(JSON.parse(stored) as Partial<RentalWorkflowDraft>) };
+      const rentalExists = rentals.some((rental) => rental.id === parsed.selectedRentalId && rental.status !== "closed");
+      const unavailableVehicleIds = new Set(rentals.filter((rental) => rental.status !== "closed" && rental.id !== parsed.selectedRentalId).map((rental) => rental.vehicleId));
+      const vehicleExists = vehicles.some((vehicle) => vehicle.id === parsed.selectedVehicleId && vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id));
+      const customerExists = customers.some((customer) => customer.id === parsed.selectedCustomerId);
+      return {
+        ...parsed,
+        selectedCustomerId: customerExists ? parsed.selectedCustomerId : fallback.selectedCustomerId,
+        selectedRentalId: rentalExists ? parsed.selectedRentalId : "",
+        selectedVehicleId: vehicleExists ? parsed.selectedVehicleId : fallback.selectedVehicleId,
+      };
+    } catch {
+      localStorage.removeItem(storageKey);
+      return fallback;
+    }
+  });
+  const [customerFiles, setCustomerFiles] = useState<FileList | null>(null);
+  const [returnFiles, setReturnFiles] = useState<FileList | null>(null);
+  const [savedRentalId, setSavedRentalId] = useState(draft.selectedRentalId);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(draft));
+  }, [draft]);
+
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === draft.selectedVehicleId) ?? initialVehicle;
+  const selectedCustomer = customers.find((customer) => customer.id === draft.selectedCustomerId) ?? initialCustomer;
+  const currentRental = rentals.find((rental) => rental.id === savedRentalId || rental.id === draft.selectedRentalId) ?? initialRental;
+  const unavailableVehicleIds = new Set(rentals.filter((rental) => rental.status !== "closed" && rental.id !== currentRental?.id).map((rental) => rental.vehicleId));
+  const days = Math.max(1, Math.ceil((new Date(draft.returnAt).getTime() - new Date(draft.pickupAt).getTime()) / (24 * 60 * 60 * 1000)) || 1);
+  const totalPreview = Number(draft.rentalAmount || 0);
+  const depositPreview = Number(draft.depositAmount || 0);
+
+  function patch(key: keyof RentalWorkflowDraft, value: string) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function chooseCustomer(customerId: string) {
+    const customer = customers.find((item) => item.id === customerId);
+    setDraft((current) => ({
+      ...current,
+      clientEmail: customer?.email ?? current.clientEmail,
+      clientName: customer?.displayName ?? current.clientName,
+      clientPhone: customer?.phone ?? current.clientPhone,
+      clientWhatsApp: customer?.phone ?? current.clientWhatsApp,
+      selectedCustomerId: customerId,
+    }));
+  }
+
+  function chooseVehicle(vehicleId: string) {
+    const vehicle = vehicles.find((item) => item.id === vehicleId);
+    setDraft((current) => ({
+      ...current,
+      depositAmount: vehicle ? String(Math.max(300, Math.round(vehicle.dailyRate * 5))) : current.depositAmount,
+      depositRefund: vehicle ? String(Math.max(300, Math.round(vehicle.dailyRate * 5))) : current.depositRefund,
+      paymentAmount: vehicle ? String(Math.max(1, vehicle.dailyRate * days)) : current.paymentAmount,
+      rentalAmount: vehicle ? String(Math.max(1, vehicle.dailyRate * days)) : current.rentalAmount,
+      selectedVehicleId: vehicleId,
+    }));
+  }
+
+  async function save(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    const rental = await onSave(draft, customerFiles);
+    if (rental) {
+      setSavedRentalId(rental.id);
+      setDraft((current) => ({ ...current, selectedRentalId: rental.id, selectedVehicleId: rental.vehicleId }));
+    }
+  }
+
+  async function send(channel: "email" | "telegram" | "whatsapp") {
+    const nextDraft = savedRentalId ? { ...draft, selectedRentalId: savedRentalId } : draft;
+    const rental = await onSend(channel, nextDraft);
+    if (rental) {
+      setSavedRentalId(rental.id);
+      setDraft((current) => ({ ...current, selectedRentalId: rental.id, selectedVehicleId: rental.vehicleId }));
+    }
+  }
+
+  async function closeReturn() {
+    const nextDraft = savedRentalId ? { ...draft, selectedRentalId: savedRentalId } : draft;
+    const rental = await onReturn(nextDraft, returnFiles);
+    if (rental) {
+      setSavedRentalId(rental.id);
+      setDraft((current) => ({ ...current, selectedRentalId: rental.id, selectedVehicleId: rental.vehicleId }));
+    }
+  }
+
+  return (
+    <div className="modal-backdrop rental-workflow-backdrop" role="dialog" aria-modal="true" aria-label="Rental workflow">
+      <section className="rental-workflow">
+        <div className="rental-workflow-hero">
+          <div>
+            <span className="eyebrow">FleetCore Rental Flow</span>
+            <h2>Создать аренду</h2>
+            <p>Один постоянный сценарий работы менеджера: клиент, автомобиль, оплата, отправка и возврат без переходов по разделам.</p>
+          </div>
+          <button className="ghost-button" onClick={onClose} type="button">Закрыть</button>
+        </div>
+
+        <div className="rental-workflow-progress" aria-label="Client to return workflow">
+          {["Клиент", "Автомобиль", "Оплата", "Отправка", "Возврат"].map((step, index) => (
+            <span className={index < (savedRentalId ? 4 : 2) ? "active" : ""} key={step}>{index + 1}. {step}</span>
+          ))}
+        </div>
+
+        <form className="rental-workflow-grid" onSubmit={(event) => void save(event)}>
+          <section className="workflow-block">
+            <div className="workflow-block-title">
+              <span>1</span>
+              <div>
+                <h3>Клиент</h3>
+                <p>Новый клиент или выбор из CRM.</p>
+              </div>
+            </div>
+            <label>Выбрать из CRM
+              <select value={draft.selectedCustomerId} onChange={(event) => chooseCustomer(event.target.value)}>
+                <option value="">Новый клиент</option>
+                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.displayName} · {customer.phone}</option>)}
+              </select>
+            </label>
+            <div className="workflow-two">
+              <label>Имя<input required value={draft.clientName} onChange={(event) => patch("clientName", event.target.value)} /></label>
+              <label>Телефон<input required inputMode="tel" value={draft.clientPhone} onChange={(event) => patch("clientPhone", event.target.value)} /></label>
+            </div>
+            <div className="workflow-two">
+              <label>Email<input inputMode="email" type="email" value={draft.clientEmail} onChange={(event) => patch("clientEmail", event.target.value)} /></label>
+              <label>WhatsApp<input inputMode="tel" value={draft.clientWhatsApp} onChange={(event) => patch("clientWhatsApp", event.target.value)} /></label>
+            </div>
+            <div className="workflow-two">
+              <label>Telegram<input value={draft.clientTelegram} onChange={(event) => patch("clientTelegram", event.target.value)} /></label>
+              <label>Паспорт / ID<input value={draft.clientPassportId} onChange={(event) => patch("clientPassportId", event.target.value)} /></label>
+            </div>
+            <label>Паспорт / ID / водительское удостоверение
+              <input multiple onChange={(event) => setCustomerFiles(event.target.files)} type="file" />
+            </label>
+            <label>Заметка<textarea value={draft.clientNote} onChange={(event) => patch("clientNote", event.target.value)} /></label>
+          </section>
+
+          <section className="workflow-block">
+            <div className="workflow-block-title">
+              <span>2</span>
+              <div>
+                <h3>Автомобиль</h3>
+                <p>Ручной выбор автомобиля из текущего автопарка.</p>
+              </div>
+            </div>
+            <label>Автомобиль
+              <select required value={draft.selectedVehicleId} onChange={(event) => chooseVehicle(event.target.value)}>
+                <option value="">Выберите автомобиль</option>
+                {vehicles.map((vehicle) => {
+                  const unavailable = unavailableVehicleIds.has(vehicle.id) || vehicle.status !== "available";
+                  return (
+                    <option disabled={unavailable} key={vehicle.id} value={vehicle.id}>
+                      {vehicle.plateNumber} · {vehicle.make} {vehicle.model} · {vehicle.status} · {money.format(vehicle.dailyRate)}/day
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <div className="vehicle-selection-preview">
+              <strong>{selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Автомобиль не выбран"}</strong>
+              <span>Номер: {selectedVehicle?.plateNumber ?? "-"}</span>
+              <span>Статус: {selectedVehicle?.status ?? "-"}</span>
+              <span>Цена за день: {selectedVehicle ? money.format(selectedVehicle.dailyRate) : "-"}</span>
+              <span>Депозит: {money.format(depositPreview || 0)}</span>
+            </div>
+            <div className="workflow-two">
+              <label>Дата выдачи<input required type="datetime-local" value={draft.pickupAt} onChange={(event) => patch("pickupAt", event.target.value)} /></label>
+              <label>Дата возврата<input required type="datetime-local" value={draft.returnAt} onChange={(event) => patch("returnAt", event.target.value)} /></label>
+            </div>
+          </section>
+
+          <section className="workflow-block">
+            <div className="workflow-block-title">
+              <span>3</span>
+              <div>
+                <h3>Оплата</h3>
+                <p>Сумма, депозит, способ и статус оплаты.</p>
+              </div>
+            </div>
+            <div className="workflow-two">
+              <label>Сумма аренды<input required inputMode="decimal" value={draft.rentalAmount} onChange={(event) => patch("rentalAmount", event.target.value)} /></label>
+              <label>Депозит<input required inputMode="decimal" value={draft.depositAmount} onChange={(event) => patch("depositAmount", event.target.value)} /></label>
+            </div>
+            <div className="workflow-two">
+              <label>Способ оплаты
+                <select value={draft.paymentMethod} onChange={(event) => patch("paymentMethod", event.target.value)}>
+                  <option value="cash">Наличные</option>
+                  <option value="bank_transfer">Банковский перевод</option>
+                  <option value="card">Карта</option>
+                </select>
+              </label>
+              <label>Статус оплаты
+                <select value={draft.paymentStatus} onChange={(event) => patch("paymentStatus", event.target.value)}>
+                  <option value="paid">Оплачено</option>
+                  <option value="partial">Частично оплачено</option>
+                  <option value="unpaid">Не оплачено</option>
+                </select>
+              </label>
+            </div>
+            <label>Сумма внесенной оплаты<input inputMode="decimal" value={draft.paymentAmount} onChange={(event) => patch("paymentAmount", event.target.value)} /></label>
+          </section>
+
+          <section className="workflow-block workflow-send-block">
+            <div className="workflow-block-title">
+              <span>4</span>
+              <div>
+                <h3>Отправка клиенту</h3>
+                <p>После сохранения отправьте подтверждение с документом.</p>
+              </div>
+            </div>
+            <div className="workflow-confirmation-card">
+              <strong>{draft.clientName || selectedCustomer?.displayName || "Клиент"}</strong>
+              <span>{selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} · ${selectedVehicle.plateNumber}` : "Автомобиль не выбран"}</span>
+              <span>{days} дн. · {money.format(totalPreview || 0)} · депозит {money.format(depositPreview || 0)}</span>
+              <span>{draft.paymentMethod} · {draft.paymentStatus}</span>
+            </div>
+            <div className="workflow-send-actions">
+              <button className="ghost-button" disabled={busy || !savedRentalId} onClick={() => void send("whatsapp")} type="button">WhatsApp</button>
+              <button className="ghost-button" disabled={busy || !savedRentalId} onClick={() => void send("telegram")} type="button">Telegram</button>
+              <button className="ghost-button" disabled={busy || !savedRentalId} onClick={() => void send("email")} type="button">Email</button>
+            </div>
+          </section>
+
+          <section className="workflow-block">
+            <div className="workflow-block-title">
+              <span>5</span>
+              <div>
+                <h3>Возврат</h3>
+                <p>Простой финальный блок возврата и закрытия аренды.</p>
+              </div>
+            </div>
+            <div className="workflow-two">
+              <label>Дата возврата<input type="datetime-local" value={draft.returnDate} onChange={(event) => patch("returnDate", event.target.value)} /></label>
+              <label>Состояние автомобиля
+                <select value={draft.returnCondition} onChange={(event) => patch("returnCondition", event.target.value)}>
+                  <option value="ok">Без проблем</option>
+                  <option value="dirty">Нужна чистка</option>
+                  <option value="damaged">Есть повреждения</option>
+                </select>
+              </label>
+            </div>
+            <label>Фото до/после<input multiple accept="image/*" onChange={(event) => setReturnFiles(event.target.files)} type="file" /></label>
+            <label>Повреждения<textarea value={draft.returnDamages} onChange={(event) => patch("returnDamages", event.target.value)} /></label>
+            <label>Возврат депозита<input inputMode="decimal" value={draft.depositRefund} onChange={(event) => patch("depositRefund", event.target.value)} /></label>
+            <button className="secondary-button full" disabled={busy || !savedRentalId} onClick={() => void closeReturn()} type="button">Оформить возврат</button>
+          </section>
+
+          <div className="rental-workflow-footer">
+            <div>
+              <strong>{savedRentalId ? "Аренда сохранена" : "Черновик автосохранён"}</strong>
+              <span>{savedRentalId || "Заполните блоки и нажмите сохранить."}</span>
+            </div>
+            <button className="primary-button" disabled={busy} type="submit">Сохранить аренду</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
 function RentalScenarioWizard({
   busy,
   data,
@@ -5711,7 +6297,6 @@ function SimplifiedCommandCenter({
   busyAction,
   focus,
   message,
-  onCreateBooking,
   onCreateCustomer,
   onCreateExpense,
   onCreateService,
@@ -5727,7 +6312,6 @@ function SimplifiedCommandCenter({
   busyAction: string | undefined;
   focus: SectionFocus;
   message: string;
-  onCreateBooking: () => void;
   onCreateCustomer: () => void;
   onCreateExpense: () => void;
   onCreateService: () => void;
@@ -5741,8 +6325,7 @@ function SimplifiedCommandCenter({
 }) {
   const secondaryActions: Array<SmartAction & { testId?: string | undefined }> = [
     ...focus.secondary.map((action) => ({ ...action, testId: undefined })),
-    { label: "Мастер аренды", onClick: onOpenWizard, testId: undefined },
-    { label: "Новая аренда", onClick: onCreateBooking, testId: "command-create-booking" },
+    { label: "Создать аренду", onClick: onOpenWizard, testId: "command-create-booking" },
     { label: "Автомобиль", onClick: onCreateVehicle, testId: "command-create-vehicle" },
     { label: "Клиент", onClick: onCreateCustomer, testId: "command-create-customer" },
     { label: "Документ", onClick: onUploadDocument, testId: "command-upload-document" },
@@ -5789,7 +6372,6 @@ function CreateActionSheet({
   busy,
   locale,
   onClose,
-  onCreateBooking,
   onCreateCustomer,
   onCreateExpense,
   onCreateService,
@@ -5803,7 +6385,6 @@ function CreateActionSheet({
   busy: boolean;
   locale: Locale;
   onClose: () => void;
-  onCreateBooking: () => void;
   onCreateCustomer: () => void;
   onCreateExpense: () => void;
   onCreateService: () => void;
@@ -5828,9 +6409,8 @@ function CreateActionSheet({
     ? "Выберите одно действие. Остальные шаги FleetCore предложит внутри процесса."
     : "Choose one action. FleetCore will guide the next steps inside the workflow.";
   const actions = [
-    { description: locale === "ru" ? "Авто, клиент, бронь, договор, оплата и возврат." : "Vehicle, customer, booking, contract, payment and return.", label: locale === "ru" ? "Мастер аренды" : "Rental wizard", onClick: onOpenRentalWizard },
+    { description: locale === "ru" ? "Клиент, авто, оплата, отправка и возврат в одном экране." : "Client, vehicle, payment, sending and return in one screen.", label: locale === "ru" ? "Создать аренду" : "Create rental", onClick: onOpenRentalWizard },
     { description: locale === "ru" ? "Клиент сам заполнит данные и загрузит документы." : "Client fills data and uploads documents.", label: locale === "ru" ? "Заявка клиента" : "Client intake", onClick: onOpenClientIntake },
-    { description: locale === "ru" ? "Бронь, договор, депозит, выдача и возврат." : "Booking, contract, deposit, pickup and return.", label: locale === "ru" ? "Новая аренда" : "New rental", onClick: onCreateBooking },
     { description: locale === "ru" ? "Добавить машину в автопарк." : "Add a vehicle to the fleet.", label: locale === "ru" ? "Автомобиль" : "Vehicle", onClick: onCreateVehicle },
     { description: locale === "ru" ? "CRM-карточка клиента и документы." : "Customer CRM profile and documents.", label: locale === "ru" ? "Клиент" : "Customer", onClick: onCreateCustomer },
     { description: locale === "ru" ? "Паспорт, договор, страховка, депозит." : "Passport, contract, insurance or deposit.", label: locale === "ru" ? "Документ" : "Document", onClick: onUploadDocument },

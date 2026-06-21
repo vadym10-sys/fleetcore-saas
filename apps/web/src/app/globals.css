@@ -8976,7 +8976,264 @@ h3 {
     min-height: 48px;
   }
 
-  .activity-feed-row {
+.activity-feed-row {
     min-height: 58px;
+  }
+}
+
+.rental-workflow-backdrop {
+  align-items: center;
+  padding: 18px;
+}
+
+.rental-workflow {
+  width: min(1180px, 100%);
+  max-height: min(92vh, 920px);
+  overflow: auto;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)),
+    #fff;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.22);
+}
+
+.rental-workflow-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 24px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background: linear-gradient(135deg, #111827, #172554);
+  color: #fff;
+}
+
+.rental-workflow-hero h2 {
+  margin: 6px 0;
+  color: #fff;
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.rental-workflow-hero p {
+  max-width: 700px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.rental-workflow-progress {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  background: #f8fafc;
+}
+
+.rental-workflow-progress span {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.rental-workflow-progress span.active {
+  border-color: rgba(35, 70, 216, 0.35);
+  background: rgba(35, 70, 216, 0.08);
+  color: #2346d8;
+}
+
+.rental-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px;
+}
+
+.workflow-block {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.workflow-block-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.workflow-block-title > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: #111827;
+  color: #fff;
+  font-weight: 950;
+}
+
+.workflow-block-title h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.workflow-block-title p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.workflow-block label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.workflow-block input,
+.workflow-block select,
+.workflow-block textarea {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 750;
+  padding: 10px 12px;
+  text-transform: none;
+}
+
+.workflow-block textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.workflow-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vehicle-selection-preview,
+.workflow-confirmation-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(35, 70, 216, 0.14);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(35, 70, 216, 0.08), rgba(15, 159, 110, 0.07));
+  padding: 12px;
+}
+
+.vehicle-selection-preview strong,
+.workflow-confirmation-card strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.vehicle-selection-preview span,
+.workflow-confirmation-card span {
+  color: #475569;
+  font-weight: 800;
+}
+
+.workflow-send-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rental-workflow-footer {
+  position: sticky;
+  bottom: 0;
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 14px;
+  box-shadow: 0 -16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.rental-workflow-footer div {
+  display: grid;
+  gap: 3px;
+}
+
+.rental-workflow-footer span {
+  color: #64748b;
+  font-weight: 750;
+}
+
+@media (max-width: 860px) {
+  .rental-workflow-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .rental-workflow {
+    width: 100%;
+    max-height: 94dvh;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .rental-workflow-hero {
+    padding: 18px;
+  }
+
+  .rental-workflow-hero h2 {
+    font-size: 25px;
+  }
+
+  .rental-workflow-progress {
+    display: flex;
+    overflow-x: auto;
+    padding: 12px;
+  }
+
+  .rental-workflow-progress span {
+    min-width: 128px;
+  }
+
+  .rental-workflow-grid,
+  .workflow-two,
+  .workflow-send-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .rental-workflow-grid {
+    padding: 12px;
+  }
+
+  .workflow-block {
+    padding: 14px;
+  }
+
+  .rental-workflow-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rental-workflow-footer .primary-button {
+    width: 100%;
+    min-height: 50px;
   }
 }

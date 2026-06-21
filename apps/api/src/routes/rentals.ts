@@ -185,8 +185,8 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
     if (!existing) {
       return reply.code(404).send({ error: "Rental not found or cannot be returned" });
     }
-    if (new Date(parsed.data.returnedAt).getTime() < new Date(existing.pickupAt).getTime()) {
-      return reply.code(422).send({ error: "Return date cannot be before pickup date" });
+    if (new Date(parsed.data.returnedAt).getTime() <= new Date(existing.pickupAt).getTime()) {
+      return reply.code(422).send({ error: "Return date must be after pickup date" });
     }
     if (!(await hasRentalChecklistPhase(scope, rentalId, "return"))) {
       return reply.code(422).send({ error: "Return checklist is required before final settlement" });
