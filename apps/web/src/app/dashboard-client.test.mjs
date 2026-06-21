@@ -160,6 +160,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "isDemoNoiseVehicle",
     "visibleVehicles",
     "closeTransientSurfaces",
+    "ensureBookableVehicle",
+    "createNewRental",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

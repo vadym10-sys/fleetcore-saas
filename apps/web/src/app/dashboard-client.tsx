@@ -2482,6 +2482,29 @@ export default function DashboardClient() {
     return created;
   }
 
+  function findAvailableVehicle(preferredVehicleId?: string) {
+    const unavailableVehicleIds = new Set(data.rentals.filter((rental) => rental.status !== "closed").map((rental) => rental.vehicleId));
+    const preferred = [...visibleVehicles, ...data.vehicles].find((vehicle) => vehicle.id === preferredVehicleId && vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id));
+    return preferred
+      ?? visibleVehicles.find((vehicle) => vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id))
+      ?? data.vehicles.find((vehicle) => vehicle.status === "available" && !unavailableVehicleIds.has(vehicle.id))
+      ?? data.vehicles.find((vehicle) => !unavailableVehicleIds.has(vehicle.id));
+  }
+
+  async function ensureBookableVehicle() {
+    const vehicle = findAvailableVehicle();
+    if (vehicle) return vehicle;
+    const created = await createVehicleRecord({
+      make: "BMW",
+      model: "X5",
+      plateNumber: `NEW-${Date.now().toString().slice(-5)}`,
+      vin: `BOOK${Date.now().toString().slice(-10)}`,
+    });
+    setSelectedVehicleId(created.id);
+    setMessage(`Свободный автомобиль создан автоматически: ${created.make} ${created.model}`);
+    return created;
+  }
+
   async function ensureCustomer() {
     if (selectedCustomer) return selectedCustomer;
     if (activeCustomer) return activeCustomer;
@@ -2499,6 +2522,29 @@ export default function DashboardClient() {
   async function ensureRental() {
     if (activeRental) return activeRental;
     const vehicle = await ensureVehicle();
+    const customer = await ensureCustomer();
+    const pickupAt = new Date();
+    const returnAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const response = await api<Rental>("/rentals", {
+      body: JSON.stringify({
+        customerId: customer.id,
+        depositAmount: 500,
+        pickupAt: pickupAt.toISOString(),
+        returnAt: returnAt.toISOString(),
+        status: "reserved",
+        totalAmount: vehicle.dailyRate * 2,
+        vehicleId: vehicle.id,
+      }),
+      method: "POST",
+    }, token);
+    setSelectedRentalId(response.data.id);
+    setSelectedVehicleId(response.data.vehicleId);
+    setSelectedCustomerId(response.data.customerId);
+    return response.data;
+  }
+
+  async function createNewRental() {
+    const vehicle = await ensureBookableVehicle();
     const customer = await ensureCustomer();
     const pickupAt = new Date();
     const returnAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
@@ -2938,6 +2984,7 @@ export default function DashboardClient() {
       }
 
       if (operation === "booking") {
+        const bookingVehicle = findAvailableVehicle(operationForm.vehicleId) ?? await ensureBookableVehicle();
         await api<Rental>("/rentals", {
           body: JSON.stringify({
             customerId: customer.id,
@@ -2946,7 +2993,7 @@ export default function DashboardClient() {
             returnAt: new Date(operationForm.returnAt || Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
             status: "reserved",
             totalAmount: Number(operationForm.totalAmount),
-            vehicleId: vehicle.id,
+            vehicleId: bookingVehicle.id,
           }),
           method: "POST",
         }, token);
@@ -3112,7 +3159,7 @@ export default function DashboardClient() {
 
   async function createQuickBooking() {
     await runAction("Создаем бронь...", async () => {
-      await ensureRental();
+      await createNewRental();
       await loadData();
       setMessage("Бронь создана");
     });
@@ -3460,7 +3507,7 @@ export default function DashboardClient() {
     }
     if (step === "booking") {
       await runAction("Мастер аренды: создаем бронь...", async () => {
-        const rental = await ensureRental();
+        const rental = selectedRental && selectedRental.status !== "closed" ? selectedRental : await createNewRental();
         await loadData();
         selectSection("Bookings");
         setSelectedRentalId(rental.id);
