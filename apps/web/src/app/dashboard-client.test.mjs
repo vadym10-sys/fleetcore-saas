@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 const source = await readFile(new URL("./dashboard-client.tsx", import.meta.url), "utf8");
 const css = await readFile(new URL("./globals.css", import.meta.url), "utf8");
+const rentalWorkbench = await readFile(new URL("../features/rentals/rental-workbench.tsx", import.meta.url), "utf8");
 
 test("dashboard client keeps production account and document flows wired", () => {
   for (const marker of [
@@ -13,6 +14,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "/auth/request-password-reset",
     "/auth/request-email-verification",
     "Document center",
+    "Document Inbox",
+    "document-inbox",
     "FileObjectRow",
     "FilePreviewLink",
     "requestContractUpload",
@@ -21,7 +24,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "requestCustomerFolderUpload",
     "/operations/rental-contract-events",
     "contractEventLabel",
-    "contract-timeline",
+    "RentalWorkbench",
+    "rental-workbench",
     "FleetCore Command",
     "GlobalSearchResult",
     "globalSearchResults",
@@ -54,7 +58,6 @@ test("dashboard client keeps production account and document flows wired", () =>
     "Company branding",
     "/operations/rental-checklists",
     "createRentalChecklist",
-    "checklist-cell",
     "/flow",
     "contractPdfUrl",
     "RentalDetailPanel",
@@ -106,7 +109,7 @@ test("dashboard client keeps production account and document flows wired", () =>
     "rental-detail-panel",
     "rental-step-master",
     "rental-side-focus",
-    "Показаны 6 ближайших аренд",
+    "RentalWorkbench",
     "rental-detail-timeline",
     "rental-health-strip",
     "Следующее лучшее действие",
@@ -155,6 +158,22 @@ test("dashboard client keeps production account and document flows wired", () =>
     "createNewRental",
   ]) {
     assert.match(source, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("rental workbench keeps rental operations extracted and actionable", () => {
+  for (const marker of [
+    "export function RentalWorkbench",
+    "rental-workbench",
+    "onCreatePickup",
+    "onCreateReturn",
+    "onOpenPdf",
+    "onShare",
+    "rental-workbench-checks",
+    "WhatsApp",
+    "Telegram",
+  ]) {
+    assert.match(rentalWorkbench, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
 

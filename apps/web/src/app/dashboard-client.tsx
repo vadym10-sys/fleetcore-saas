@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import { EmptyWorkspaceState, ListControlBar, type SavedView } from "../features/common/list-control-bar";
+import { RentalWorkbench } from "../features/rentals/rental-workbench";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
@@ -41,7 +43,6 @@ type SectionFocus = {
 type RentalWizardStep = "vehicle" | "customer" | "booking" | "contract" | "send" | "payment" | "return";
 type VehicleSortKey = "status" | "plate" | "return" | "roi";
 type CustomerSortKey = "name" | "risk" | "debt" | "rentals";
-type SavedView<T extends string> = { label: string; value: T };
 type OperationKind =
   | "booking"
   | "contract"
@@ -4190,48 +4191,24 @@ export default function DashboardClient() {
                 </details>
               </aside>
             </div>
-            {visibleRentals.slice(0, 6).map((rental) => {
-              const vehicle = visibleVehicles.find((item) => item.id === rental.vehicleId);
-              const customer = data.customers.find((item) => item.id === rental.customerId);
-              const contract = data.rentalContracts.find((item) => item.rentalId === rental.id);
-              const contractEvents = contract
-                ? data.rentalContractEvents.filter((item) => item.contractId === contract.id).slice(0, 3)
-                : [];
-              const checklists = data.rentalChecklists.filter((item) => item.rentalId === rental.id);
-              const pickupChecklist = checklists.find((item) => item.phase === "pickup");
-              const returnChecklist = checklists.find((item) => item.phase === "return");
-              return (
-                <article className={`booking-card ${selectedRental?.id === rental.id ? "selected" : ""}`} key={rental.id} onClick={() => setSelectedRentalId(rental.id)}>
-                  <div><strong>{customer?.displayName}</strong><span>{vehicle?.make} {vehicle?.model} · {vehicle?.plateNumber}</span></div>
-                  <Badge value={rentalStatusLabel(locale, rental.status)} />
-                  <span>Депозит {money.format(rental.depositAmount)}</span>
-                  <span>Возврат {dateFmt.format(new Date(rental.returnAt))}</span>
-                  <div className="checklist-cell">
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createRentalChecklist("pickup", rental)} type="button">
-                      {pickupChecklist ? "Выдача OK" : "Чек-лист выдачи"}
-                    </button>
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void createRentalChecklist("return", rental)} type="button">
-                      {returnChecklist ? "Возврат OK" : "Чек-лист возврата"}
-                    </button>
-                    {checklists.length ? <span>{checklists.length}/2 чек-листа</span> : null}
-                  </div>
-                  <div className="contract-cell">
-                    {contract ? <FilePreviewLink fileUrl={contract.documentUrl} title={`Договор: ${contractStatusLabel(locale, contract.status)}`} /> : null}
-                    <button className="ghost-button" disabled={Boolean(busyAction)} onClick={() => void openRentalContractPdfForRental(rental)} type="button">PDF</button>
-                    {contractEvents.length ? (
-                      <div className="contract-timeline">
-                        {contractEvents.map((event) => (
-                          <span key={event.id}>{contractEventLabel(locale, event)} · {dateFmt.format(new Date(event.createdAt))}</span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
-            {visibleRentals.length > 6 ? (
-              <p className="history-row">Показаны 6 ближайших аренд. Используйте поиск сверху, чтобы быстро найти клиента, номер авто или договор.</p>
-            ) : null}
+            <RentalWorkbench
+              busy={Boolean(busyAction)}
+              checklists={data.rentalChecklists}
+              contractEvents={data.rentalContractEvents}
+              contracts={data.rentalContracts}
+              customers={data.customers}
+              locale={locale}
+              money={money}
+              onCreatePickup={(rental) => void createRentalChecklist("pickup", rental)}
+              onCreateReturn={(rental) => void createRentalChecklist("return", rental)}
+              onOpenPdf={(rental) => void openRentalContractPdfForRental(rental)}
+              onPay={() => openOperation("payment")}
+              onSelectRental={setSelectedRentalId}
+              onShare={(channel, rental) => void shareRentalContract(channel, rental)}
+              rentals={visibleRentals}
+              selectedRentalId={selectedRental?.id}
+              vehicles={visibleVehicles}
+            />
           </section>
         ) : null}
 
@@ -4664,79 +4641,6 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
         <strong>{title}</strong>
         <p>{text}</p>
       </div>
-    </section>
-  );
-}
-
-function ListControlBar<T extends string>({
-  count,
-  emptyLabel,
-  label,
-  onClearSelection,
-  onExport,
-  onExportSelected,
-  onSelectVisible,
-  onSortChange,
-  selectedCount,
-  sortOptions,
-  sortValue,
-}: {
-  count: number;
-  emptyLabel: string;
-  label: string;
-  onClearSelection: () => void;
-  onExport: () => void;
-  onExportSelected: () => void;
-  onSelectVisible: () => void;
-  onSortChange: (value: T) => void;
-  selectedCount: number;
-  sortOptions: Array<SavedView<T>>;
-  sortValue: T;
-}) {
-  return (
-    <section className="list-control-bar" aria-label={label}>
-      <div className="list-control-summary">
-        <em>{label}</em>
-        <span>{count ? `${count} записей` : emptyLabel}</span>
-        {selectedCount ? <strong>{selectedCount} выбрано</strong> : <strong>Рабочий вид</strong>}
-      </div>
-      <div className="list-control-actions">
-        <label className="compact-select">
-          <span>Sort</span>
-          <select value={sortValue} onChange={(event) => onSortChange(event.target.value as T)}>
-            {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-        <button className="ghost-button" disabled={!count} onClick={onSelectVisible} type="button">Выбрать видимые</button>
-        <button className="ghost-button" disabled={!selectedCount} onClick={onClearSelection} type="button">Снять выбор</button>
-        <button className="ghost-button" disabled={!count} onClick={onExport} type="button">Экспорт CSV</button>
-        <button className="primary-button" disabled={!selectedCount} onClick={onExportSelected} type="button">Экспорт выбранных</button>
-      </div>
-    </section>
-  );
-}
-
-function EmptyWorkspaceState({
-  action,
-  description,
-  onAction,
-  title,
-}: {
-  action: string;
-  description: string;
-  onAction: () => void;
-  title: string;
-}) {
-  return (
-    <section className="empty-workspace-state">
-      <div>
-        <span className="empty-state-icon">⌕</span>
-      </div>
-      <div>
-        <strong>{title}</strong>
-        <p>{description}</p>
-      </div>
-      <button className="primary-button" onClick={onAction} type="button">{action}</button>
     </section>
   );
 }
@@ -5188,6 +5092,48 @@ function DocumentVault({
     { label: "Сроки", meta: "истекающие и просроченные документы", status: `${overdueDocuments.length} overdue · ${expiringDocuments.length} soon`, tone: overdueDocuments.length ? "red" : expiringDocuments.length ? "orange" : "green" },
     { label: "Статус", meta: "создан, отправлен, открыт, подписан", status: `${signedContracts}/${rentalContracts.length} signed`, tone: rentalContracts.length && signedContracts === rentalContracts.length ? "green" : "blue" },
   ];
+  const unsignedContracts = rentalContracts.filter((contract) => contract.status !== "signed");
+  const pendingCustomerDocs = customerDocuments.filter((doc) => !doc.verified);
+  const missingVehicleDocs = vehicles.filter((vehicle) => !vehicleDocuments.some((doc) => doc.vehicleId === vehicle.id));
+  const documentInbox = [
+    ...overdueDocuments.slice(0, 3).map((doc) => ({
+      action: () => onDocumentPreview({ fileUrl: doc.fileUrl, meta: doc.type, title: doc.title }),
+      label: "Просроченный документ",
+      meta: `${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`,
+      tone: "red",
+    })),
+    ...expiringDocuments.filter((doc) => !overdueDocuments.some((overdue) => overdue.id === doc.id)).slice(0, 3).map((doc) => ({
+      action: () => onDocumentPreview({ fileUrl: doc.fileUrl, meta: doc.type, title: doc.title }),
+      label: "Скоро истекает",
+      meta: `${doc.title} · ${doc.expiresAt ? dateFmt.format(new Date(doc.expiresAt)) : "без срока"}`,
+      tone: "orange",
+    })),
+    ...unsignedContracts.slice(0, 3).map((contract) => {
+      const rental = rentals.find((item) => item.id === contract.rentalId);
+      const vehicle = vehicles.find((item) => item.id === rental?.vehicleId);
+      return {
+        action: () => onDocumentPreview({ fileUrl: contract.documentUrl, meta: contract.status, title: `Договор ${contract.id}` }),
+        label: "Договор не подписан",
+        meta: `${contract.id} · ${vehicle?.plateNumber ?? "аренда"} · ${contractStatusLabel(locale, contract.status)}`,
+        tone: "blue",
+      };
+    }),
+    ...pendingCustomerDocs.slice(0, 3).map((doc) => {
+      const customer = customers.find((item) => item.id === doc.customerId);
+      return {
+        action: () => onDocumentPreview({ fileUrl: doc.fileUrl, meta: doc.type, title: doc.title }),
+        label: "Проверить документ клиента",
+        meta: `${customer?.displayName ?? "Клиент"} · ${doc.title}`,
+        tone: "orange",
+      };
+    }),
+    ...missingVehicleDocs.slice(0, 3).map((vehicle) => ({
+      action: onVehicleDocument,
+      label: "Нет папки авто",
+      meta: `${vehicle.make} ${vehicle.model} · ${vehicle.plateNumber}`,
+      tone: "black",
+    })),
+  ].slice(0, 8);
   const [activeTab, setActiveTab] = useState<DocumentCenterTab>("attention");
   const tabs: Array<{ count: number; key: DocumentCenterTab; label: string }> = [
     { count: expiringDocuments.length + overdueDocuments.length, key: "attention", label: "Требует внимания" },
@@ -5222,6 +5168,35 @@ function DocumentVault({
 
       {activeTab === "attention" ? (
         <>
+          <section className="document-inbox table-panel" data-testid="document-inbox">
+            <div className="section-title compact-title">
+              <div>
+                <h2>Document Inbox</h2>
+                <p>Сначала закрывайте эти документы: сроки, подписи, проверки и отсутствующие папки.</p>
+              </div>
+              <Badge value={`${documentInbox.length || 1} задач`} />
+            </div>
+            <div className="document-inbox-list">
+              {documentInbox.map((item) => (
+                <button className={`document-inbox-row ${item.tone}`} key={`${item.label}-${item.meta}`} onClick={item.action} type="button">
+                  <span>{item.tone === "red" ? "!" : item.tone === "orange" ? "•" : "→"}</span>
+                  <div>
+                    <strong>{item.label}</strong>
+                    <small>{item.meta}</small>
+                  </div>
+                </button>
+              ))}
+              {!documentInbox.length ? (
+                <button className="document-inbox-row green" onClick={onVehicleDocument} type="button">
+                  <span>✓</span>
+                  <div>
+                    <strong>Документы под контролем</strong>
+                    <small>Можно загрузить новый документ авто или проверить папки аренды.</small>
+                  </div>
+                </button>
+              ) : null}
+            </div>
+          </section>
           <section className="document-status-board" aria-label="Document status matrix">
             {documentStatusCards.map((card) => (
               <article className={card.tone} key={card.label}>
