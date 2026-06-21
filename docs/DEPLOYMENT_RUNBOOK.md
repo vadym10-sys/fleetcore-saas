@@ -40,7 +40,45 @@ PORT=3000
 6. Verify:
    - `GET /health` returns `200`.
    - `GET /readiness` returns `200` and `database: ok`.
+   - `GET /version` returns the expected API service metadata and deployment commit.
    - Web login, demo login, registration, dashboard, fleet, customers, rentals, documents, and finance screens load.
+
+## Render Deployment
+
+The canonical Render Blueprint is in the repository root: `render.yaml`.
+
+Expected services:
+
+- `fleetcore-api`
+- `fleetcore-web`
+- `fleetcore-postgres`
+
+Both web services have `autoDeploy: true`. If a push to `main` does not deploy a service, check that the Render service is connected to the same GitHub repository and branch.
+
+Manual API deploy command:
+
+```bash
+RENDER_API_KEY=... \
+RENDER_API_SERVICE_ID=srv_... \
+RENDER_WEB_SERVICE_ID=srv_... \
+pnpm deploy:render
+```
+
+Manual dashboard fallback:
+
+1. Open Render Dashboard.
+2. Open `fleetcore-api`.
+3. Click `Manual Deploy`.
+4. Select `Deploy latest commit`.
+5. Repeat for `fleetcore-web`.
+
+Production verification:
+
+```bash
+curl -fsS https://fleetcore-api.onrender.com/health
+curl -fsS https://fleetcore-api.onrender.com/version
+curl -fsS -I https://fleetcore-web.onrender.com
+```
 
 ## Rollback
 
@@ -58,4 +96,3 @@ Minimum production checks:
 - Web client error rate.
 - Database connection count.
 - Slow query log.
-

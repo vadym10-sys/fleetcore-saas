@@ -20,6 +20,14 @@ test("health endpoint exposes platform modules", async () => {
   assert.equal(response.json().data.ok, true);
 });
 
+test("version endpoint exposes deployment metadata", async () => {
+  const response = await app.inject({ method: "GET", url: "/version" });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.app, "fleetcore-api");
+  assert.equal(typeof response.json().data.commit, "string");
+});
+
 test("readiness endpoint verifies database availability", async () => {
   const response = await app.inject({ method: "GET", url: "/readiness" });
 

@@ -53,6 +53,12 @@ export async function buildServer() {
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: "Route not found" }));
 
   app.get("/health", async () => envelope({ ok: true, modules: platformModules }));
+  app.get("/version", async () => envelope({
+    app: "fleetcore-api",
+    commit: process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? process.env.COMMIT_SHA ?? "unknown",
+    environment: process.env.NODE_ENV ?? "development",
+    version: process.env.npm_package_version ?? "0.1.0",
+  }));
   app.get("/readiness", async (_request, reply) => {
     try {
       await pool.query("select 1");
