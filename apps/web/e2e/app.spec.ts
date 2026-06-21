@@ -23,6 +23,13 @@ test("desktop user can enter demo SaaS and use the command surface", async ({ pa
   await expect(page.locator(".today-operations-board")).toBeVisible();
   await expect(page.locator("[data-testid='dashboard-map-overview']")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Карта автопарка" })).toBeVisible();
+  await expect(page.locator("[data-testid='dashboard-folder-board']")).toBeVisible();
+  await expect(page.getByText("Папка 1")).toBeVisible();
+  page.once("dialog", async (dialog) => {
+    await dialog.accept("Папка QA");
+  });
+  await page.locator(".dashboard-folder-add").click();
+  await expect(page.getByText("Папка QA")).toBeVisible();
 
   await globalSearch.fill("BMW");
   await expect(page.locator(".global-search-results")).toBeVisible();

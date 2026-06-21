@@ -1690,7 +1690,6 @@ h3 {
   .settings-grid,
   .client-crm-workspace,
   .operations-main-grid,
-  .operations-lower-grid,
   .rental-details-layout,
   .split-panels {
     grid-template-columns: 1fr;
@@ -3915,79 +3914,111 @@ h3 {
   margin-top: 2px;
 }
 
-.operations-lower-grid {
+.dashboard-folder-board {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr) minmax(280px, 0.9fr) minmax(280px, 0.9fr);
   gap: 12px;
-  align-items: stretch;
 }
 
-.active-rentals-panel,
-.operations-readiness,
-.operations-selected-rental {
+.dashboard-folder-grid {
   display: grid;
-  gap: 10px;
-  align-content: start;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
 }
 
-.active-rental-row {
+.dashboard-folder-card,
+.dashboard-folder-add {
+  min-height: 220px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  width: 100%;
-  padding: 12px;
-  border: 1px solid rgba(221, 227, 236, 0.92);
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
   border-radius: 8px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.94);
   color: var(--ink);
-  text-align: left;
-  cursor: pointer;
+  box-shadow: 0 18px 40px rgba(18, 22, 45, 0.08);
 }
 
-.active-rental-row span,
-.operations-selected-rental span,
-.operations-selected-rental small {
-  color: var(--muted);
+.dashboard-folder-card {
+  position: relative;
+  border: 1px solid rgba(221, 227, 236, 0.9);
+  padding: 18px 14px 64px;
+}
+
+.dashboard-folder-card .folder-icon {
+  position: relative;
+  width: 72px;
+  height: 48px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #6f7d8f, #4d5b6c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 14px 24px rgba(15, 23, 42, 0.12);
+}
+
+.dashboard-folder-card .folder-icon:before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: -10px;
+  width: 28px;
+  height: 14px;
+  border-radius: 7px 7px 0 0;
+  background: #6f7d8f;
+}
+
+.dashboard-folder-card strong,
+.dashboard-folder-add strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #4b5563;
+  font-size: 17px;
+  font-weight: 900;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-folder-card small {
+  color: #94a3b8;
   font-size: 12px;
   font-weight: 800;
 }
 
-.operations-readiness p {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
-  margin: 0;
-  padding: 10px;
-  border-radius: 8px;
+.dashboard-folder-card button {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 52px;
+  border: 0;
+  border-top: 1px solid rgba(221, 227, 236, 0.82);
+  border-radius: 0 0 8px 8px;
   background: #f8fafc;
-  color: var(--ink);
-  font-size: 13px;
-}
-
-.operations-readiness p span {
-  width: 24px;
-  height: 24px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: white;
+  color: #475569;
+  font-size: 20px;
   font-weight: 900;
+  cursor: pointer;
 }
 
-.operations-readiness p.done span { background: #0f9f6e; }
-.operations-readiness p.attention span { background: #d97706; }
-
-.operations-readiness small {
-  color: var(--muted);
-  font-weight: 800;
-  line-height: 1.45;
+.dashboard-folder-card button:hover {
+  background: #eef2ff;
+  color: var(--primary);
 }
 
-.operations-selected-rental > strong {
-  color: var(--ink);
-  font-size: 15px;
+.dashboard-folder-add {
+  border: 1px dashed rgba(100, 116, 139, 0.34);
+  background: rgba(248, 250, 252, 0.72);
+  cursor: pointer;
+}
+
+.dashboard-folder-add span {
+  color: #7b8494;
+  font-size: 54px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.dashboard-folder-add:hover {
+  border-color: rgba(35, 70, 216, 0.42);
+  background: rgba(35, 70, 216, 0.06);
 }
 
 .rental-details-layout {
@@ -5832,7 +5863,6 @@ h3 {
   .settings-grid,
   .client-crm-workspace,
   .operations-main-grid,
-  .operations-lower-grid,
   .rental-details-layout,
   .split-panels {
     grid-template-columns: 1fr;
@@ -8153,8 +8183,8 @@ h3 {
     white-space: normal;
   }
 
-  .operations-lower-grid {
-    display: none;
+  .dashboard-folder-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .rental-secondary-details .rental-document-strip,
@@ -8543,14 +8573,12 @@ h3 {
   border-radius: var(--radius-sm);
 }
 
-.today-task-card strong,
-.active-rental-row strong {
+.today-task-card strong {
   font-size: 14px;
   line-height: 1.22;
 }
 
-.today-task-card small,
-.active-rental-row span {
+.today-task-card small {
   margin-top: 3px;
   font-size: 12px;
   line-height: 1.3;
@@ -8573,15 +8601,6 @@ h3 {
 
 .metric-card strong {
   font-size: 26px;
-}
-
-.operations-lower-grid {
-  gap: 12px;
-}
-
-.active-rental-row {
-  min-height: 58px;
-  border-radius: var(--radius-md);
 }
 
 .notifications-list article,
@@ -8860,13 +8879,13 @@ h3 {
     right: 13px;
   }
 
-  .operations-lower-grid {
-    display: grid;
+  .dashboard-folder-grid {
     grid-template-columns: 1fr;
   }
 
-  .operations-lower-grid .table-panel:nth-child(n + 3) {
-    display: none;
+  .dashboard-folder-card,
+  .dashboard-folder-add {
+    min-height: 172px;
   }
 
   .table-panel,

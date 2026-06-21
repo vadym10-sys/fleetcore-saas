@@ -154,6 +154,12 @@ type GlobalSearchResult = {
   preview?: DocumentPreview;
 };
 
+type DashboardFolder = {
+  createdAt: string;
+  id: string;
+  name: string;
+};
+
 const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Calendar", "Bookings", "Finance", "Service", "Settings"];
 const locales: Array<{ code: Locale; label: string }> = [
   { code: "en", label: "EN" },
@@ -4232,18 +4238,10 @@ export default function DashboardClient() {
               cards={dashboardCards}
               gpsDevices={data.gpsDevices}
               locale={locale}
-              notifications={notifications}
               onCreateBooking={openRentalWorkflow}
-              onOpenRental={(rental) => {
-                setSelectedRentalId(rental.id);
-                setSelectedVehicleId(rental.vehicleId);
-                selectSection("Bookings");
-              }}
               onSelectVehicle={setSelectedVehicleId}
-              operations={operations}
               rentals={visibleRentals}
               selectedVehicleId={selectedVehicle?.id}
-              selectedRental={selectedRentalDetail}
               vehicles={filteredVehicles}
             />
           )
@@ -4940,53 +4938,81 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
   );
 }
 
+function createDashboardFolder(index: number, name?: string): DashboardFolder {
+  return {
+    createdAt: new Date().toISOString(),
+    id: `folder_${Date.now().toString(36)}_${index.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    name: name?.trim() || `Папка ${index}`,
+  };
+}
+
+function defaultDashboardFolders() {
+  return Array.from({ length: 5 }, (_, index) => createDashboardFolder(index + 1));
+}
+
+function DashboardFolders() {
+  const storageKey = "fleetcore-dashboard-folders";
+  const [folders, setFolders] = useState<DashboardFolder[]>(() => {
+    if (typeof window === "undefined") return defaultDashboardFolders();
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      if (!stored) return defaultDashboardFolders();
+      const parsed = JSON.parse(stored) as DashboardFolder[];
+      return Array.isArray(parsed) && parsed.length ? parsed : defaultDashboardFolders();
+    } catch {
+      return defaultDashboardFolders();
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(folders));
+  }, [folders]);
+
+  function addFolder() {
+    const nextIndex = folders.length + 1;
+    const requestedName = window.prompt("Название папки", `Папка ${nextIndex}`) ?? "";
+    setFolders((current) => [...current, createDashboardFolder(nextIndex, requestedName || `Папка ${nextIndex}`)]);
+  }
+
+  return (
+    <section className="dashboard-folder-board" data-testid="dashboard-folder-board" aria-label="Dashboard folders">
+      <div className="dashboard-folder-grid">
+        {folders.map((folder) => (
+          <article className="dashboard-folder-card" key={folder.id}>
+            <span className="folder-icon" aria-hidden="true" />
+            <strong>{folder.name}</strong>
+            <small>{new Date(folder.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</small>
+            <button aria-label={`Добавить папку после ${folder.name}`} onClick={addFolder} type="button">+</button>
+          </article>
+        ))}
+        <button className="dashboard-folder-add" onClick={addFolder} type="button">
+          <span>+</span>
+          <strong>Добавить папку</strong>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function TodayOperationsDashboard({
   cards,
   gpsDevices,
   locale,
-  notifications,
   onCreateBooking,
-  onOpenRental,
   onSelectVehicle,
-  operations,
   rentals,
   selectedVehicleId,
-  selectedRental,
   vehicles,
 }: {
   cards: readonly (readonly [string, string | number, string])[];
   gpsDevices: GpsDevice[];
   locale: Locale;
-  notifications: UiNotification[];
   onCreateBooking: () => void;
-  onOpenRental: (rental: Rental) => void;
   onSelectVehicle: (id: string) => void;
-  operations: {
-    activeRentals: Rental[];
-    dueToday: Rental[];
-    expiringDocs: VehicleDocument[];
-    issues: OperationsIssue[];
-    missingVehicleDocs: Vehicle[];
-    offlineGps: GpsDevice[];
-    openContracts: RentalContract[];
-    overdueRentals: Rental[];
-    serviceDue: Vehicle[];
-    unpaidInvoices: Invoice[];
-  };
   rentals: Rental[];
   selectedVehicleId: string | undefined;
-  selectedRental: RentalDetailContext | undefined;
   vehicles: Vehicle[];
 }) {
-  const readiness = [
-    { done: operations.overdueRentals.length === 0, label: "Возвраты под контролем" },
-    { done: operations.unpaidInvoices.filter((invoice) => invoice.status === "overdue").length === 0, label: "Нет просроченных оплат" },
-    { done: operations.expiringDocs.length === 0, label: "Сроки документов чистые" },
-    { done: operations.offlineGps.length === 0, label: "GPS online" },
-  ];
-  const priorityRentals = [...operations.overdueRentals, ...operations.dueToday, ...operations.activeRentals]
-    .filter((rental, index, list) => list.findIndex((item) => item.id === rental.id) === index)
-    .slice(0, 5);
   return (
     <section className="today-operations-board">
       <section className="dashboard-map-overview" data-testid="dashboard-map-overview" aria-label="Dashboard fleet map">
@@ -5010,52 +5036,7 @@ function TodayOperationsDashboard({
         ))}
       </div>
 
-      <div className="operations-lower-grid">
-        <section className="table-panel active-rentals-panel">
-          <div className="section-title compact-title">
-            <h2>Активные аренды</h2>
-            <Badge value={`${operations.activeRentals.length} open`} />
-          </div>
-          {priorityRentals.map((rental) => {
-            const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
-            const dueInHours = Math.round((new Date(rental.returnAt).getTime() - Date.now()) / (60 * 60 * 1000));
-            return (
-              <button className="active-rental-row" key={rental.id} onClick={() => onOpenRental(rental)} type="button">
-                <div>
-                  <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль"}</strong>
-                  <span>{vehicle?.plateNumber ?? "без номера"} · {rental.status}</span>
-                </div>
-                <Badge value={dueInHours < 0 ? "overdue" : `${dueInHours}h`} />
-              </button>
-            );
-          })}
-          {!priorityRentals.length ? <p className="history-row">Нет активных аренд. Создайте новую бронь.</p> : null}
-        </section>
-
-        <section className="table-panel operations-readiness">
-          <h2>Готовность к работе</h2>
-          {readiness.map((item) => (
-            <p className={item.done ? "done" : "attention"} key={item.label}>
-              <span>{item.done ? "✓" : "!"}</span>
-              <strong>{item.label}</strong>
-            </p>
-          ))}
-          <small>{operations.missingVehicleDocs.length} авто без документов · {operations.openContracts.length} договоров в работе · {operations.serviceDue.length} задач ТО</small>
-        </section>
-
-        <section className="table-panel operations-selected-rental">
-          <h2>Аренда в фокусе</h2>
-          {selectedRental ? (
-            <>
-              <strong>{selectedRental.vehicle ? `${selectedRental.vehicle.make} ${selectedRental.vehicle.model}` : "Автомобиль"} · {selectedRental.customer?.displayName ?? "Клиент"}</strong>
-              <span>{selectedRental.vehicle?.plateNumber ?? "без номера"} · возврат {dateFmt.format(new Date(selectedRental.rental.returnAt))}</span>
-              <button className="primary-button" onClick={() => onOpenRental(selectedRental.rental)} type="button">Открыть Rental Details</button>
-            </>
-          ) : <p className="history-row">Создайте первую аренду.</p>}
-        </section>
-
-        <NotificationsPanel locale={locale} notifications={notifications} />
-      </div>
+      <DashboardFolders />
     </section>
   );
 }
