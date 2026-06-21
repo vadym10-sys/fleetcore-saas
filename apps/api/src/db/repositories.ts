@@ -629,6 +629,40 @@ export async function hasRentalReferences(scope: TenantScope, customerId?: strin
   return Boolean(customerResult.rowCount && vehicleResult.rowCount);
 }
 
+export async function hasOverlappingRentalBooking(
+  scope: TenantScope,
+  input: { excludeRentalId?: string; pickupAt: string; returnAt: string; vehicleId: string },
+) {
+  const result = await pool.query(
+    `select 1
+     from rentals
+     where tenant_id = $1
+       and company_id = $2
+       and vehicle_id = $3
+       and status <> 'closed'
+       and id <> coalesce($6::text, '')
+       and pickup_at < $5::timestamptz
+       and return_at > $4::timestamptz
+     limit 1`,
+    [scope.tenantId, scope.companyId, input.vehicleId, input.pickupAt, input.returnAt, input.excludeRentalId ?? null],
+  );
+  return Boolean(result.rowCount);
+}
+
+export async function hasRentalChecklistPhase(scope: TenantScope, rentalId: string, phase: RentalChecklistInput["phase"]) {
+  const result = await pool.query(
+    `select 1
+     from rental_checklists
+     where tenant_id = $1
+       and company_id = $2
+       and rental_id = $3
+       and phase = $4
+     limit 1`,
+    [scope.tenantId, scope.companyId, rentalId, phase],
+  );
+  return Boolean(result.rowCount);
+}
+
 export async function createRental(scope: TenantScope, input: RentalInput): Promise<Rental> {
   const result = await pool.query(
     `insert into rentals (

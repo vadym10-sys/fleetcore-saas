@@ -1696,6 +1696,7 @@ h3 {
   .operations-kpi-grid,
   .rental-detail-timeline,
   .rental-detail-grid,
+  .rental-health-strip,
   .rental-document-strip,
   .rental-action-bar,
   .client-profile-kpis,
@@ -2656,6 +2657,34 @@ h3 {
 .client-profile-kpis .attention strong { color: #c2410c; }
 .client-profile-kpis .done strong { color: #0f7a55; }
 
+.client-priority-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(35, 70, 216, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(35, 70, 216, 0.08), rgba(15, 159, 110, 0.06)),
+    #ffffff;
+}
+
+.client-priority-card span,
+.client-priority-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.client-priority-card strong {
+  display: block;
+  margin: 3px 0;
+  color: var(--ink);
+  font-size: 18px;
+}
+
 .client-workflow-grid,
 .client-profile-columns {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2752,6 +2781,60 @@ h3 {
 .document-workbench-row span {
   color: var(--muted);
   font-size: 12px;
+  font-weight: 800;
+}
+
+.rental-health-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.rental-health-strip article {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #e5eaf2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.rental-health-strip article > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.rental-health-strip article.done > span {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.rental-health-strip strong,
+.rental-health-strip small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rental-health-strip strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.rental-health-strip small {
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -5877,19 +5960,17 @@ h3 {
 }
 
 .desktop-sidebar .side-nav .nav-label {
-  display: -webkit-box;
+  display: block;
   width: auto;
   min-width: 0;
   overflow: hidden;
   color: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 850;
-  line-height: 1.18;
+  line-height: 1.2;
   text-align: left;
-  text-overflow: clip;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .desktop-sidebar .side-nav button.active:after {
@@ -5898,21 +5979,20 @@ h3 {
 
 @media (max-width: 1200px) and (min-width: 761px) {
   .desktop-sidebar .side-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .desktop-sidebar .side-nav button {
-    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
   }
 
   .desktop-sidebar .side-nav .nav-icon {
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
   }
 
   .desktop-sidebar .side-nav .nav-label {
-    font-size: 12px;
-    -webkit-line-clamp: 1;
+    font-size: 13px;
   }
 }
 
@@ -6275,6 +6355,19 @@ h3 {
   .document-preview-actions > * {
     flex: 1;
     text-align: center;
+  }
+
+  .client-priority-card {
+    grid-template-columns: 1fr;
+  }
+
+  .client-priority-card .primary-button {
+    width: 100%;
+  }
+
+  .rental-health-strip article {
+    grid-template-columns: 24px minmax(0, 1fr);
+    padding: 9px;
   }
 
   .map-action-bar {

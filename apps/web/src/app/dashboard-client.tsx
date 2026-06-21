@@ -2643,6 +2643,7 @@ export default function DashboardClient() {
       if (operation === "depositReturn") {
         const targetRental = rental ?? await ensureRental();
         const targetVehicle = data.vehicles.find((item) => item.id === targetRental.vehicleId) ?? vehicle;
+        await saveRentalChecklist("return", targetRental);
         await api<Rental>(`/rentals/${targetRental.id}/return`, {
           body: JSON.stringify({
             finalAmount: Number(operationForm.finalAmount || targetRental.totalAmount),
@@ -2752,6 +2753,7 @@ export default function DashboardClient() {
     await runAction("Закрываем возврат...", async () => {
       const rental = await ensureRental();
       const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+      await saveRentalChecklist("return", rental);
       await api<Rental>(`/rentals/${rental.id}/return`, {
         body: JSON.stringify({ finalAmount: rental.totalAmount, odometerKm: vehicle.odometerKm + 25 }),
         method: "POST",
@@ -2925,6 +2927,7 @@ export default function DashboardClient() {
     await runAction("Оформляем возврат депозита...", async () => {
       const rental = await ensureRental();
       const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
+      await saveRentalChecklist("return", rental);
       await api<Rental>(`/rentals/${rental.id}/return`, {
         body: JSON.stringify({ finalAmount: rental.totalAmount, odometerKm: vehicle.odometerKm + 25 }),
         method: "POST",
@@ -3907,6 +3910,8 @@ function ClientProfilePanel({
   const verifiedDocs = docs.filter((doc) => doc.verified).length;
   const activeRental = clientRentals.find((rental) => rental.status !== "closed");
   const activeVehicle = vehicles.find((vehicle) => vehicle.id === activeRental?.vehicleId);
+  const lastRental = clientRentals[0];
+  const lifetimeValue = clientRentals.reduce((sum, rental) => sum + rental.totalAmount, 0);
   const readiness = [
     { done: docs.length > 0, label: "Паспорт/ID загружен" },
     { done: verifiedDocs > 0, label: "Документы проверены" },
@@ -3931,6 +3936,17 @@ function ClientProfilePanel({
         <article><span>Документы</span><strong>{verifiedDocs}/{docs.length}</strong></article>
         <article><span>Оплачено</span><strong>{money.format(paidAmount)}</strong></article>
         <article className={unpaidAmount > 0 ? "attention" : "done"}><span>Долг</span><strong>{money.format(unpaidAmount)}</strong></article>
+      </div>
+
+      <div className="client-priority-card">
+        <div>
+          <span>Следующее лучшее действие</span>
+          <strong>{unpaidAmount > 0 ? "Закрыть долг клиента" : !docs.length ? "Загрузить паспорт / ID" : activeRental ? "Контролировать текущую аренду" : "Создать новую бронь"}</strong>
+          <small>{lastRental ? `Последняя аренда: ${dateFmt.format(new Date(lastRental.pickupAt))} · LTV ${money.format(lifetimeValue)}` : "Клиент готов к первой аренде"}</small>
+        </div>
+        <button className="primary-button" onClick={activeRental ? onAssignVehicle : onCreateBooking} type="button">
+          {activeRental ? "Открыть авто" : "Новая бронь"}
+        </button>
       </div>
 
       <div className="client-workflow-grid">
@@ -4197,6 +4213,14 @@ function RentalDetailPanel({
   const paymentReady = detail.remainingAmount <= 0;
   const rentalReady = Boolean(detail.contract) && paymentReady && pickup;
   const settlementReady = returned && paymentReady;
+  const operationalHealth = [
+    { done: Boolean(detail.customer), label: "Клиент", meta: detail.customer?.email ?? "нет email" },
+    { done: Boolean(detail.vehicle), label: "Авто", meta: detail.vehicle?.vin ?? "нет VIN" },
+    { done: Boolean(detail.contract), label: "PDF", meta: detail.contract?.status ?? "не создан" },
+    { done: contractSigned, label: "Подпись", meta: contractSigned ? "получена" : "ожидает" },
+    { done: paymentReady, label: "Оплата", meta: detail.remainingAmount > 0 ? rentalMoney.format(detail.remainingAmount) : "paid" },
+    { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
+  ];
   const steps = [
     { done: true, label: "Бронь", meta: detail.rental.status },
     { done: Boolean(detail.contract), label: "Договор", meta: detail.contract?.status ?? "not created" },
@@ -4244,6 +4268,18 @@ function RentalDetailPanel({
           <span>К оплате</span>
           <strong>{rentalMoney.format(detail.remainingAmount)}</strong>
         </article>
+      </div>
+
+      <div className="rental-health-strip" aria-label="Rental health">
+        {operationalHealth.map((item) => (
+          <article className={item.done ? "done" : "attention"} key={item.label}>
+            <span>{item.done ? "✓" : "!"}</span>
+            <div>
+              <strong>{item.label}</strong>
+              <small>{item.meta}</small>
+            </div>
+          </article>
+        ))}
       </div>
 
       <div className="rental-document-strip">

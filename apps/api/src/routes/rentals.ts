@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { createRental, getCompany, getRental, getRentalFlow, hasRentalReferences, listRentals, returnRental, updateRental } from "../db/repositories.js";
+import { createRental, getCompany, getRental, getRentalFlow, hasOverlappingRentalBooking, hasRentalChecklistPhase, hasRentalReferences, listRentals, returnRental, updateRental } from "../db/repositories.js";
 import { getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
 import { rentalInput, rentalPatchInput, rentalReturnInput } from "../schemas.js";
@@ -37,6 +37,10 @@ function buildSimplePdf(lines: string[]) {
   body += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
   return Buffer.from(body);
+}
+
+function hasValidRentalDates(pickupAt: string, returnAt: string) {
+  return new Date(pickupAt).getTime() < new Date(returnAt).getTime();
 }
 
 export const rentalRoutes: FastifyPluginAsync = async (app) => {
@@ -112,6 +116,16 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
     if (!(await hasRentalReferences(scope, parsed.data.customerId, parsed.data.vehicleId))) {
       return reply.code(422).send({ error: "Customer or vehicle does not exist" });
     }
+    if (!hasValidRentalDates(parsed.data.pickupAt, parsed.data.returnAt)) {
+      return reply.code(422).send({ error: "Rental return date must be after pickup date" });
+    }
+    if (await hasOverlappingRentalBooking(scope, {
+      pickupAt: parsed.data.pickupAt,
+      returnAt: parsed.data.returnAt,
+      vehicleId: parsed.data.vehicleId,
+    })) {
+      return reply.code(409).send({ error: "Vehicle already has an active booking for this period" });
+    }
 
     const rental = await createRental(scope, parsed.data);
 
@@ -128,14 +142,31 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const scope = getTenantScope(request);
+    const existing = await getRental(scope, rentalId);
+    if (!existing) {
+      return reply.code(404).send({ error: "Rental not found" });
+    }
+    const nextRental = {
+      pickupAt: parsed.data.pickupAt ?? existing.pickupAt,
+      returnAt: parsed.data.returnAt ?? existing.returnAt,
+      vehicleId: parsed.data.vehicleId ?? existing.vehicleId,
+    };
     if (!(await hasRentalReferences(scope, parsed.data.customerId, parsed.data.vehicleId))) {
       return reply.code(422).send({ error: "Customer or vehicle does not exist" });
     }
+    if (!hasValidRentalDates(nextRental.pickupAt, nextRental.returnAt)) {
+      return reply.code(422).send({ error: "Rental return date must be after pickup date" });
+    }
+    if (parsed.data.status !== "closed" && await hasOverlappingRentalBooking(scope, {
+      excludeRentalId: rentalId,
+      pickupAt: nextRental.pickupAt,
+      returnAt: nextRental.returnAt,
+      vehicleId: nextRental.vehicleId,
+    })) {
+      return reply.code(409).send({ error: "Vehicle already has an active booking for this period" });
+    }
 
     const rental = await updateRental(scope, rentalId, parsed.data);
-    if (!rental) {
-      return reply.code(404).send({ error: "Rental not found" });
-    }
 
     return envelope(rental);
   });
@@ -149,7 +180,19 @@ export const rentalRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: "Invalid return payload", issues: parsed.error.flatten() });
     }
 
-    const rental = await returnRental(getTenantScope(request), rentalId, parsed.data);
+    const scope = getTenantScope(request);
+    const existing = await getRental(scope, rentalId);
+    if (!existing) {
+      return reply.code(404).send({ error: "Rental not found or cannot be returned" });
+    }
+    if (new Date(parsed.data.returnedAt).getTime() < new Date(existing.pickupAt).getTime()) {
+      return reply.code(422).send({ error: "Return date cannot be before pickup date" });
+    }
+    if (!(await hasRentalChecklistPhase(scope, rentalId, "return"))) {
+      return reply.code(422).send({ error: "Return checklist is required before final settlement" });
+    }
+
+    const rental = await returnRental(scope, rentalId, parsed.data);
     if (!rental) {
       return reply.code(404).send({ error: "Rental not found or cannot be returned" });
     }

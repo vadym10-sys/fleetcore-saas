@@ -497,6 +497,137 @@ test("authenticated API stores and serves uploaded files", async () => {
   assert.equal(download.body, content);
 });
 
+test("rental API rejects invalid dates, overlapping bookings and settlement without return act", async () => {
+  const suffix = Date.now();
+  const customerResponse = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      displayName: "Validation Customer",
+      email: `validation-${suffix}@rental.example`,
+      phone: "+48600111222",
+      riskLevel: "low",
+      type: "individual",
+    },
+    url: "/customers",
+  });
+  assert.equal(customerResponse.statusCode, 201);
+  const customer = customerResponse.json().data;
+
+  const vehicleResponse = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      dailyRate: 110,
+      location: "Warsaw",
+      make: "BMW",
+      model: "X5",
+      odometerKm: 14000,
+      plateNumber: `VAL-${suffix}`,
+      status: "available",
+      vin: `VALIDATION${suffix}`,
+      year: 2024,
+    },
+    url: "/fleet/vehicles",
+  });
+  assert.equal(vehicleResponse.statusCode, 201);
+  const vehicle = vehicleResponse.json().data;
+  const pickupAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+  const returnAt = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString();
+
+  const invalidDates = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      customerId: customer.id,
+      depositAmount: 300,
+      pickupAt: returnAt,
+      returnAt: pickupAt,
+      status: "reserved",
+      totalAmount: 600,
+      vehicleId: vehicle.id,
+    },
+    url: "/rentals",
+  });
+  assert.equal(invalidDates.statusCode, 422);
+
+  const rentalResponse = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      customerId: customer.id,
+      depositAmount: 300,
+      pickupAt,
+      returnAt,
+      status: "reserved",
+      totalAmount: 600,
+      vehicleId: vehicle.id,
+    },
+    url: "/rentals",
+  });
+  assert.equal(rentalResponse.statusCode, 201);
+  const rental = rentalResponse.json().data;
+
+  const overlap = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      customerId: customer.id,
+      depositAmount: 300,
+      pickupAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
+      returnAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      status: "reserved",
+      totalAmount: 700,
+      vehicleId: vehicle.id,
+    },
+    url: "/rentals",
+  });
+  assert.equal(overlap.statusCode, 409);
+
+  const settlementBlocked = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      finalAmount: 600,
+      odometerKm: vehicle.odometerKm + 100,
+    },
+    url: `/rentals/${rental.id}/return`,
+  });
+  assert.equal(settlementBlocked.statusCode, 422);
+
+  const returnAct = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      depositConfirmed: true,
+      documentsOk: true,
+      exteriorOk: true,
+      fuelLevel: 75,
+      interiorOk: true,
+      notes: "Return validation act",
+      odometerKm: vehicle.odometerKm + 100,
+      phase: "return",
+      photoUrls: [],
+      rentalId: rental.id,
+    },
+    url: "/operations/rental-checklists",
+  });
+  assert.equal(returnAct.statusCode, 201);
+
+  const settlement = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      finalAmount: 600,
+      odometerKm: vehicle.odometerKm + 100,
+      returnedAt: returnAt,
+    },
+    url: `/rentals/${rental.id}/return`,
+  });
+  assert.equal(settlement.statusCode, 200);
+  assert.equal(settlement.json().data.status, "closed");
+});
+
 test("authenticated API can manage business operations", async () => {
   const vehicles = await app.inject({
     headers: { authorization: `Bearer ${token}` },
