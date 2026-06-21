@@ -7,7 +7,7 @@
     "start": "next start",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "lint": "next lint",
+    "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "test": "node --test src/**/*.test.mjs"
   },
   "dependencies": {

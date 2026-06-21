@@ -1218,15 +1218,6 @@ function FileObjectRow({ file, onPreview }: { file: FileObject; onPreview?: ((do
   );
 }
 
-function CarPin({ className, color, label }: { className: string; color: UiNotification["tone"]; label: string }) {
-  return (
-    <div className={`map-pin ${className} ${color}`}>
-      <span>▣</span>
-      <strong>{label}</strong>
-    </div>
-  );
-}
-
 function vehicleStatusLabel(locale: Locale, vehicle: Vehicle, rental?: Rental) {
   if (vehicle.status === "maintenance") return translate(locale, "status.maintenance");
   if (rental?.status === "reserved") return translate(locale, "status.reserved");
@@ -3157,52 +3148,6 @@ export default function DashboardClient() {
     });
   }
 
-  async function createQuickBooking() {
-    await runAction("Создаем бронь...", async () => {
-      await createNewRental();
-      await loadData();
-      setMessage("Бронь создана");
-    });
-  }
-
-  async function createExpenseForVehicle() {
-    await runAction("Добавляем расход...", async () => {
-      const vehicle = await ensureVehicle();
-      await api<Expense>("/operations/expenses", {
-        body: JSON.stringify({
-          amount: Math.max(50, Math.round(vehicle.dailyRate * 1.4)),
-          category: "maintenance",
-          currency: "EUR",
-          note: `Расход по ${vehicle.plateNumber}`,
-          vehicleId: vehicle.id,
-        }),
-        method: "POST",
-      }, token);
-      await loadData();
-      setMessage("Расход сохранен");
-    });
-  }
-
-  async function createServiceForVehicle() {
-    await runAction("Создаем ТО...", async () => {
-      const vehicle = await ensureVehicle();
-      await api<ServiceRecord>("/operations/service-records", {
-        body: JSON.stringify({
-          cost: Math.max(80, Math.round(vehicle.dailyRate * 2)),
-          note: `Плановое ТО ${vehicle.plateNumber}`,
-          odometerKm: vehicle.odometerKm,
-          serviceAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          status: "planned",
-          type: "inspection",
-          vehicleId: vehicle.id,
-        }),
-        method: "POST",
-      }, token);
-      await loadData();
-      setMessage("Сервисная запись создана");
-    });
-  }
-
   async function createContractFile(rental: Rental) {
     const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
     const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
@@ -3243,22 +3188,11 @@ export default function DashboardClient() {
     return response.data;
   }
 
-  async function sendRentalContract() {
-    await runAction("Формируем и отправляем договор...", async () => {
-      const rental = await ensureRental();
-      const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
-      const contract = await createContractRecord("sent", "whatsapp");
-      await loadData();
-      openWhatsApp(customer.phone, `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore для просмотра и подписи: ${contract.publicUrl ?? contract.documentUrl}`);
-      setMessage("Договор создан и ссылка открыта для отправки в WhatsApp");
-    });
-  }
-
   async function shareRentalContract(channel: "email" | "telegram" | "whatsapp", rentalOverride?: Rental) {
     await runAction(`Готовим ссылку договора: ${channel}`, async () => {
       const rental = rentalOverride ?? await ensureRental();
       const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
-      const contract = await createContractRecord("sent", channel === "email" ? "email" : "whatsapp", rental);
+      const contract = await createContractRecord("sent", channel, rental);
       const contractUrl = contract.publicUrl ?? contract.documentUrl;
       const text = `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore: ${contractUrl}`;
       await loadData();
@@ -3306,38 +3240,6 @@ export default function DashboardClient() {
       await saveRentalChecklist(phase, rentalOverride);
       await loadData();
       setMessage(phase === "pickup" ? "Чек-лист выдачи сохранен" : "Чек-лист возврата сохранен");
-    });
-  }
-
-  async function signContract() {
-    await runAction("Подписываем договор...", async () => {
-      await createContractRecord("signed", "manual");
-      await loadData();
-      setMessage("Электронная подпись сохранена");
-    });
-  }
-
-  async function returnDeposit() {
-    await runAction("Оформляем возврат депозита...", async () => {
-      const rental = await ensureRental();
-      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
-      await saveRentalChecklist("return", rental);
-      await api<Rental>(`/rentals/${rental.id}/return`, {
-        body: JSON.stringify({ finalAmount: rental.totalAmount, odometerKm: vehicle.odometerKm + 25 }),
-        method: "POST",
-      }, token);
-      await api<Expense>("/operations/expenses", {
-        body: JSON.stringify({
-          amount: rental.depositAmount,
-          category: "other",
-          currency: "EUR",
-          note: `Возврат депозита по аренде ${rental.id}`,
-          vehicleId: rental.vehicleId,
-        }),
-        method: "POST",
-      }, token);
-      await loadData();
-      setMessage("Возврат депозита записан в финансах");
     });
   }
 
@@ -3896,7 +3798,16 @@ export default function DashboardClient() {
                     <span>{globalSearchResults.length ? `${globalSearchResults.length}` : "0"}</span>
                   </div>
                   {globalSearchResults.map((result) => (
-                    <button className="search-result-row" key={result.id} onClick={() => openSearchResult(result)} onMouseDown={(event) => { event.preventDefault(); openSearchResult(result); }} type="button">
+                    <button
+                      className="search-result-row"
+                      key={result.id}
+                      onClick={() => openSearchResult(result)}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        openSearchResult(result);
+                      }}
+                      type="button"
+                    >
                       <span>{result.kind === "vehicle" ? "Авто" : result.kind === "customer" ? "Клиент" : result.kind === "rental" ? "Бронь" : "Документ"}</span>
                       <div>
                         <strong>{result.label}</strong>
@@ -3943,7 +3854,6 @@ export default function DashboardClient() {
           ) : (
             <TodayOperationsDashboard
               cards={dashboardCards}
-              finance={finance}
               locale={locale}
               notifications={notifications}
               onCreateBooking={() => openOperation("booking")}
@@ -4211,7 +4121,6 @@ export default function DashboardClient() {
               invoices={data.invoices}
               locale={locale}
               onCustomerFolder={requestCustomerFolderUpload}
-              onDeposit={requestDepositUpload}
               onDocumentPreview={setDocumentPreview}
               onService={() => openOperation("service")}
               onVehicleDocument={requestVehicleDocumentUpload}
@@ -4587,7 +4496,6 @@ function ClientProfilePanel({
 
 function TodayOperationsDashboard({
   cards,
-  finance,
   locale,
   notifications,
   onCreateBooking,
@@ -4600,7 +4508,6 @@ function TodayOperationsDashboard({
   vehicles,
 }: {
   cards: readonly (readonly [string, string | number, string])[];
-  finance: { expenses: number; incomeByVehicle: Array<{ expenses: number; income: number; roi: number; vehicle: Vehicle }>; netProfit: number; totalIncome: number };
   locale: Locale;
   notifications: UiNotification[];
   onCreateBooking: () => void;
@@ -4974,7 +4881,6 @@ function DocumentVault({
   invoices,
   locale,
   onCustomerFolder,
-  onDeposit,
   onDocumentPreview,
   onService,
   onVehicleDocument,
@@ -4994,7 +4900,6 @@ function DocumentVault({
   invoices: Invoice[];
   locale: Locale;
   onCustomerFolder: () => void;
-  onDeposit: () => void;
   onDocumentPreview: (document: DocumentPreview) => void;
   onService: () => void;
   onVehicleDocument: () => void;
@@ -5431,179 +5336,6 @@ function BookingCalendar({ customers, locale, rentals, vehicles }: { customers: 
   );
 }
 
-function RentalFlowPanel({
-  busy,
-  events,
-  flow,
-  locale,
-  money,
-  onOpenPdf,
-  onPrimaryAction,
-  onSettle,
-  onShare,
-  onSign,
-}: {
-  busy: boolean;
-  events: RentalContractEvent[];
-  flow: RentalFlow;
-  locale: Locale;
-  money: Intl.NumberFormat;
-  onOpenPdf: () => void;
-  onPrimaryAction: () => void;
-  onSettle: () => void;
-  onShare: (channel: "email" | "telegram" | "whatsapp") => void;
-  onSign: () => void;
-}) {
-  const completed = flow.steps.filter((step) => step.status === "done").length;
-  const progress = Math.round((completed / flow.steps.length) * 100);
-  const nextLabel = flow.nextAction?.actionLabel ?? flow.nextAction?.label ?? "Flow complete";
-  const pickupDone = flow.checklists.some((item) => item.phase === "pickup");
-  const returnDone = flow.checklists.some((item) => item.phase === "return");
-  const paidAmount = flow.paidAmount;
-  const remaining = Math.max(0, (flow.invoice?.total ?? flow.rental.totalAmount) - paidAmount);
-  const canSettle = returnDone && flow.rental.status !== "closed";
-
-  return (
-    <section className="rental-flow-panel" aria-label="Rental workflow">
-      <div className="flow-heading">
-        <div>
-          <span className="eyebrow">Rental Flow</span>
-          <h2>{flow.vehicle.make} {flow.vehicle.model} · {flow.vehicle.plateNumber}</h2>
-          <p>{flow.customer.displayName} · {completed}/{flow.steps.length} steps · {rentalStatusLabel(locale, flow.rental.status)}</p>
-        </div>
-        <div className="flow-actions">
-          <button className="ghost-button" disabled={busy} onClick={onOpenPdf} type="button">PDF договор</button>
-        </div>
-      </div>
-      <div className="flow-progress-row">
-        <div className="flow-progress-track" aria-label={`Rental Flow ${progress}%`}>
-          <span style={{ width: `${progress}%` }} />
-        </div>
-        <strong>{progress}%</strong>
-      </div>
-      <div className="flow-control-grid">
-        <article>
-          <span>Договор</span>
-          <strong>{contractStatusLabel(locale, flow.contract?.status)}</strong>
-          <small>{flow.contract?.publicUrl ? "ссылка готова" : "PDF доступен"}</small>
-        </article>
-        <article>
-          <span>Оплата</span>
-          <strong>{money.format(paidAmount)}</strong>
-          <small>{remaining ? `Осталось ${money.format(remaining)}` : invoiceStatusLabel(locale, "paid")}</small>
-        </article>
-        <article>
-          <span>Депозит</span>
-          <strong>{money.format(flow.rental.depositAmount)}</strong>
-          <small>{flow.rental.status === "closed" ? "закрыт" : "удержан / ожидает"}</small>
-        </article>
-        <article>
-          <span>Выдача / возврат</span>
-          <strong>{pickupDone ? "Выдача OK" : "Выдача ждёт"}</strong>
-          <small>{returnDone ? "Возврат OK" : "Возврат не закрыт"}</small>
-        </article>
-      </div>
-      <div className="flow-playbook">
-        <button className="primary-button" disabled={busy || !flow.nextAction || flow.nextAction.status === "blocked"} onClick={onPrimaryAction} type="button">{nextLabel}</button>
-        <details className="action-menu">
-          <summary>Отправка и подпись</summary>
-          <div>
-            <button className="ghost-button" disabled={busy} onClick={() => onShare("whatsapp")} type="button">WhatsApp</button>
-            <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram")} type="button">Telegram</button>
-            <button className="ghost-button" disabled={busy} onClick={() => onShare("email")} type="button">Email</button>
-            <button className="ghost-button" disabled={busy || flow.contract?.status === "signed"} onClick={onSign} type="button">Подписать</button>
-            <button className="ghost-button" disabled={busy || !canSettle} onClick={onSettle} type="button">Депозит и финальный расчёт</button>
-          </div>
-        </details>
-      </div>
-      <div className="flow-operations-grid">
-        <RentalFlowHistoryPanel events={events} flow={flow} locale={locale} />
-        <FinalSettlementPanel busy={busy} canSettle={canSettle} flow={flow} money={money} onSettle={onSettle} />
-      </div>
-      <div className="flow-steps">
-        {flow.steps.map((step, index) => (
-          <article className={`flow-step ${step.status}`} key={step.key}>
-            <span>{index + 1}</span>
-            <strong>{step.label}</strong>
-            <small>{step.detail}</small>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function RentalFlowHistoryPanel({ events, flow, locale }: { events: RentalContractEvent[]; flow: RentalFlow; locale: Locale }) {
-  const history = [
-    { at: flow.rental.createdAt, done: true, label: "Бронь создана", meta: `${flow.customer.displayName} · ${flow.vehicle.plateNumber}` },
-    ...events.map((event) => ({
-      at: event.createdAt,
-      done: true,
-      label: contractEventLabel(locale, event),
-      meta: `${event.channel}${event.actorLabel ? ` · ${event.actorLabel}` : ""}`,
-    })),
-    ...flow.checklists.map((checklist) => ({
-      at: checklist.createdAt,
-      done: true,
-      label: checklist.phase === "pickup" ? "Акт выдачи создан" : "Акт возврата создан",
-      meta: `${checklist.odometerKm.toLocaleString()} км · топливо ${checklist.fuelLevel}%`,
-    })),
-  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-  const visibleHistory = history.slice(-3).reverse();
-
-  return (
-    <section className="flow-history-panel" aria-label="Rental Flow history">
-      <div className="section-title compact-title">
-        <h3>Последние события</h3>
-        <Badge value={`${history.length} всего`} />
-      </div>
-      <div className="flow-history-list">
-        {visibleHistory.map((item, index) => (
-          <article className={item.done ? "done" : ""} key={`${item.label}-${item.at}-${index}`}>
-            <span>{item.done ? "✓" : index + 1}</span>
-            <div>
-              <strong>{item.label}</strong>
-              <small>{item.meta}</small>
-            </div>
-            <time>{dateFmt.format(new Date(item.at))}</time>
-          </article>
-        ))}
-        {history.length > visibleHistory.length ? <p className="history-row">Показаны последние 3 события. Полная история доступна в Document Center.</p> : null}
-      </div>
-    </section>
-  );
-}
-
-function FinalSettlementPanel({ busy, canSettle, flow, money, onSettle }: { busy: boolean; canSettle: boolean; flow: RentalFlow; money: Intl.NumberFormat; onSettle: () => void }) {
-  const invoiceTotal = flow.invoice?.total ?? flow.rental.totalAmount;
-  const paidAmount = flow.paidAmount;
-  const remaining = Math.max(0, invoiceTotal - paidAmount);
-  const deposit = flow.rental.depositAmount;
-  const depositReturn = flow.rental.status === "closed" ? 0 : Math.max(0, deposit - remaining);
-  const finalDue = Math.max(0, remaining - deposit);
-  const closed = flow.rental.status === "closed";
-
-  return (
-    <section className="settlement-panel" aria-label="Final rental settlement">
-      <div className="section-title compact-title">
-        <h3>Финальный расчёт</h3>
-        <Badge value={closed ? "закрыто" : canSettle ? "готов" : "ожидает возврат"} />
-      </div>
-      <div className="settlement-grid">
-        <article><span>Стоимость аренды</span><strong>{money.format(invoiceTotal)}</strong></article>
-        <article><span>Оплачено</span><strong>{money.format(paidAmount)}</strong></article>
-        <article><span>Остаток</span><strong>{money.format(remaining)}</strong></article>
-        <article><span>Депозит</span><strong>{money.format(deposit)}</strong></article>
-        <article><span>К возврату клиенту</span><strong>{money.format(depositReturn)}</strong></article>
-        <article><span>Доплата клиента</span><strong>{money.format(finalDue)}</strong></article>
-      </div>
-      <button className="primary-button full-button" disabled={busy || !canSettle} onClick={onSettle} type="button">
-        {closed ? "Аренда закрыта" : canSettle ? "Закрыть аренду и депозит" : "Сначала создайте акт возврата"}
-      </button>
-    </section>
-  );
-}
-
 function RentalScenarioWizard({
   busy,
   data,
@@ -5765,24 +5497,6 @@ function SimplifiedCommandCenter({
             ))}
           </div>
         </details>
-      </div>
-    </section>
-  );
-}
-
-function SectionFocusBar({ busy, focus }: { busy: boolean; focus: SectionFocus }) {
-  return (
-    <section className="section-focus-bar" data-testid="section-focus-bar" aria-label="Следующее действие раздела">
-      <div>
-        <span className="eyebrow">Следующее действие</span>
-        <strong>{focus.title}</strong>
-        <small>{focus.meta}</small>
-      </div>
-      <div className="section-focus-actions">
-        <button className="primary-button" disabled={busy || focus.primary.disabled} onClick={focus.primary.onClick} type="button">{focus.primary.label}</button>
-        {focus.secondary.map((action) => (
-          <button className="ghost-button" disabled={busy || action.disabled} key={action.label} onClick={action.onClick} type="button">{action.label}</button>
-        ))}
       </div>
     </section>
   );
@@ -6214,43 +5928,6 @@ function DocumentPreviewDialog({ document, onClose }: { document: DocumentPrevie
         </div>
       </section>
     </div>
-  );
-}
-
-function VehicleCard({ customer, documents, finance, locale, onDocument, onDocumentPreview, onExpense, onPhoto, onRemovePhoto, onService, rental, serviceRecords, vehicle }: { customer: Customer | undefined; documents: VehicleDocument[]; finance: { expenses: number; income: number; roi: number; vehicle: Vehicle } | undefined; locale: Locale; onDocument: () => void; onDocumentPreview: (document: DocumentPreview) => void; onExpense: () => void; onPhoto: () => void; onRemovePhoto: () => void; onService: () => void; rental: Rental | undefined; serviceRecords: ServiceRecord[]; vehicle: Vehicle | undefined }) {
-  if (!vehicle) return <section className="table-panel"><h2>{translate(locale, "panel.vehicleCard")}</h2><p>{translate(locale, "vehicle.add")}</p></section>;
-  const vehicleDocuments = documents.filter((doc) => doc.vehicleId === vehicle.id);
-  const vehicleServiceRecords = serviceRecords.filter((record) => record.vehicleId === vehicle.id);
-  return (
-    <section className="table-panel vehicle-card-panel">
-      <VehicleVisual vehicle={vehicle} />
-      <Badge value={vehicleStatusLabel(locale, vehicle, rental)} />
-      <h2>{vehicle.make} {vehicle.model}</h2>
-      <p>{vehicle.plateNumber} · VIN {vehicle.vin}</p>
-      <div className="detail-grid">
-        <article><span>{translate(locale, "vehicle.mileage")}</span><strong>{vehicle.odometerKm.toLocaleString()} км</strong></article>
-        <article><span>{translate(locale, "vehicle.client")}</span><strong>{customer?.displayName ?? translate(locale, "common.noClient")}</strong></article>
-        <article><span>{translate(locale, "vehicle.return")}</span><strong>{rental ? dateFmt.format(new Date(rental.returnAt)) : "-"}</strong></article>
-        <article><span>{translate(locale, "vehicle.documents")}</span><strong>{vehicleDocuments.length}</strong></article>
-        <article><span>{translate(locale, "vehicle.service")}</span><strong>{vehicleServiceRecords.length}</strong></article>
-        <article><span>{translate(locale, "finance.expenses")}</span><strong>{money.format(finance?.expenses ?? 0)}</strong></article>
-        <article><span>ROI</span><strong>{finance?.roi ?? 0}%</strong></article>
-      </div>
-      {vehicleDocuments.length ? (
-        <div className="document-mini-list">
-          {vehicleDocuments.slice(0, 3).map((doc) => (
-            <FilePreviewLink fileUrl={doc.fileUrl} key={doc.id} onPreview={onDocumentPreview} title={`${doc.title} · ${doc.type}`} />
-          ))}
-        </div>
-      ) : null}
-      <div className="vehicle-photo-actions">
-        <button className="ghost-button full-button" onClick={onPhoto} type="button">{vehicle.photoUrl ? translate(locale, "vehicle.photoReplace") : translate(locale, "vehicle.photoAdd")}</button>
-        {vehicle.photoUrl ? <button className="ghost-button full-button" onClick={onRemovePhoto} type="button">{translate(locale, "vehicle.photoRemove")}</button> : null}
-      </div>
-      <button className="ghost-button full-button" onClick={onDocument} type="button">{translate(locale, "vehicle.uploadDocument")}</button>
-      <button className="ghost-button full-button" onClick={onExpense} type="button">{translate(locale, "vehicle.expense")}</button>
-      <button className="ghost-button full-button" onClick={onService} type="button">{translate(locale, "vehicle.serviceCreate")}</button>
-    </section>
   );
 }
 
@@ -6977,30 +6654,5 @@ function CustomerForm({
         </button>
       )}
     </form>
-  );
-}
-
-function UpcomingReturns({ customers, locale, rentals, vehicles }: { customers: Customer[]; locale: Locale; rentals: Rental[]; vehicles: Vehicle[] }) {
-  return (
-    <section className="table-panel">
-      <h2>{translate(locale, "panel.returns")}</h2>
-      {rentals.slice(0, 4).map((rental) => {
-        const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
-        const customer = customers.find((item) => item.id === rental.customerId);
-        return <p className="history-row" key={rental.id}>{vehicle?.plateNumber} · {customer?.displayName} · {dateFmt.format(new Date(rental.returnAt))}</p>;
-      })}
-    </section>
-  );
-}
-
-function LatestRequests({ customers, invoices, locale }: { customers: Customer[]; invoices: Invoice[]; locale: Locale }) {
-  return (
-    <section className="table-panel">
-      <h2>{translate(locale, "panel.latestRequests")}</h2>
-      {invoices.slice(-4).map((invoice) => {
-        const customer = customers.find((item) => item.id === invoice.customerId);
-        return <p className="history-row" key={invoice.id}>{invoice.invoiceNumber} · {customer?.displayName} · {money.format(invoice.total)}</p>;
-      })}
-    </section>
   );
 }

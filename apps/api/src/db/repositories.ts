@@ -1343,12 +1343,15 @@ export async function createRentalContract(scope: TenantScope, input: RentalCont
     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     on conflict (tenant_id, company_id, rental_id)
     do update set
-      status = excluded.status,
+      status = case
+        when rental_contracts.status = 'signed' then 'signed'
+        else excluded.status
+      end,
       document_url = excluded.document_url,
       sent_via = excluded.sent_via,
       sent_at = coalesce(excluded.sent_at, rental_contracts.sent_at),
       viewed_at = coalesce(excluded.viewed_at, rental_contracts.viewed_at),
-      signed_at = excluded.signed_at,
+      signed_at = coalesce(rental_contracts.signed_at, excluded.signed_at),
       public_token_hash = coalesce(excluded.public_token_hash, rental_contracts.public_token_hash),
       updated_at = now()
     returning *, case when public_token_hash is not null then $13 || '/operations/rental-contracts/public/' || id else null end as public_url`,
@@ -1369,6 +1372,24 @@ export async function createRentalContract(scope: TenantScope, input: RentalCont
     ],
   );
   const contract = mapRentalContract(result.rows[0]);
+  if (publicToken && publicTokenHash) {
+    await pool.query(
+      `insert into rental_contract_links (
+        id, tenant_id, company_id, contract_id, rental_id, customer_id, channel, public_token_hash
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+      on conflict (public_token_hash) do nothing`,
+      [
+        createId("clink"),
+        scope.tenantId,
+        scope.companyId,
+        contract.id,
+        contract.rentalId,
+        contract.customerId,
+        input.sentVia,
+        publicTokenHash,
+      ],
+    );
+  }
   return publicToken ? { ...contract, publicUrl: `${publicOrigin}/operations/rental-contracts/public/${contract.id}?token=${publicToken}` } : contract;
 }
 
@@ -1380,10 +1401,22 @@ export async function getPublicRentalContract(contractId: string, publicToken: s
      set status = case when status = 'sent' then 'viewed' else status end,
          viewed_at = coalesce(viewed_at, now()),
          updated_at = now()
-     where id = $1 and public_token_hash = $2 and status in ('sent', 'viewed', 'signed')
+     where id = $1
+       and status in ('sent', 'viewed', 'signed')
+       and (
+         public_token_hash = $2
+         or exists (
+           select 1 from rental_contract_links
+           where rental_contract_links.contract_id = rental_contracts.id
+             and rental_contract_links.public_token_hash = $2
+         )
+       )
      returning *, $3 || '/operations/rental-contracts/public/' || id as public_url`,
     [contractId, tokenHash, publicOrigin],
   );
+  if (result.rows[0]) {
+    await pool.query("update rental_contract_links set last_used_at = now() where contract_id = $1 and public_token_hash = $2", [contractId, tokenHash]);
+  }
   const contract = result.rows[0] ? mapRentalContract(result.rows[0]) : undefined;
   return contract ? { ...contract, publicUrl: `${publicOrigin}/operations/rental-contracts/public/${contract.id}?token=${publicToken}` } : undefined;
 }
@@ -1397,11 +1430,21 @@ export async function signPublicRentalContract(contractId: string, publicToken: 
          viewed_at = coalesce(viewed_at, now()),
          signed_at = now(),
          updated_at = now()
-     where id = $1 and public_token_hash = $2 and status in ('sent', 'viewed')
+     where id = $1
+       and status in ('sent', 'viewed')
+       and (
+         public_token_hash = $2
+         or exists (
+           select 1 from rental_contract_links
+           where rental_contract_links.contract_id = rental_contracts.id
+             and rental_contract_links.public_token_hash = $2
+         )
+       )
      returning *, $3 || '/operations/rental-contracts/public/' || id as public_url`,
     [contractId, tokenHash, publicOrigin],
   );
   if (!result.rows[0]) return undefined;
+  await pool.query("update rental_contract_links set last_used_at = now() where contract_id = $1 and public_token_hash = $2", [contractId, tokenHash]);
   const contract = mapRentalContract(result.rows[0]);
   return {
     contract: { ...contract, publicUrl: `${publicOrigin}/operations/rental-contracts/public/${contract.id}?token=${publicToken}` },

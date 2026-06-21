@@ -193,7 +193,7 @@ export interface RentalContract extends TenantScopedEntity {
   status: "draft" | "sent" | "viewed" | "signed";
   documentUrl: string;
   publicUrl?: string;
-  sentVia: "email" | "whatsapp" | "manual";
+  sentVia: "email" | "telegram" | "whatsapp" | "manual";
   sentAt?: string;
   viewedAt?: string;
   signedAt?: string;
@@ -207,7 +207,7 @@ export interface RentalContractEvent {
   rentalId: string;
   customerId: string;
   eventType: "created" | "sent" | "viewed" | "signed";
-  channel: "email" | "whatsapp" | "manual" | "public_link";
+  channel: "email" | "telegram" | "whatsapp" | "manual" | "public_link";
   actorLabel?: string;
   metadata: Record<string, unknown>;
   createdAt: string;

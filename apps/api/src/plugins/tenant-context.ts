@@ -27,6 +27,10 @@ function isPublicClientIntakeRoute(url: string) {
   return /^\/operations\/client-intake\/public/.test(url);
 }
 
+function allowsLocalTenantHeader() {
+  return process.env.ALLOW_DEV_TENANT_HEADER === "true" || process.env.NODE_ENV !== "production";
+}
+
 export function installTenantContext(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
     if (request.method === "OPTIONS") {
@@ -52,7 +56,7 @@ export function installTenantContext(app: FastifyInstance) {
     }
 
     const requestedTenant = request.headers["x-tenant-id"];
-    if (requestedTenant !== defaultTenantId) {
+    if (!allowsLocalTenantHeader() || requestedTenant !== defaultTenantId) {
       return reply.code(401).send({ error: "Invalid or missing tenant context" });
     }
 

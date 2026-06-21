@@ -47,6 +47,33 @@ test("demo login returns the seeded owner account without a password", async () 
   assert.equal(typeof response.json().data.accessToken, "string");
 });
 
+test("production API rejects unauthenticated tenant header fallback", async () => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousDevTenantHeader = process.env.ALLOW_DEV_TENANT_HEADER;
+  process.env.NODE_ENV = "production";
+  delete process.env.ALLOW_DEV_TENANT_HEADER;
+  try {
+    const response = await app.inject({
+      headers: { "x-tenant-id": "tenant_atlas" },
+      method: "GET",
+      url: "/fleet/vehicles",
+    });
+
+    assert.equal(response.statusCode, 401);
+  } finally {
+    if (previousNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
+    if (previousDevTenantHeader === undefined) {
+      delete process.env.ALLOW_DEV_TENANT_HEADER;
+    } else {
+      process.env.ALLOW_DEV_TENANT_HEADER = previousDevTenantHeader;
+    }
+  }
+});
+
 test("refresh and logout manage SaaS sessions", async () => {
   const login = await app.inject({
     method: "POST",
@@ -629,26 +656,59 @@ test("rental API rejects invalid dates, overlapping bookings and settlement with
 });
 
 test("authenticated API can manage business operations", async () => {
-  const vehicles = await app.inject({
+  const suffix = Date.now();
+  const vehicleResponse = await app.inject({
     headers: { authorization: `Bearer ${token}` },
-    method: "GET",
+    method: "POST",
+    payload: {
+      dailyRate: 145,
+      location: "Warsaw",
+      make: "BMW",
+      model: "X5",
+      odometerKm: 22000,
+      plateNumber: `OPS-${suffix}`,
+      status: "available",
+      vin: `OPERATIONS${suffix}`,
+      year: 2024,
+    },
     url: "/fleet/vehicles",
   });
-  const vehicle = vehicles.json().data[0];
+  assert.equal(vehicleResponse.statusCode, 201);
+  const vehicle = vehicleResponse.json().data;
 
-  const customers = await app.inject({
+  const customerResponse = await app.inject({
     headers: { authorization: `Bearer ${token}` },
-    method: "GET",
+    method: "POST",
+    payload: {
+      displayName: "Operations Customer",
+      email: `operations-${suffix}@rental.example`,
+      phone: "+48600666777",
+      riskLevel: "low",
+      type: "individual",
+    },
     url: "/customers",
   });
-  const customer = customers.json().data[0];
+  assert.equal(customerResponse.statusCode, 201);
+  const customer = customerResponse.json().data;
 
-  const rentals = await app.inject({
+  const pickupAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const returnAt = new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString();
+  const rentalResponse = await app.inject({
     headers: { authorization: `Bearer ${token}` },
-    method: "GET",
+    method: "POST",
+    payload: {
+      customerId: customer.id,
+      depositAmount: 500,
+      pickupAt,
+      returnAt,
+      status: "reserved",
+      totalAmount: 580,
+      vehicleId: vehicle.id,
+    },
     url: "/rentals",
   });
-  const rental = rentals.json().data[0];
+  assert.equal(rentalResponse.statusCode, 201);
+  const rental = rentalResponse.json().data;
 
   const expense = await app.inject({
     headers: { authorization: `Bearer ${token}` },
@@ -793,6 +853,28 @@ test("authenticated API can manage business operations", async () => {
   const signedContract = afterSign.json().data.find((item: { id: string }) => item.id === contract.json().data.id);
   assert.equal(signedContract.status, "signed");
   assert.equal(typeof signedContract.signedAt, "string");
+
+  const telegramContract = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      documentUrl: "https://example.com/contract.pdf",
+      rentalId: rental.id,
+      sentVia: "telegram",
+      status: "sent",
+    },
+    url: "/operations/rental-contracts",
+  });
+  assert.equal(telegramContract.statusCode, 201);
+  assert.equal(telegramContract.json().data.sentVia, "telegram");
+  assert.equal(telegramContract.json().data.status, "signed");
+
+  const oldLinkStillWorks = await app.inject({
+    method: "GET",
+    url: `${publicUrl.pathname}${publicUrl.search}`,
+  });
+  assert.equal(oldLinkStillWorks.statusCode, 200);
+  assert.match(oldLinkStillWorks.body, /Signed/);
 
   const events = await app.inject({
     headers: { authorization: `Bearer ${token}` },

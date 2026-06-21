@@ -10,7 +10,12 @@ export interface AuthClaims {
 }
 
 function secret() {
-  return process.env.JWT_SECRET ?? "fleetcore-local-development-secret";
+  const configuredSecret = process.env.JWT_SECRET;
+  if (!configuredSecret && process.env.NODE_ENV === "production") {
+    throw new Error("JWT_SECRET is required in production");
+  }
+
+  return configuredSecret ?? "fleetcore-local-development-secret";
 }
 
 function encode(value: unknown) {
@@ -55,12 +60,16 @@ export function verifyAccessToken(token: string): AuthClaims | undefined {
     return undefined;
   }
 
-  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as AuthClaims & { exp?: number };
-  if (claims.exp && claims.exp < Math.floor(Date.now() / 1000)) {
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as AuthClaims & { exp?: number };
+    if (claims.exp && claims.exp < Math.floor(Date.now() / 1000)) {
+      return undefined;
+    }
+
+    return claims;
+  } catch {
     return undefined;
   }
-
-  return claims;
 }
 
 export function hashPassword(password: string) {
