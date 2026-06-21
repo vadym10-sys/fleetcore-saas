@@ -14,6 +14,7 @@ import { rentalRoutes } from "./routes/rentals.js";
 import { uploadRoutes } from "./routes/uploads.js";
 import { envelope } from "./lib/http.js";
 import { runMigrations } from "./db/migrate.js";
+import { pool } from "./db/client.js";
 import { seedDatabase } from "./db/seed.js";
 
 function resolveCorsOrigin(origin: string | undefined) {
@@ -52,6 +53,29 @@ export async function buildServer() {
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: "Route not found" }));
 
   app.get("/health", async () => envelope({ ok: true, modules: platformModules }));
+  app.get("/readiness", async (_request, reply) => {
+    try {
+      await pool.query("select 1");
+      return envelope({
+        checks: {
+          database: "ok",
+          migrations: "ok",
+        },
+        ok: true,
+      });
+    } catch (error) {
+      app.log.error(error);
+      return reply.code(503).send({
+        data: {
+          checks: {
+            database: "error",
+            migrations: "unknown",
+          },
+          ok: false,
+        },
+      });
+    }
+  });
 
   await runMigrations();
   await seedDatabase();

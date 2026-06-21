@@ -20,6 +20,14 @@ test("health endpoint exposes platform modules", async () => {
   assert.equal(response.json().data.ok, true);
 });
 
+test("readiness endpoint verifies database availability", async () => {
+  const response = await app.inject({ method: "GET", url: "/readiness" });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().data.ok, true);
+  assert.equal(response.json().data.checks.database, "ok");
+});
+
 test("login returns a signed access token", async () => {
   const response = await app.inject({
     method: "POST",

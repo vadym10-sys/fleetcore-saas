@@ -68,3 +68,11 @@ All non-auth MVP endpoints accept `authorization: Bearer <accessToken>`. Local d
 
 See [docs/backend-api.md](./docs/backend-api.md) for payload examples.
 See [docs/deployment.md](./docs/deployment.md) for Docker and Render deployment notes.
+
+## Due Diligence Docs
+
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Security](./docs/SECURITY.md)
+- [Data Model](./docs/DATA_MODEL.md)
+- [Deployment Runbook](./docs/DEPLOYMENT_RUNBOOK.md)
+- [Investor Readiness](./docs/INVESTOR_READINESS.md)

@@ -23,6 +23,22 @@ Write operations are role-protected. The default seeded owner account can perfor
 
 Returns API health and enabled platform modules.
 
+### `GET /readiness`
+
+Returns deploy readiness and verifies that the API can reach PostgreSQL. Use this for Render health checks, uptime monitors, and release verification.
+
+```json
+{
+  "data": {
+    "ok": true,
+    "checks": {
+      "database": "ok",
+      "migrations": "ok"
+    }
+  }
+}
+```
+
 ## Authentication
 
 ### `POST /auth/login`
