@@ -3416,6 +3416,54 @@ h3 {
   box-shadow: 0 18px 45px rgba(17, 24, 39, 0.07);
 }
 
+.operations-inbox {
+  border-color: rgba(35, 70, 216, 0.16);
+}
+
+.dashboard-loading-state {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 18px 45px rgba(17, 24, 39, 0.07);
+}
+
+.dashboard-loading-state h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 28px;
+}
+
+.dashboard-loading-state p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.loading-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.loading-card-grid i {
+  min-height: 86px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef2f7, #f8fafc, #eef2f7);
+  background-size: 180% 100%;
+  animation: loading-shimmer 1.2s linear infinite;
+}
+
+@keyframes loading-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -80% 0; }
+}
+
 .today-task-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

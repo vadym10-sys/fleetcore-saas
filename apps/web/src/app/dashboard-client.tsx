@@ -3833,7 +3833,7 @@ export default function DashboardClient() {
           title={t("command.title")}
         />
 
-        {activeRentalFlow ? (
+        {activeSection === "Bookings" && activeRentalFlow ? (
           <RentalFlowPanel
             busy={Boolean(busyAction)}
             events={activeRentalFlow.contract ? data.rentalContractEvents.filter((event) => event.contractId === activeRentalFlow.contract?.id) : []}
@@ -3849,28 +3849,28 @@ export default function DashboardClient() {
         ) : null}
 
         {activeSection === "Dashboard" ? (
-          <TodayOperationsDashboard
-            cards={dashboardCards}
-            finance={finance}
-            gpsDevices={data.gpsDevices}
-            locale={locale}
-            notifications={notifications}
-            onCreateBooking={() => openOperation("booking")}
-            onCreateService={() => openOperation("service")}
-            onOpenDocuments={() => setActiveSection("Service")}
-            onOpenFinance={() => setActiveSection("Finance")}
-            onOpenRental={(rental) => {
-              setSelectedRentalId(rental.id);
-              setSelectedVehicleId(rental.vehicleId);
-              setActiveSection("Bookings");
-            }}
-            onSelectVehicle={setSelectedVehicleId}
-            operations={operations}
-            rentals={data.rentals}
-            selectedRental={selectedRentalDetail}
-            selectedVehicleId={selectedVehicle?.id}
-            vehicles={filteredVehicles}
-          />
+          loading && !data.vehicles.length && !data.rentals.length ? (
+            <DashboardLoadingState />
+          ) : (
+            <TodayOperationsDashboard
+              cards={dashboardCards}
+              finance={finance}
+              locale={locale}
+              notifications={notifications}
+              onCreateBooking={() => openOperation("booking")}
+              onCreateService={() => openOperation("service")}
+              onOpenDocuments={() => setActiveSection("Service")}
+              onOpenFinance={() => setActiveSection("Finance")}
+              onOpenRental={(rental) => {
+                setSelectedRentalId(rental.id);
+                setSelectedVehicleId(rental.vehicleId);
+                setActiveSection("Bookings");
+              }}
+              operations={operations}
+              selectedRental={selectedRentalDetail}
+              vehicles={filteredVehicles}
+            />
+          )
         ) : null}
 
         {activeSection === "GPS" ? (
@@ -4493,7 +4493,6 @@ function ClientProfilePanel({
 function TodayOperationsDashboard({
   cards,
   finance,
-  gpsDevices,
   locale,
   notifications,
   onCreateBooking,
@@ -4501,16 +4500,12 @@ function TodayOperationsDashboard({
   onOpenDocuments,
   onOpenFinance,
   onOpenRental,
-  onSelectVehicle,
   operations,
-  rentals,
   selectedRental,
-  selectedVehicleId,
   vehicles,
 }: {
   cards: readonly (readonly [string, string | number, string])[];
   finance: { expenses: number; incomeByVehicle: Array<{ expenses: number; income: number; roi: number; vehicle: Vehicle }>; netProfit: number; totalIncome: number };
-  gpsDevices: GpsDevice[];
   locale: Locale;
   notifications: UiNotification[];
   onCreateBooking: () => void;
@@ -4518,7 +4513,6 @@ function TodayOperationsDashboard({
   onOpenDocuments: () => void;
   onOpenFinance: () => void;
   onOpenRental: (rental: Rental) => void;
-  onSelectVehicle: (vehicleId: string) => void;
   operations: {
     activeRentals: Rental[];
     dueToday: Rental[];
@@ -4531,9 +4525,7 @@ function TodayOperationsDashboard({
     serviceDue: Vehicle[];
     unpaidInvoices: Invoice[];
   };
-  rentals: Rental[];
   selectedRental: RentalDetailContext | undefined;
-  selectedVehicleId: string | undefined;
   vehicles: Vehicle[];
 }) {
   const readiness = [
@@ -4558,19 +4550,20 @@ function TodayOperationsDashboard({
       };
     }),
   ].filter((task, index, list) => list.findIndex((item) => `${item.label}-${item.meta}` === `${task.label}-${task.meta}`) === index).slice(0, 6);
+  const inboxCount = taskCards.length || 1;
 
   return (
     <section className="today-operations-board">
       <div className="operations-hero">
         <div>
-          <span className="eyebrow">Today Operations</span>
-          <h2>Рабочий центр автопарка</h2>
-          <p>Самые важные возвраты, оплаты, документы, GPS-сигналы и действия на сегодня.</p>
+          <span className="eyebrow">Operations Inbox</span>
+          <h2>Что требует внимания сегодня</h2>
+          <p>Один список задач вместо длинного dashboard: возвраты, оплаты, документы, GPS и активные аренды.</p>
         </div>
         <div className="operations-hero-actions">
-          <button className="primary-button" onClick={onCreateBooking} type="button">Новая бронь</button>
+          <button className="primary-button" onClick={onCreateBooking} type="button">Новая аренда</button>
           <details className="action-menu">
-            <summary>Открыть раздел</summary>
+            <summary>Разделы</summary>
             <div>
               <button className="ghost-button" onClick={onOpenFinance} type="button">Финансы</button>
               <button className="ghost-button" onClick={onOpenDocuments} type="button">Документы</button>
@@ -4580,13 +4573,13 @@ function TodayOperationsDashboard({
         </div>
       </div>
 
-      <section className="today-task-board" aria-label="Что делать сегодня">
+      <section className="today-task-board operations-inbox" data-testid="operations-inbox" aria-label="Operations Inbox">
         <div className="section-title compact-title">
           <div>
-            <h2>Что делать сегодня</h2>
-            <p>Открывайте задачи сверху вниз: возвраты, оплаты, документы, GPS и активные аренды.</p>
+            <h2>Inbox задач</h2>
+            <p>Работайте сверху вниз. Каждая карточка ведет к нужному разделу и действию.</p>
           </div>
-          <Badge value={`${taskCards.length} задач`} />
+          <Badge value={`${inboxCount} задач`} />
         </div>
         <div className="today-task-grid">
           {taskCards.map((task) => (
@@ -4617,30 +4610,6 @@ function TodayOperationsDashboard({
             <strong className={tone}>{value}</strong>
           </article>
         ))}
-      </div>
-
-      <div className="operations-main-grid">
-        <section className="operations-map-panel">
-          <MapPanel gpsDevices={gpsDevices} locale={locale} vehicles={vehicles} rentals={rentals} selectedVehicleId={selectedVehicleId} onSelect={onSelectVehicle} />
-        </section>
-        <aside className="operations-queue">
-          <div className="section-title compact-title">
-            <h2>Очередь действий</h2>
-            <Badge value={String(operations.issues.length)} />
-          </div>
-          {operations.issues.slice(0, 4).map((issue) => (
-            <button className={`operation-issue ${issue.tone}`} key={`${issue.label}-${issue.meta}`} onClick={issue.action} type="button">
-              <strong>{issue.label}</strong>
-              <span>{issue.meta}</span>
-            </button>
-          ))}
-          {!operations.issues.length ? (
-            <div className="operation-empty">
-              <strong>Срочных проблем нет</strong>
-              <span>Можно создать новую бронь, проверить документы или открыть финансы.</span>
-            </div>
-          ) : null}
-        </aside>
       </div>
 
       <div className="operations-lower-grid">
@@ -4688,6 +4657,22 @@ function TodayOperationsDashboard({
         </section>
 
         <NotificationsPanel locale={locale} notifications={notifications} />
+      </div>
+    </section>
+  );
+}
+
+function DashboardLoadingState() {
+  return (
+    <section className="dashboard-loading-state" data-testid="dashboard-loading-state">
+      <span className="eyebrow">FleetCore</span>
+      <h2>Загружаем рабочий центр</h2>
+      <p>Подтягиваем автомобили, аренды, документы, финансы и GPS. Через несколько секунд появится Operations Inbox.</p>
+      <div className="loading-card-grid">
+        <i />
+        <i />
+        <i />
+        <i />
       </div>
     </section>
   );
@@ -5508,15 +5493,16 @@ function RentalFlowHistoryPanel({ events, flow, locale }: { events: RentalContra
       meta: `${checklist.odometerKm.toLocaleString()} км · топливо ${checklist.fuelLevel}%`,
     })),
   ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  const visibleHistory = history.slice(-3).reverse();
 
   return (
     <section className="flow-history-panel" aria-label="Rental Flow history">
       <div className="section-title compact-title">
-        <h3>История Rental Flow</h3>
-        <Badge value={`${history.length} событий`} />
+        <h3>Последние события</h3>
+        <Badge value={`${history.length} всего`} />
       </div>
       <div className="flow-history-list">
-        {history.map((item, index) => (
+        {visibleHistory.map((item, index) => (
           <article className={item.done ? "done" : ""} key={`${item.label}-${item.at}-${index}`}>
             <span>{item.done ? "✓" : index + 1}</span>
             <div>
@@ -5526,6 +5512,7 @@ function RentalFlowHistoryPanel({ events, flow, locale }: { events: RentalContra
             <time>{dateFmt.format(new Date(item.at))}</time>
           </article>
         ))}
+        {history.length > visibleHistory.length ? <p className="history-row">Показаны последние 3 события. Полная история доступна в Document Center.</p> : null}
       </div>
     </section>
   );
