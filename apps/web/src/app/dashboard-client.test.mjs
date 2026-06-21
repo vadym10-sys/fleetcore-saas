@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const source = await readFile(new URL("./dashboard-client.tsx", import.meta.url), "utf8");
+const css = await readFile(new URL("./globals.css", import.meta.url), "utf8");
 
 test("dashboard client keeps production account and document flows wired", () => {
   for (const marker of [
@@ -169,4 +170,40 @@ test("dashboard client does not ship inert buttons", () => {
 
   assert.doesNotMatch(source, /MobileAppNav|mobile-app-nav|mobile-account-strip/);
   assert.doesNotMatch(source, /openExternalMap|maps\.apple\.com|google\.com\/maps\/search/);
+});
+
+test("dashboard client keeps forms, uploads and mobile shell actionable", () => {
+  const formTags = source.match(/<form\b[\s\S]*?>/g) ?? [];
+  assert.ok(formTags.length >= 5, "expected auth, intake, operation, vehicle and customer forms");
+  for (const tag of formTags) {
+    assert.match(tag, /onSubmit=/, `form without submit handler: ${tag}`);
+  }
+
+  const fileInputMatches = [...source.matchAll(/type="file"/g)];
+  assert.ok(fileInputMatches.length >= 10, "expected document/profile/vehicle upload inputs");
+  for (const match of fileInputMatches) {
+    const start = Math.max(0, match.index - 360);
+    const end = Math.min(source.length, match.index + 180);
+    const context = source.slice(start, end);
+    assert.match(context, /onChange=/, `file input without nearby change handler: ${context}`);
+  }
+
+  for (const marker of [
+    ".mobile-drawer-shell",
+    ".mobile-drawer-shell.open",
+    ".mobile-drawer-backdrop",
+    ".mobile-drawer",
+    ".mobile-drawer-nav button",
+    ".mobile-fab",
+    "@media (max-width: 760px)",
+    "env(safe-area-inset-bottom)",
+  ]) {
+    assert.match(css, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  assert.match(source, /function ClientIntakeScreen/);
+  assert.match(source, /data-testid="client-intake-form"/);
+  assert.match(source, /fetch\(`\$\{API_URL\}\/operations\/client-intake\/public`/);
+  assert.match(source, /window\.location\.search/);
+  assert.match(source, /companyId && tenantId/);
 });
