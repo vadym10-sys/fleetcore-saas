@@ -2034,6 +2034,7 @@ h3 {
 
 .search-clear-button {
   width: 28px;
+  min-width: 28px;
   height: 28px;
   display: grid;
   place-items: center;
@@ -2049,6 +2050,7 @@ h3 {
 
 .search-ai-button,
 .search-voice-button {
+  width: 34px;
   min-width: 34px;
   height: 32px;
   display: grid;
@@ -7131,6 +7133,11 @@ h3 {
 
   .header-actions {
     grid-template-columns: minmax(0, 1fr) 76px 44px 88px;
+    min-width: 0;
+  }
+
+  .global-search {
+    width: 100%;
   }
 
   .mobile-drawer-shell {
@@ -8358,7 +8365,7 @@ h3 {
 
 .desktop-header {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(520px, auto);
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 660px);
   gap: 18px;
   align-items: center;
   margin-bottom: 18px;
@@ -8384,21 +8391,26 @@ h3 {
 
 .header-actions {
   display: grid;
-  grid-template-columns: minmax(260px, 380px) 92px 48px 124px;
+  grid-template-columns: minmax(0, 1fr) 92px 48px 124px;
   gap: 10px;
   align-items: center;
+  min-width: 0;
 }
 
 .global-search {
   min-width: 0;
+  width: 100%;
   height: var(--touch);
   border-radius: var(--radius-md);
+  overflow: visible;
 }
 
 .global-search input {
   min-width: 0;
+  flex: 1 1 auto;
   font-size: 15px;
   font-weight: 800;
+  text-overflow: ellipsis;
 }
 
 .global-search-results {
@@ -8412,6 +8424,9 @@ h3 {
 }
 
 .language-select {
+  position: relative;
+  z-index: 42;
+  width: 92px;
   height: var(--touch);
   border-radius: var(--radius-md);
 }
@@ -8691,7 +8706,7 @@ h3 {
   }
 
   .header-actions {
-    grid-template-columns: minmax(240px, 1fr) 92px 48px 124px;
+    grid-template-columns: minmax(0, 1fr) 92px 48px 124px;
   }
 
   .simplified-command-center {
