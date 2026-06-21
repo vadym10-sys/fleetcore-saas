@@ -33,6 +33,8 @@ test("desktop user can enter demo SaaS and use the command surface", async ({ pa
 
   await globalSearch.fill("BMW");
   await expect(page.locator(".global-search-results")).toBeVisible();
+  await page.getByRole("button", { name: "AI поиск" }).click();
+  await expect(page.locator(".global-search-results")).toContainText(/AI поиск|Результаты поиска/);
   await page.getByRole("button", { exact: true, name: "+ Создать" }).click();
   const createSheet = page.locator(".create-action-sheet");
   await expect(createSheet).toBeVisible();

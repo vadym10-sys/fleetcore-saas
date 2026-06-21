@@ -200,6 +200,41 @@ test("password reset and email verification tokens work", async () => {
   assert.equal(newLogin.statusCode, 200);
 });
 
+test("AI search returns tenant scoped FleetCore results without an OpenAI key", async () => {
+  const previousOpenAiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  try {
+    const response = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "POST",
+      payload: { query: "BMW PR-8821 CareNow аренда" },
+      url: "/ai/search",
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.mode, "local");
+    assert.ok(response.json().data.results.length >= 1);
+    assert.ok(response.json().data.results.some((item: { kind: string }) => ["customer", "rental", "vehicle"].includes(item.kind)));
+  } finally {
+    if (previousOpenAiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = previousOpenAiKey;
+    }
+  }
+});
+
+test("AI search rejects too short prompts", async () => {
+  const response = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: { query: "x" },
+    url: "/ai/search",
+  });
+
+  assert.equal(response.statusCode, 400);
+});
+
 test("login rejects empty credentials", async () => {
   const response = await app.inject({
     method: "POST",

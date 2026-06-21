@@ -248,3 +248,7 @@ export const fileUploadInput = z.object({
   mimeType: z.string().min(1).max(120).default("application/octet-stream"),
   originalName: z.string().min(1).max(255),
 });
+
+export const aiSearchInput = z.object({
+  query: z.string().trim().min(2).max(500),
+});

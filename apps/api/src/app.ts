@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { platformModules } from "@fleetcore/shared";
 import { installTenantContext } from "./plugins/tenant-context.js";
+import { aiRoutes } from "./routes/ai.js";
 import { authRoutes } from "./routes/auth.js";
 import { companyRoutes } from "./routes/companies.js";
 import { customerRoutes } from "./routes/customers.js";
@@ -86,6 +87,7 @@ export async function buildServer() {
   await runMigrations();
   await seedDatabase();
   installTenantContext(app);
+  await app.register(aiRoutes);
   await app.register(authRoutes);
   await app.register(dashboardRoutes);
   await app.register(companyRoutes);

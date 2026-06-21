@@ -18,6 +18,19 @@ type GoogleMapInstance = {
 type GoogleMarkerInstance = {
   setMap: (map: GoogleMapInstance | null) => void;
 };
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+  onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 type GoogleMapsNamespace = {
   Map: new (element: HTMLElement, options: { center: GoogleLatLngLiteral; mapTypeControl?: boolean; streetViewControl?: boolean; styles?: Array<Record<string, unknown>>; zoom: number }) => GoogleMapInstance;
   Marker: new (options: { label?: string; map: GoogleMapInstance; position: GoogleLatLngLiteral; title?: string }) => GoogleMarkerInstance;
@@ -144,7 +157,7 @@ type OperationsIssue = {
 
 type GlobalSearchResult = {
   id: string;
-  kind: "vehicle" | "customer" | "rental" | "document";
+  kind: "vehicle" | "customer" | "rental" | "document" | "finance" | "gps";
   label: string;
   meta: string;
   section: Section;
@@ -158,6 +171,15 @@ type DashboardFolder = {
   createdAt: string;
   id: string;
   name: string;
+};
+
+type AiSearchResponse = {
+  intent: string;
+  mode: "local" | "openai";
+  query: string;
+  results: GlobalSearchResult[];
+  summary: string;
+  terms: string[];
 };
 
 const sections: Section[] = ["Dashboard", "GPS", "Vehicles", "Calendar", "Bookings", "Finance", "Service", "Settings"];
@@ -1809,6 +1831,11 @@ export default function DashboardClient() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [aiSearch, setAiSearch] = useState<AiSearchResponse | undefined>();
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiSearchError, setAiSearchError] = useState("");
+  const [voiceListening, setVoiceListening] = useState(false);
+  const speechRecognitionRef = useRef<BrowserSpeechRecognition | undefined>(undefined);
   const [mapFilter, setMapFilter] = useState<"all" | "available" | "rented" | "maintenance" | "offline">("all");
   const [vehicleSort, setVehicleSort] = useState<VehicleSortKey>("status");
   const [customerSort, setCustomerSort] = useState<CustomerSortKey>("name");
@@ -2212,6 +2239,77 @@ export default function DashboardClient() {
 
     return [...rentalResults, ...vehicleResults, ...customerResults, ...vehicleDocumentResults, ...customerDocumentResults].slice(0, 12);
   }, [data.customerDocuments, data.customers, data.documents, data.invoices, money, search, visibleRentals, visibleVehicles]);
+
+  const searchResults = useMemo<GlobalSearchResult[]>(() => {
+    const aiResults = aiSearch?.query === search.trim() ? aiSearch.results : [];
+    const existingIds = new Set(aiResults.map((result) => result.id));
+    return [...aiResults, ...globalSearchResults.filter((result) => !existingIds.has(result.id))].slice(0, 12);
+  }, [aiSearch, globalSearchResults, search]);
+
+  async function runAiSearch(query = search) {
+    const normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) {
+      setAiSearchError("Введите минимум 2 символа для AI-поиска.");
+      setSearchOpen(true);
+      return;
+    }
+    setAiSearchLoading(true);
+    setAiSearchError("");
+    try {
+      const response = await api<AiSearchResponse>(
+        "/ai/search",
+        {
+          body: JSON.stringify({ query: normalizedQuery }),
+          method: "POST",
+        },
+        session?.accessToken,
+      );
+      setAiSearch(response.data);
+      setSearch(normalizedQuery);
+      setSearchOpen(true);
+    } catch (error) {
+      setAiSearchError(error instanceof Error ? error.message : "AI-поиск временно недоступен.");
+      setSearchOpen(true);
+    } finally {
+      setAiSearchLoading(false);
+    }
+  }
+
+  function startVoiceSearch() {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition = (
+      (window as Window & { SpeechRecognition?: BrowserSpeechRecognitionConstructor; webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor }).SpeechRecognition
+      ?? (window as Window & { SpeechRecognition?: BrowserSpeechRecognitionConstructor; webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor }).webkitSpeechRecognition
+    );
+    if (!SpeechRecognition) {
+      setAiSearchError("Голосовой ввод не поддерживается этим браузером. Введите запрос текстом.");
+      setSearchOpen(true);
+      return;
+    }
+
+    speechRecognitionRef.current?.stop();
+    const recognition = new SpeechRecognition();
+    recognition.lang = locale === "ru" ? "ru-RU" : locale === "es" ? "es-ES" : locale === "fr" ? "fr-FR" : locale === "de" ? "de-DE" : "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = (event) => {
+      const transcript = event.results[0]?.[0]?.transcript?.trim() ?? "";
+      if (transcript) {
+        setSearch(transcript);
+        setSearchOpen(true);
+        void runAiSearch(transcript);
+      }
+    };
+    recognition.onerror = () => {
+      setVoiceListening(false);
+      setAiSearchError("Не удалось распознать голос. Попробуйте ещё раз или введите текст.");
+      setSearchOpen(true);
+    };
+    recognition.onend = () => setVoiceListening(false);
+    speechRecognitionRef.current = recognition;
+    setVoiceListening(true);
+    recognition.start();
+  }
 
   function openSearchResult(result: GlobalSearchResult) {
     if (result.vehicleId) {
@@ -4167,18 +4265,47 @@ export default function DashboardClient() {
                 onBlur={() => window.setTimeout(() => setSearchOpen(false), 160)}
                 onChange={(event) => {
                   setSearch(event.target.value);
+                  setAiSearchError("");
+                  if (aiSearch?.query !== event.target.value.trim()) setAiSearch(undefined);
                   setSearchOpen(true);
                 }}
                 onFocus={() => setSearchOpen(true)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void runAiSearch();
+                  }
+                }}
               />
+              <button
+                aria-label="AI поиск"
+                className={`search-ai-button ${aiSearchLoading ? "loading" : ""}`}
+                disabled={aiSearchLoading}
+                onClick={() => void runAiSearch()}
+                onMouseDown={(event) => event.preventDefault()}
+                type="button"
+              >
+                {aiSearchLoading ? "..." : "AI"}
+              </button>
+              <button
+                aria-label="Голосовой поиск"
+                className={`search-voice-button ${voiceListening ? "listening" : ""}`}
+                onClick={startVoiceSearch}
+                onMouseDown={(event) => event.preventDefault()}
+                type="button"
+              >
+                {voiceListening ? "●" : "🎙"}
+              </button>
               {search ? <button aria-label="Очистить поиск" className="search-clear-button" onClick={() => { setSearch(""); setSearchOpen(false); }} onMouseDown={(event) => event.preventDefault()} type="button">×</button> : null}
               {searchOpen && search.trim().length >= 2 ? (
                 <div className="global-search-results" data-testid="global-search-results">
                   <div className="search-results-head">
-                    <strong>Результаты поиска</strong>
-                    <span>{globalSearchResults.length ? `${globalSearchResults.length}` : "0"}</span>
+                    <strong>{aiSearch ? `AI поиск · ${aiSearch.mode === "openai" ? "OpenAI" : "local"}` : "Результаты поиска"}</strong>
+                    <span>{searchResults.length ? `${searchResults.length}` : "0"}</span>
                   </div>
-                  {globalSearchResults.map((result) => (
+                  {aiSearch?.summary ? <p className="search-ai-summary">{aiSearch.summary}</p> : null}
+                  {aiSearchError ? <p className="search-ai-error">{aiSearchError}</p> : null}
+                  {searchResults.map((result) => (
                     <button
                       className="search-result-row"
                       key={result.id}
@@ -4189,17 +4316,17 @@ export default function DashboardClient() {
                       }}
                       type="button"
                     >
-                      <span>{result.kind === "vehicle" ? "Авто" : result.kind === "customer" ? "Клиент" : result.kind === "rental" ? "Бронь" : "Документ"}</span>
+                      <span>{result.kind === "vehicle" ? "Авто" : result.kind === "customer" ? "Клиент" : result.kind === "rental" ? "Бронь" : result.kind === "finance" ? "Финансы" : result.kind === "gps" ? "GPS" : "Документ"}</span>
                       <div>
                         <strong>{result.label}</strong>
                         <small>{result.meta}</small>
                       </div>
                     </button>
                   ))}
-                  {!globalSearchResults.length ? (
+                  {!searchResults.length ? (
                     <div className="search-empty-state">
                       <strong>Ничего не найдено</strong>
-                      <span>Попробуйте номер авто, VIN, имя клиента, телефон или email.</span>
+                      <span>Попробуйте номер авто, VIN, имя клиента, телефон, email или нажмите AI.</span>
                     </div>
                   ) : null}
                 </div>
