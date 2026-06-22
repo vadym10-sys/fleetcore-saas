@@ -4153,18 +4153,20 @@ h3 {
 
 .rental-detail-timeline {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .rental-detail-timeline article {
   display: grid;
-  gap: 5px;
-  min-height: 96px;
-  padding: 10px;
-  border: 1px solid #e5eaf2;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid rgba(221, 227, 236, 0.95);
   border-radius: 8px;
-  background: #f8fafc;
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .rental-detail-timeline article.done {
@@ -4173,8 +4175,9 @@ h3 {
 }
 
 .rental-detail-timeline span {
-  width: 24px;
-  height: 24px;
+  grid-row: 1 / span 2;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -4190,12 +4193,12 @@ h3 {
 
 .rental-detail-timeline strong {
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .rental-detail-timeline small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -4239,6 +4242,13 @@ h3 {
   border-radius: 8px;
   background:
     linear-gradient(135deg, rgba(35, 70, 216, 0.09), rgba(15, 159, 110, 0.07)),
+    #fff;
+}
+
+.rental-delivery-card.compact-delivery {
+  padding: 12px;
+  background:
+    linear-gradient(135deg, rgba(35, 70, 216, 0.07), rgba(255, 255, 255, 0.92)),
     #fff;
 }
 

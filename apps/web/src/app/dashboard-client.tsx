@@ -5250,19 +5250,28 @@ function RentalDetailPanel({
   const settlementReady = returned && paymentReady;
   const operationalHealth = [
     { done: Boolean(detail.customer), label: "Клиент", meta: detail.customer?.email ?? "нет email" },
-    { done: Boolean(detail.vehicle), label: "Авто", meta: detail.vehicle?.vin ?? "нет VIN" },
-    { done: Boolean(detail.contract), label: "PDF", meta: contractStatusLabel(locale, detail.contract?.status) },
-    { done: contractSigned, label: "Подпись", meta: contractSigned ? "получена" : "ожидает" },
-    { done: paymentReady, label: "Оплата", meta: detail.remainingAmount > 0 ? rentalMoney.format(detail.remainingAmount) : invoiceStatusLabel(locale, "paid") },
-    { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
-  ];
-  const steps = [
-    { done: true, label: "Бронь", meta: rentalStatusLabel(locale, detail.rental.status) },
+    { done: Boolean(detail.vehicle), label: "Автомобиль", meta: detail.vehicle?.plateNumber ?? "нет номера" },
     { done: Boolean(detail.contract), label: "Договор", meta: contractStatusLabel(locale, detail.contract?.status) },
-    { done: paymentReady, label: "Оплата", meta: `${rentalMoney.format(detail.paidAmount)} / ${rentalMoney.format(detail.invoice?.total ?? detail.rental.totalAmount)}` },
+    { done: paymentReady, label: "Оплата", meta: detail.remainingAmount > 0 ? `осталось ${rentalMoney.format(detail.remainingAmount)}` : invoiceStatusLabel(locale, "paid") },
     { done: pickup, label: "Выдача", meta: pickup ? "акт готов" : "нужен акт" },
     { done: returned, label: "Возврат", meta: returned ? "акт готов" : "ожидает" },
-    { done: detail.rental.status === "closed", label: "Финал", meta: detail.rental.status === "closed" ? "закрыто" : "в работе" },
+  ];
+  const internalBlocks = [
+    {
+      done: Boolean(detail.contract) && contractSigned,
+      label: "Клиент и договор",
+      meta: detail.contract ? `${contractStatusLabel(locale, detail.contract.status)} · ${contractSigned ? "подпись есть" : "ждём подпись"}` : "создать и отправить",
+    },
+    {
+      done: paymentReady,
+      label: "Оплата и депозит",
+      meta: `${rentalMoney.format(detail.paidAmount)} оплачено · депозит ${rentalMoney.format(detail.rental.depositAmount)}`,
+    },
+    {
+      done: pickup && returned,
+      label: "Выдача и закрытие",
+      meta: returned ? "можно закрыть аренду" : pickup ? "авто выдано, ждём возврат" : "нужен акт выдачи",
+    },
   ];
   const primaryAction = !detail.contract
     ? { disabled: busy, label: "Создать договор", onClick: onCreateContract }
@@ -5291,19 +5300,19 @@ function RentalDetailPanel({
 
       <div className="rental-master-card" data-testid="rental-step-master">
         <div>
-          <span className="eyebrow">Next step</span>
+          <span className="eyebrow">Следующее лучшее действие</span>
           <h3>{primaryAction.label}</h3>
-          <p>{detail.rental.status === "closed" ? "Аренда полностью закрыта." : "FleetCore показывает только следующее нужное действие, чтобы менеджер не терялся в кнопках."}</p>
+          <p>{detail.rental.status === "closed" ? "Аренда полностью закрыта." : "Одна аренда, одна главная кнопка. Договор, оплата, депозит, выдача и возврат находятся внутри карточки."}</p>
         </div>
         <button className="primary-button" disabled={primaryAction.disabled} onClick={primaryAction.onClick} type="button">{primaryAction.label}</button>
       </div>
 
       <div className="rental-detail-timeline rental-step-wizard" data-testid="rental-detail-timeline">
-        {steps.map((step) => (
-          <article className={step.done ? "done" : ""} key={step.label}>
-            <span>{step.done ? "✓" : "•"}</span>
-            <strong>{step.label}</strong>
-            <small>{step.meta}</small>
+        {internalBlocks.map((block) => (
+          <article className={block.done ? "done" : ""} key={block.label}>
+            <span>{block.done ? "✓" : "•"}</span>
+            <strong>{block.label}</strong>
+            <small>{block.meta}</small>
           </article>
         ))}
       </div>
@@ -5327,22 +5336,22 @@ function RentalDetailPanel({
         </article>
       </div>
 
-      <section className="rental-delivery-card" aria-label="Отправка аренды клиенту">
+      <section className="rental-delivery-card compact-delivery" aria-label="Отправка аренды клиенту">
         <div>
           <span className="eyebrow">Client delivery</span>
-          <h3>Отправить клиенту договор и детали аренды</h3>
-          <p>FleetCore подготовит публичную ссылку договора, текст с автомобилем, датами, суммой и депозитом, затем откроет нужный канал отправки.</p>
+          <h3>Отправить клиенту</h3>
+          <p>Ссылка, договор, авто, даты, сумма и депозит в одном сообщении.</p>
         </div>
         <div className="rental-delivery-actions">
           <button className="primary-button" disabled={busy} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
           <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
           <button className="ghost-button" disabled={busy} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
         </div>
-        <small>{detail.contract ? `Текущий договор: ${contractStatusLabel(locale, detail.contract.status)}` : "Если договора еще нет, FleetCore создаст его автоматически перед отправкой."}</small>
+        <small>{detail.contract ? `Договор: ${contractStatusLabel(locale, detail.contract.status)}` : "Договора ещё нет. FleetCore создаст его автоматически перед отправкой."}</small>
       </section>
 
       <div className="rental-health-strip" aria-label="Rental health">
-        {operationalHealth.slice(0, 4).map((item) => (
+        {operationalHealth.map((item) => (
           <article className={item.done ? "done" : "attention"} key={item.label}>
             <span>{item.done ? "✓" : "!"}</span>
             <div>
@@ -5354,7 +5363,7 @@ function RentalDetailPanel({
       </div>
 
       <details className="rental-secondary-details">
-        <summary>Документы и контроль закрытия</summary>
+        <summary>Документы, оплата и возврат</summary>
         <div className="rental-document-strip">
           <div>
             <strong>Договор</strong>
@@ -5370,10 +5379,10 @@ function RentalDetailPanel({
         <div className="rental-flow-plus-grid compact" data-testid="rental-flow-plus">
           <section>
             <h3>Контроль</h3>
-            <p className={detail.contract ? "done" : "pending"}><span>{detail.contract ? "✓" : "•"}</span><strong>PDF договора</strong></p>
-            <p className={contractSigned ? "done" : "pending"}><span>{contractSigned ? "✓" : "•"}</span><strong>Подпись клиента</strong></p>
-            <p className={rentalReady ? "done" : "pending"}><span>{rentalReady ? "✓" : "•"}</span><strong>Выдача разрешена</strong></p>
-            <p className={settlementReady ? "done" : "pending"}><span>{settlementReady ? "✓" : "•"}</span><strong>Можно закрывать аренду</strong></p>
+            <p className={detail.contract ? "done" : "pending"}><span>{detail.contract ? "✓" : "•"}</span><strong>PDF договора</strong><small>{detail.contract ? "создан" : "создаётся из карточки"}</small></p>
+            <p className={contractSigned ? "done" : "pending"}><span>{contractSigned ? "✓" : "•"}</span><strong>Подпись клиента</strong><small>{contractSigned ? "получена" : "можно отправить ссылку"}</small></p>
+            <p className={rentalReady ? "done" : "pending"}><span>{rentalReady ? "✓" : "•"}</span><strong>Выдача разрешена</strong><small>{rentalReady ? "документы и оплата готовы" : "проверьте договор, оплату и акт"}</small></p>
+            <p className={settlementReady ? "done" : "pending"}><span>{settlementReady ? "✓" : "•"}</span><strong>Закрытие аренды</strong><small>{settlementReady ? "можно делать финальный расчёт" : "нужен возврат и оплата"}</small></p>
           </section>
           <section className="settlement-mini-card">
             <h3>Финальный расчёт</h3>
