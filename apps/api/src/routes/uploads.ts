@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import { createFileObject, getFileObject, getFileObjectMetadata, listFileObjects, writeAuditLog } from "../db/repositories.js";
+import { randomUUID } from "node:crypto";
+import { createStorageKey, createSignedDownloadUrl, deleteObject, putObject } from "../lib/object-storage.js";
+import { createFileObject, deleteFileObject, getFileObject, getFileObjectMetadata, listFileObjects, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
 import { fileUploadInput } from "../schemas.js";
@@ -38,7 +40,26 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
 
     const user = getRequestUser(request);
     const scope = getTenantScope(request);
-    const file = await createFileObject(scope, parsed.data, (fileId, originalName) => publicFileUrl(request, fileId, originalName), user?.id);
+    const fileId = `file_${randomUUID().replace(/-/gu, "").slice(0, 8)}`;
+    const storageKey = createStorageKey({
+      companyId: scope.companyId,
+      fileId,
+      originalName: parsed.data.originalName,
+      tenantId: scope.tenantId,
+    });
+    const stored = await putObject({
+      body: data,
+      contentType: parsed.data.mimeType,
+      key: storageKey,
+    });
+    const file = await createFileObject(scope, parsed.data, (storedFileId, originalName) => publicFileUrl(request, storedFileId, originalName), user?.id, {
+      data: stored.provider === "database" ? data : null,
+      fileId,
+      sha256: stored.sha256,
+      sizeBytes: data.byteLength,
+      storageKey: stored.storageKey,
+      storageProvider: stored.provider,
+    });
     await writeAuditLog({
       action: "file.uploaded",
       actorEmail: user?.email,
@@ -63,9 +84,26 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
     return envelope(file);
   });
 
+  app.get("/uploads/:fileId/signed-url", async (request, reply) => {
+    const { fileId } = request.params as { fileId: string };
+    const file = await getFileObject(getTenantScope(request), fileId);
+    if (!file) return reply.code(404).send({ error: "File not found" });
+
+    if (file.storageProvider === "s3" && file.storageKey) {
+      const signed = createSignedDownloadUrl({ storageKey: file.storageKey });
+      if (!signed) return reply.code(503).send({ error: "Object storage is not configured" });
+      return envelope(signed);
+    }
+
+    return envelope({
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      url: publicFileUrl(request, fileId, file.originalName),
+    });
+  });
+
   app.get("/uploads/:fileId/:filename", async (request, reply) => {
     const { fileId } = request.params as { fileId: string; filename: string };
-    const file = await getFileObject(fileId);
+    const file = await getFileObject(getTenantScope(request), fileId);
     if (!file) {
       return reply.code(404).send({ error: "File not found" });
     }
@@ -80,10 +118,52 @@ export const uploadRoutes: FastifyPluginAsync = async (app) => {
       tenantId: file.tenantId,
       userAgent: request.headers["user-agent"]?.toString(),
     });
+
+    if (file.storageProvider === "s3" && file.storageKey) {
+      const signed = createSignedDownloadUrl({ storageKey: file.storageKey });
+      if (!signed) return reply.code(503).send({ error: "Object storage is not configured" });
+      return reply.redirect(signed.url);
+    }
+
+    if (!file.data) {
+      return reply.code(404).send({ error: "File content not found" });
+    }
+
     reply.header("content-type", file.mimeType);
     reply.header("content-length", String(file.data.byteLength));
     if (file.sha256) reply.header("etag", `"${file.sha256}"`);
     reply.header("content-disposition", `inline; filename="${encodeURIComponent(file.originalName)}"`);
     return reply.send(file.data);
+  });
+
+  app.delete("/uploads/:fileId", async (request, reply) => {
+    if (!requireRoles(request, reply, ["owner", "manager"])) return;
+
+    const { fileId } = request.params as { fileId: string };
+    const scope = getTenantScope(request);
+    const file = await getFileObject(scope, fileId);
+    if (!file) return reply.code(404).send({ error: "File not found" });
+
+    await deleteObject({
+      storageKey: file.storageKey ?? fileId,
+      storageProvider: file.storageProvider,
+    });
+    await deleteFileObject(scope, fileId);
+
+    const user = getRequestUser(request);
+    await writeAuditLog({
+      action: "file.deleted",
+      actorEmail: user?.email,
+      companyId: scope.companyId,
+      entityId: fileId,
+      entityType: "file_object",
+      ipAddress: request.ip,
+      metadata: { originalName: file.originalName, storageProvider: file.storageProvider },
+      tenantId: scope.tenantId,
+      userAgent: request.headers["user-agent"]?.toString(),
+      userId: user?.id,
+    });
+
+    return envelope({ deleted: true, id: fileId });
   });
 };

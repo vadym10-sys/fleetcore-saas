@@ -19,10 +19,6 @@ const publicRoutes = new Set([
   "/auth/verify-email",
   "/billing/stripe/webhook",
 ]);
-function isPublicUploadPreview(url: string) {
-  return /^\/uploads\/[^/]+\/.+/.test(url);
-}
-
 function isPublicContractRoute(url: string) {
   return /^\/operations\/rental-contracts\/public\/[^/]+/.test(url);
 }
@@ -41,7 +37,7 @@ export function installTenantContext(app: FastifyInstance) {
       return;
     }
 
-    if (publicRoutes.has(request.url) || isPublicUploadPreview(request.url) || isPublicContractRoute(request.url) || isPublicClientIntakeRoute(request.url)) {
+    if (publicRoutes.has(request.url) || isPublicContractRoute(request.url) || isPublicClientIntakeRoute(request.url)) {
       return;
     }
 

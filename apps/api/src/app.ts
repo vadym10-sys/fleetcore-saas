@@ -16,6 +16,7 @@ import { documentRoutes } from "./routes/documents.js";
 import { financeRoutes } from "./routes/finance.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { gpsRoutes } from "./routes/gps.js";
+import { objectStorageProvider } from "./lib/object-storage.js";
 import { operationRoutes } from "./routes/operations.js";
 import { rentalRoutes } from "./routes/rentals.js";
 import { uploadRoutes } from "./routes/uploads.js";
@@ -92,7 +93,7 @@ export async function buildServer() {
         checks: {
           database: "ok",
           migrations: "ok",
-          storage: process.env.S3_BUCKET ? "s3" : "database",
+          storage: objectStorageProvider(),
         },
         ok: true,
       });
@@ -103,7 +104,7 @@ export async function buildServer() {
           checks: {
             database: "error",
             migrations: "unknown",
-            storage: process.env.S3_BUCKET ? "s3" : "database",
+            storage: objectStorageProvider(),
           },
           ok: false,
         },
@@ -119,7 +120,7 @@ export async function buildServer() {
         checks: {
           database: "ok",
           migrations: "ok",
-          storage: process.env.S3_BUCKET ? "s3" : "database",
+          storage: objectStorageProvider(),
         },
         commercialReadiness: readiness,
         integrations,
@@ -132,7 +133,7 @@ export async function buildServer() {
           checks: {
             database: "error",
             migrations: "unknown",
-            storage: process.env.S3_BUCKET ? "s3" : "database",
+            storage: objectStorageProvider(),
           },
           commercialReadiness: readiness,
           integrations,

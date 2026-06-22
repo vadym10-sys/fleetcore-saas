@@ -718,15 +718,31 @@ export async function listDeliveryMessages(scope: TenantScope, entityId?: string
   return result.rows.map(mapDeliveryMessage);
 }
 
-export async function createFileObject(scope: TenantScope, input: FileUploadInput, publicUrlForId: (id: string, originalName: string) => string, uploadedByUserId?: string): Promise<FileObject> {
-  const fileId = createId("file");
-  const data = Buffer.from(input.base64, "base64");
-  const sha256 = createHash("sha256").update(data).digest("hex");
+type FileObjectStorageInput = {
+  data?: Buffer | null;
+  fileId?: string;
+  sha256: string;
+  sizeBytes: number;
+  storageKey: string;
+  storageProvider: "database" | "s3";
+};
+
+export async function createFileObject(
+  scope: TenantScope,
+  input: FileUploadInput,
+  publicUrlForId: (id: string, originalName: string) => string,
+  uploadedByUserId?: string,
+  storage?: FileObjectStorageInput,
+): Promise<FileObject> {
+  const fileId = storage?.fileId ?? createId("file");
+  const data = storage ? storage.data ?? null : Buffer.from(input.base64, "base64");
+  const sha256 = storage?.sha256 ?? createHash("sha256").update(data ?? Buffer.alloc(0)).digest("hex");
+  const sizeBytes = storage?.sizeBytes ?? data?.byteLength ?? 0;
   const result = await pool.query(
     `insert into file_objects (
       id, tenant_id, company_id, original_name, mime_type, size_bytes, data,
       storage_provider, storage_key, sha256, uploaded_by_user_id
-    ) values ($1, $2, $3, $4, $5, $6, $7, 'database', $8, $9, $10)
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     returning id, tenant_id, company_id, original_name, mime_type, size_bytes, storage_provider, storage_key, sha256, created_at, updated_at`,
     [
       fileId,
@@ -734,9 +750,10 @@ export async function createFileObject(scope: TenantScope, input: FileUploadInpu
       scope.companyId,
       input.originalName,
       input.mimeType,
-      data.byteLength,
+      sizeBytes,
       data,
-      fileId,
+      storage?.storageProvider ?? "database",
+      storage?.storageKey ?? fileId,
       sha256,
       uploadedByUserId ?? null,
     ],
@@ -766,19 +783,51 @@ export async function getFileObjectMetadata(scope: TenantScope, fileId: string, 
   return mapFileObject(result.rows[0], publicUrlForId(fileId, String(result.rows[0].original_name)));
 }
 
-export async function getFileObject(fileId: string): Promise<{ companyId: string; data: Buffer; mimeType: string; originalName: string; sha256?: string; tenantId: string } | undefined> {
+export async function getFileObject(scope: TenantScope, fileId: string): Promise<{
+  companyId: string;
+  data?: Buffer;
+  mimeType: string;
+  originalName: string;
+  sha256?: string;
+  storageKey?: string;
+  storageProvider: "database" | "s3";
+  tenantId: string;
+} | undefined> {
   const result = await pool.query(
-    "select tenant_id, company_id, original_name, mime_type, data, sha256 from file_objects where id = $1",
-    [fileId],
+    "select tenant_id, company_id, original_name, mime_type, data, storage_provider, storage_key, sha256 from file_objects where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, fileId],
   );
   if (!result.rows[0]) return undefined;
   return {
     tenantId: String(result.rows[0].tenant_id),
     companyId: String(result.rows[0].company_id),
-    data: result.rows[0].data as Buffer,
+    ...(result.rows[0].data ? { data: result.rows[0].data as Buffer } : {}),
     mimeType: String(result.rows[0].mime_type),
     originalName: String(result.rows[0].original_name),
+    storageProvider: (result.rows[0].storage_provider ? String(result.rows[0].storage_provider) : "database") as "database" | "s3",
+    ...(result.rows[0].storage_key ? { storageKey: String(result.rows[0].storage_key) } : {}),
     ...(result.rows[0].sha256 ? { sha256: String(result.rows[0].sha256) } : {}),
+  };
+}
+
+export async function deleteFileObject(scope: TenantScope, fileId: string): Promise<{
+  companyId: string;
+  storageKey?: string;
+  storageProvider: "database" | "s3";
+  tenantId: string;
+} | undefined> {
+  const result = await pool.query(
+    `delete from file_objects
+     where tenant_id = $1 and company_id = $2 and id = $3
+     returning tenant_id, company_id, storage_provider, storage_key`,
+    [scope.tenantId, scope.companyId, fileId],
+  );
+  if (!result.rows[0]) return undefined;
+  return {
+    tenantId: String(result.rows[0].tenant_id),
+    companyId: String(result.rows[0].company_id),
+    storageProvider: (result.rows[0].storage_provider ? String(result.rows[0].storage_provider) : "database") as "database" | "s3",
+    ...(result.rows[0].storage_key ? { storageKey: String(result.rows[0].storage_key) } : {}),
   };
 }
 

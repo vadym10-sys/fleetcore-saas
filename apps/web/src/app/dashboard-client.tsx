@@ -5276,6 +5276,36 @@ function DashboardFolders({ token }: { token: string | undefined }) {
     }
   }
 
+  async function openFolderFile(file: FileObject) {
+    if (!token) {
+      setFolderMessage("Сначала войдите в аккаунт, чтобы открыть файл.");
+      return;
+    }
+
+    setFolderBusy(true);
+    setFolderMessage("Открываем файл...");
+    try {
+      if (file.storageProvider === "s3") {
+        const response = await api<{ expiresAt: string; url: string }>(`/uploads/${file.id}/signed-url`, {}, token);
+        window.open(response.data.url, "_blank", "noopener,noreferrer");
+      } else {
+        const path = new URL(file.publicUrl).pathname;
+        const response = await fetch(`${API_URL}${path}`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error("Не удалось открыть файл");
+        const blobUrl = URL.createObjectURL(await response.blob());
+        window.open(blobUrl, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      }
+      setFolderMessage("Файл открыт");
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось открыть файл");
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
   async function uploadFolderFiles(folder: DashboardFolder, files: FileList | null) {
     if (!files?.length) return;
     if (!token) {
@@ -5374,7 +5404,7 @@ function DashboardFolders({ token }: { token: string | undefined }) {
                       <strong>{folderFile.file.originalName}</strong>
                       <small>{formatBytes(folderFile.file.sizeBytes)} · {folderFile.file.mimeType}</small>
                     </div>
-                    <a className="ghost-button" href={folderFile.file.publicUrl} rel="noreferrer" target="_blank">Открыть</a>
+                    <button className="ghost-button" disabled={folderBusy} onClick={() => void openFolderFile(folderFile.file)} type="button">Открыть</button>
                     <button className="ghost-button" disabled={folderBusy} onClick={() => void removeFolderFile(activeFolder.id, folderFile.id)} type="button">Убрать</button>
                   </article>
                 )) : <p className="folder-empty">Файлов пока нет.</p>}

@@ -9,6 +9,8 @@ const productionEnvSchema = z.object({
   PRIVACY_POLICY_URL: z.string().url(),
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_BUCKET: z.string().min(1),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_FORCE_PATH_STYLE: z.string().optional(),
   S3_REGION: z.string().min(1),
   S3_SECRET_ACCESS_KEY: z.string().min(1),
   STRIPE_PRICE_ENTERPRISE: z.string().min(1),
@@ -65,7 +67,9 @@ export function productionIntegrations(env: NodeJS.ProcessEnv = process.env) {
     ? configuredState(env.WHATSAPP_ACCESS_TOKEN, ["test", "sandbox"])
     : "missing";
   const telegramState = configuredState(env.TELEGRAM_BOT_TOKEN, ["test", "sandbox"]);
-  const objectStorageState = configuredState(env.S3_BUCKET, ["test", "dev", "local"]);
+  const objectStorageState = env.S3_BUCKET && env.S3_REGION && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY
+    ? configuredState(env.S3_BUCKET, ["test", "dev", "local"])
+    : "missing";
   const monitoringState = configuredState(env.SENTRY_DSN ?? env.MONITORING_DSN ?? env.UPTIME_MONITOR_URL, ["test", "localhost"]);
   const legalState = env.GDPR_DOCS_URL || env.PRIVACY_POLICY_URL || env.TERMS_URL
     ? configuredState(env.GDPR_DOCS_URL ?? env.PRIVACY_POLICY_URL ?? env.TERMS_URL, ["draft", "test", "localhost"])

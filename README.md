@@ -50,7 +50,7 @@ Required when `PRODUCTION=true`:
 - Email: `RESEND_API_KEY` or `SMTP_URL`
 - WhatsApp: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`
 - Telegram: `TELEGRAM_BOT_TOKEN`
-- Object storage: `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
+- Object storage: `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`; optional `S3_ENDPOINT`, `S3_FORCE_PATH_STYLE`
 - Monitoring: `SENTRY_DSN`, `MONITORING_DSN` or `UPTIME_MONITOR_URL`
 - Legal/GDPR: `PRIVACY_POLICY_URL`, `TERMS_URL`, `GDPR_DOCS_URL`
 
@@ -94,6 +94,23 @@ Safety defaults:
 - `NODE_ENV=test` and `NOTIFICATION_TEST_MODE=true` suppress WhatsApp and Telegram delivery.
 - Set `EMAIL_SEND_IN_TEST=true` only when you intentionally want a test run to send real emails.
 - Delivery errors are logged by the API and stored on `delivery_messages.error`.
+
+### Private File Storage
+
+FleetCore stores uploaded/generated files through the upload service:
+
+- `POST /uploads` stores file metadata in PostgreSQL and stores the binary in S3-compatible object storage when `S3_*` variables are configured.
+- `GET /uploads/:fileId/signed-url` returns a short-lived private download URL.
+- `GET /uploads/:fileId/:filename` requires authentication and redirects S3 files to a signed URL.
+- `DELETE /uploads/:fileId` deletes the object and metadata.
+
+Production rules:
+
+- Production must configure `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
+- `S3_ENDPOINT` is optional for AWS S3 and used for Cloudflare R2, MinIO, DigitalOcean Spaces and other S3-compatible providers.
+- `S3_FORCE_PATH_STYLE=true` should be used for most S3-compatible providers that do not support virtual-hosted bucket URLs.
+- Private files are not public routes; direct `/uploads/...` access without a valid FleetCore session returns `401`.
+- Local/database fallback is kept only for pilot and development mode.
 
 ### Stripe Checkout and Webhooks
 

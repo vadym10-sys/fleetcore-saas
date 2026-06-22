@@ -1041,11 +1041,110 @@ test("authenticated API stores and serves uploaded files", async () => {
     method: "GET",
     url: new URL(file.publicUrl).pathname,
   });
+  assert.equal(download.statusCode, 401);
 
-  assert.equal(download.statusCode, 200);
-  assert.equal(download.headers["content-type"], "text/plain");
-  assert.equal(download.headers.etag, `"${file.sha256}"`);
-  assert.equal(download.body, content);
+  const authorizedDownload = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: new URL(file.publicUrl).pathname,
+  });
+
+  assert.equal(authorizedDownload.statusCode, 200);
+  assert.equal(authorizedDownload.headers["content-type"], "text/plain");
+  assert.equal(authorizedDownload.headers.etag, `"${file.sha256}"`);
+  assert.equal(authorizedDownload.body, content);
+});
+
+test("authenticated API stores production uploads in S3-compatible storage and returns signed private URLs", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalEnv = {
+    accessKey: process.env.S3_ACCESS_KEY_ID,
+    bucket: process.env.S3_BUCKET,
+    endpoint: process.env.S3_ENDPOINT,
+    forcePathStyle: process.env.S3_FORCE_PATH_STYLE,
+    region: process.env.S3_REGION,
+    secretKey: process.env.S3_SECRET_ACCESS_KEY,
+  };
+  const s3Calls: Array<{ method: string; url: string }> = [];
+  globalThis.fetch = async (input, init) => {
+    s3Calls.push({ method: init?.method ?? "GET", url: String(input) });
+    return new Response("", { status: 200 });
+  };
+  process.env.S3_ACCESS_KEY_ID = "s3-access";
+  process.env.S3_BUCKET = "fleetcore-private";
+  process.env.S3_ENDPOINT = "https://storage.example.test";
+  process.env.S3_FORCE_PATH_STYLE = "true";
+  process.env.S3_REGION = "eu-central-1";
+  process.env.S3_SECRET_ACCESS_KEY = "s3-secret";
+
+  try {
+    const content = "Private production file";
+    const upload = await app.inject({
+      headers: { authorization: `Bearer ${token}`, "x-forwarded-proto": "https" },
+      method: "POST",
+      payload: {
+        base64: Buffer.from(content).toString("base64"),
+        mimeType: "text/plain",
+        originalName: "private-contract.txt",
+      },
+      url: "/uploads",
+    });
+
+    assert.equal(upload.statusCode, 201);
+    const file = upload.json().data;
+    assert.equal(file.storageProvider, "s3");
+    assert.equal(file.storageKey.includes("company_atlas"), true);
+    const uploadCall = s3Calls[0];
+    assert.ok(uploadCall);
+    assert.equal(uploadCall.method, "PUT");
+    assert.match(uploadCall.url, /^https:\/\/storage\.example\.test\/fleetcore-private\//u);
+
+    const publicPreview = await app.inject({
+      method: "GET",
+      url: new URL(file.publicUrl).pathname,
+    });
+    assert.equal(publicPreview.statusCode, 401);
+
+    const signed = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "GET",
+      url: `/uploads/${file.id}/signed-url`,
+    });
+    assert.equal(signed.statusCode, 200);
+    assert.match(signed.json().data.url, /X-Amz-Signature=/u);
+    assert.equal(typeof signed.json().data.expiresAt, "string");
+
+    const redirect = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "GET",
+      url: new URL(file.publicUrl).pathname,
+    });
+    assert.equal(redirect.statusCode, 302);
+    assert.match(String(redirect.headers.location), /X-Amz-Signature=/u);
+
+    const deleted = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "DELETE",
+      url: `/uploads/${file.id}`,
+    });
+    assert.equal(deleted.statusCode, 200);
+    assert.equal(deleted.json().data.deleted, true);
+    assert.ok(s3Calls.some((call) => call.method === "DELETE"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalEnv.accessKey === undefined) delete process.env.S3_ACCESS_KEY_ID;
+    else process.env.S3_ACCESS_KEY_ID = originalEnv.accessKey;
+    if (originalEnv.bucket === undefined) delete process.env.S3_BUCKET;
+    else process.env.S3_BUCKET = originalEnv.bucket;
+    if (originalEnv.endpoint === undefined) delete process.env.S3_ENDPOINT;
+    else process.env.S3_ENDPOINT = originalEnv.endpoint;
+    if (originalEnv.forcePathStyle === undefined) delete process.env.S3_FORCE_PATH_STYLE;
+    else process.env.S3_FORCE_PATH_STYLE = originalEnv.forcePathStyle;
+    if (originalEnv.region === undefined) delete process.env.S3_REGION;
+    else process.env.S3_REGION = originalEnv.region;
+    if (originalEnv.secretKey === undefined) delete process.env.S3_SECRET_ACCESS_KEY;
+    else process.env.S3_SECRET_ACCESS_KEY = originalEnv.secretKey;
+  }
 });
 
 test("authenticated API manages dashboard folders with files and notes", async () => {
