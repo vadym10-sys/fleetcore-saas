@@ -398,6 +398,7 @@ export interface SystemStatus {
   commercialReadiness: {
     billingConfigured: boolean;
     emailConfigured: boolean;
+    monitoringConfigured: boolean;
     objectStorageConfigured: boolean;
     telegramConfigured: boolean;
     whatsappConfigured: boolean;

@@ -17,6 +17,7 @@ import { financeRoutes } from "./routes/finance.js";
 import { fleetRoutes } from "./routes/fleet.js";
 import { gpsRoutes } from "./routes/gps.js";
 import { objectStorageProvider } from "./lib/object-storage.js";
+import { reportMonitoringEvent } from "./lib/monitoring.js";
 import { operationRoutes } from "./routes/operations.js";
 import { rentalRoutes } from "./routes/rentals.js";
 import { uploadRoutes } from "./routes/uploads.js";
@@ -46,7 +47,13 @@ function resolveCorsOrigin(origin: string | undefined) {
 
 export async function buildServer() {
   validateProductionEnv();
-  const app = Fastify({ bodyLimit: Number(process.env.MAX_UPLOAD_BODY_BYTES ?? 12 * 1024 * 1024), logger: true });
+  const app = Fastify({
+    bodyLimit: Number(process.env.MAX_UPLOAD_BODY_BYTES ?? 12 * 1024 * 1024),
+    logger: {
+      level: process.env.LOG_LEVEL ?? "info",
+      redact: ["req.headers.authorization", "req.headers.cookie"],
+    },
+  });
 
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
     done(null, body);
@@ -73,7 +80,23 @@ export async function buildServer() {
   app.options("/*", async (_request, reply) => reply.code(204).send());
 
   app.setErrorHandler((error, request, reply) => {
-    request.log.error(error);
+    request.log.error({
+      error,
+      method: request.method,
+      requestId: request.id,
+      url: request.url,
+    }, "Unhandled API error");
+    void reportMonitoringEvent({
+      context: {
+        method: request.method,
+        requestId: request.id,
+        url: request.url,
+      },
+      error,
+      message: "Unhandled API error",
+      severity: "critical",
+      source: "api",
+    }).catch((monitoringError) => request.log.error({ error: monitoringError }, "Monitoring report failed"));
     return reply.code(500).send({ error: "Internal server error" });
   });
 
@@ -98,7 +121,13 @@ export async function buildServer() {
         ok: true,
       });
     } catch (error) {
-      app.log.error(error);
+      app.log.error({ error }, "Readiness check failed");
+      void reportMonitoringEvent({
+        error,
+        message: "FleetCore readiness check failed",
+        severity: "critical",
+        source: "api",
+      }).catch((monitoringError) => app.log.error({ error: monitoringError }, "Monitoring report failed"));
       return reply.code(503).send({
         data: {
           checks: {
@@ -127,7 +156,13 @@ export async function buildServer() {
         ok: true,
       });
     } catch (error) {
-      app.log.error(error);
+      app.log.error({ error }, "Status check failed");
+      void reportMonitoringEvent({
+        error,
+        message: "FleetCore status check failed",
+        severity: "critical",
+        source: "api",
+      }).catch((monitoringError) => app.log.error({ error: monitoringError }, "Monitoring report failed"));
       return reply.code(503).send({
         data: {
           checks: {

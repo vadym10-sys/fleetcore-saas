@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { createDeliveryMessage, listDeliveryMessages, updateDeliveryMessageStatus, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
+import { alertDeliveryFailure } from "../lib/monitoring.js";
 import { sendNotification } from "../lib/notifications.js";
 import { deliveryMessageInput } from "../schemas.js";
 
@@ -37,6 +38,15 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
       }) ?? message;
     } catch (error) {
       request.log.error({ error, messageId: message.id }, "Notification delivery failed");
+      void alertDeliveryFailure({
+        context: {
+          channel: message.channel,
+          messageId: message.id,
+          recipient: message.recipient,
+        },
+        error,
+        message: "Notification delivery failed",
+      }).catch((monitoringError) => request.log.error({ error: monitoringError }, "Monitoring report failed"));
       message = await updateDeliveryMessageStatus(scope, message.id, {
         error: error instanceof Error ? error.message : "Unknown notification delivery error",
         status: "failed",

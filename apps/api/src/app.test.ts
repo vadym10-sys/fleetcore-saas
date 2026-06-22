@@ -4,6 +4,7 @@ import { after, before, test } from "node:test";
 import { buildServer } from "./app.js";
 import { validateProductionEnv } from "./config/env.js";
 import { sendTransactionalEmail } from "./lib/email.js";
+import { alertBackgroundJobFailure, reportMonitoringEvent, runMonitoredJob } from "./lib/monitoring.js";
 import { sendNotification } from "./lib/notifications.js";
 
 const app = await buildServer();
@@ -82,6 +83,94 @@ test("production env validation keeps pilot mode safe and fails strict productio
     WHATSAPP_ACCESS_TOKEN: "whatsapp-live-token",
     WHATSAPP_PHONE_NUMBER_ID: "123456789",
   }).mode, "production");
+});
+
+test("monitoring reports critical errors to webhook, supports Sentry and keeps test mode safe", async () => {
+  const suppressed = await reportMonitoringEvent({
+    error: new Error("Suppressed monitoring error"),
+    message: "Suppressed",
+    source: "api",
+  }, {
+    MONITORING_DSN: "https://monitoring.example.test/events",
+    NODE_ENV: "test",
+  } as NodeJS.ProcessEnv);
+  assert.equal(suppressed.delivered, false);
+  assert.equal(suppressed.provider, "mock");
+
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ body: Record<string, unknown>; headers: Record<string, string>; url: string }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({
+      body: JSON.parse(String(init?.body)),
+      headers: init?.headers as Record<string, string>,
+      url: String(input),
+    });
+    return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" }, status: 200 });
+  };
+  try {
+    const webhook = await reportMonitoringEvent({
+      context: { route: "/billing/stripe/webhook" },
+      error: new Error("Webhook failed"),
+      message: "Stripe webhook processing failed",
+      severity: "critical",
+      source: "webhook",
+    }, {
+      MONITORING_DSN: "https://monitoring.example.test/events",
+      MONITORING_SEND_IN_TEST: "true",
+      MONITORING_TOKEN: "monitoring-token",
+      NODE_ENV: "test",
+    } as NodeJS.ProcessEnv);
+    assert.equal(webhook.delivered, true);
+    assert.equal(webhook.provider, "webhook");
+    const webhookCall = calls[0];
+    assert.ok(webhookCall);
+    assert.equal(webhookCall.url, "https://monitoring.example.test/events");
+    assert.equal(webhookCall.headers.Authorization, "Bearer monitoring-token");
+    assert.equal(webhookCall.body.source, "webhook");
+    assert.equal(webhookCall.body.severity, "critical");
+
+    const sentry = await reportMonitoringEvent({
+      error: new Error("Sentry failure"),
+      message: "Unhandled API error",
+      source: "api",
+    }, {
+      MONITORING_SEND_IN_TEST: "true",
+      NODE_ENV: "test",
+      SENTRY_DSN: "https://public@example.com/42",
+    } as NodeJS.ProcessEnv);
+    assert.equal(sentry.delivered, true);
+    assert.equal(sentry.provider, "sentry");
+    const sentryCall = calls[1];
+    assert.ok(sentryCall);
+    assert.equal(sentryCall.url, "https://example.com/api/42/store/");
+    assert.equal(String(sentryCall.headers["X-Sentry-Auth"]).includes("sentry_key=public"), true);
+
+    await assert.rejects(
+      () => runMonitoredJob("daily-alerts", async () => {
+        throw new Error("Job failed");
+      }, {
+        MONITORING_DSN: "https://monitoring.example.test/events",
+        MONITORING_SEND_IN_TEST: "true",
+        NODE_ENV: "test",
+      } as NodeJS.ProcessEnv),
+      /Job failed/u,
+    );
+    const jobCall = calls[2];
+    assert.ok(jobCall);
+    assert.equal(jobCall.body.source, "background_job");
+    assert.equal(jobCall.body.context && (jobCall.body.context as { job?: string }).job, "daily-alerts");
+
+    const background = await alertBackgroundJobFailure({
+      message: "Background scheduler failed",
+    }, {
+      MONITORING_DSN: "https://monitoring.example.test/events",
+      MONITORING_SEND_IN_TEST: "true",
+      NODE_ENV: "test",
+    } as NodeJS.ProcessEnv);
+    assert.equal(background.delivered, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("transactional email switches provider and suppresses external sending in test mode", async () => {
@@ -627,6 +716,34 @@ test("commercial readiness APIs expose billing, delivery and compliance controls
   assert.equal(compliance.json().data.company.id, "company_atlas");
   assert.ok(Array.isArray(compliance.json().data.auditLogs));
   assert.ok(Array.isArray(compliance.json().data.vehicles));
+});
+
+test("status reports monitoring connected when error tracking is configured", async () => {
+  const previous = {
+    monitoringDsn: process.env.MONITORING_DSN,
+    monitoringToken: process.env.MONITORING_TOKEN,
+    sentryDsn: process.env.SENTRY_DSN,
+    uptimeUrl: process.env.UPTIME_MONITOR_URL,
+  };
+  process.env.MONITORING_DSN = "https://monitoring.fleetcore.io/events";
+  process.env.MONITORING_TOKEN = "monitoring-token";
+  delete process.env.SENTRY_DSN;
+  delete process.env.UPTIME_MONITOR_URL;
+  try {
+    const response = await app.inject({ method: "GET", url: "/status" });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.integrations.monitoring.state, "connected");
+    assert.equal(response.json().data.commercialReadiness.monitoringConfigured, true);
+  } finally {
+    if (previous.monitoringDsn === undefined) delete process.env.MONITORING_DSN;
+    else process.env.MONITORING_DSN = previous.monitoringDsn;
+    if (previous.monitoringToken === undefined) delete process.env.MONITORING_TOKEN;
+    else process.env.MONITORING_TOKEN = previous.monitoringToken;
+    if (previous.sentryDsn === undefined) delete process.env.SENTRY_DSN;
+    else process.env.SENTRY_DSN = previous.sentryDsn;
+    if (previous.uptimeUrl === undefined) delete process.env.UPTIME_MONITOR_URL;
+    else process.env.UPTIME_MONITOR_URL = previous.uptimeUrl;
+  }
 });
 
 test("delivery API sends WhatsApp through notification adapter and logs provider id", async () => {

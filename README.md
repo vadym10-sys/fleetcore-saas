@@ -112,6 +112,35 @@ Production rules:
 - Private files are not public routes; direct `/uploads/...` access without a valid FleetCore session returns `401`.
 - Local/database fallback is kept only for pilot and development mode.
 
+### Production Monitoring
+
+FleetCore exposes:
+
+- `GET /health` for lightweight uptime checks.
+- `GET /readiness` for database, migration and storage readiness.
+- `GET /status` for commercial integration status, including monitoring.
+
+Monitoring providers:
+
+- `SENTRY_DSN` sends critical API and webhook errors to Sentry-compatible ingestion.
+- `MONITORING_DSN` sends JSON alerts to a generic webhook receiver.
+- `MONITORING_TOKEN` is optional and is sent as `Authorization: Bearer ...` for `MONITORING_DSN`.
+- `UPTIME_MONITOR_URL` marks uptime monitoring as configured when external error tracking is not yet connected.
+
+Safety controls:
+
+- `MONITORING_MODE=mock` disables external delivery but keeps code paths active.
+- `MONITORING_TEST_MODE=true` suppresses external monitoring sends.
+- `MONITORING_SEND_IN_TEST=true` allows monitoring sends during tests.
+
+Critical errors are reported from:
+
+- unhandled API errors;
+- failed readiness/status checks;
+- Stripe webhook validation and processing failures;
+- notification delivery failures;
+- startup, unhandled promise rejection and uncaught exception paths.
+
 ### Stripe Checkout and Webhooks
 
 FleetCore creates Stripe Checkout Sessions on `POST /billing/checkout`, but does not grant paid-plan access during checkout creation. Plan access is synchronized only after a verified Stripe webhook confirms payment or an active subscription event.

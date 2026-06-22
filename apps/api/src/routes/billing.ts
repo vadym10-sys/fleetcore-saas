@@ -3,6 +3,7 @@ import { createBillingCheckoutSession, createDeliveryMessage, getCompany, getSub
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { sendTransactionalEmail, type TransactionalEmailKind } from "../lib/email.js";
 import { envelope } from "../lib/http.js";
+import { alertWebhookFailure } from "../lib/monitoring.js";
 import { parseStripeWebhookEvent, StripeSignatureError } from "../lib/stripe.js";
 import { subscriptionCheckoutInput, subscriptionSyncInput } from "../schemas.js";
 
@@ -83,9 +84,20 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       return envelope(result);
     } catch (error) {
       if (error instanceof StripeSignatureError || error instanceof SyntaxError) {
+        request.log.warn({ error }, "Stripe webhook validation failed");
+        void alertWebhookFailure({
+          context: { provider: "stripe", reason: "invalid_signature_or_payload" },
+          error,
+          message: "Stripe webhook validation failed",
+        }).catch((monitoringError) => request.log.error({ error: monitoringError }, "Monitoring report failed"));
         return reply.code(400).send({ error: error.message });
       }
-      request.log.error(error);
+      request.log.error({ error }, "Stripe webhook processing failed");
+      void alertWebhookFailure({
+        context: { provider: "stripe" },
+        error,
+        message: "Stripe webhook processing failed",
+      }).catch((monitoringError) => request.log.error({ error: monitoringError }, "Monitoring report failed"));
       return reply.code(500).send({ error: "Stripe webhook processing failed" });
     }
   });

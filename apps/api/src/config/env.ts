@@ -24,6 +24,7 @@ const productionEnvSchema = z.object({
   WHATSAPP_ACCESS_TOKEN: z.string().min(1),
   WHATSAPP_PHONE_NUMBER_ID: z.string().min(1),
   MONITORING_DSN: z.string().min(1).optional(),
+  MONITORING_TOKEN: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
   SENTRY_DSN: z.string().url().optional(),
   SMTP_URL: z.string().min(1).optional(),
@@ -89,7 +90,11 @@ export function productionIntegrations(env: NodeJS.ProcessEnv = process.env) {
       state: legalState,
     },
     monitoring: {
-      description: monitoringState === "missing" ? "Production error monitoring or uptime URL is not configured." : "Monitoring configuration is present.",
+      description: monitoringState === "missing"
+        ? "Production error monitoring or uptime URL is not configured."
+        : env.SENTRY_DSN || env.MONITORING_DSN
+          ? "Error tracking and critical alert delivery are configured."
+          : "Uptime monitoring URL is configured.",
       label: "Monitoring",
       requiredForCommercialLaunch: true,
       state: monitoringState,
@@ -126,6 +131,7 @@ export function commercialReadiness(env: NodeJS.ProcessEnv = process.env) {
   return {
     billingConfigured: integrations.stripe.state !== "missing",
     emailConfigured: integrations.email.state !== "missing",
+    monitoringConfigured: integrations.monitoring.state !== "missing",
     objectStorageConfigured: integrations.objectStorage.state !== "missing",
     telegramConfigured: integrations.telegram.state !== "missing",
     whatsappConfigured: integrations.whatsapp.state !== "missing",
