@@ -1,0 +1,75 @@
+name: FleetCore QA Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  qa:
+    name: Lint, build, API tests and E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: fleetcore
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_USER: fleetcore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fleetcore -d fleetcore"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      API_PORT: 4000
+      API_PUBLIC_URL: http://127.0.0.1:4000
+      DATABASE_URL: postgresql://fleetcore@127.0.0.1:5432/fleetcore
+      NODE_ENV: test
+      WEB_ORIGIN: http://127.0.0.1:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Apply database migrations
+        run: pnpm db:migrate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: API build
+        run: pnpm --filter @fleetcore/api build
+
+      - name: Web tests
+        run: pnpm --filter @fleetcore/web test
+
+      - name: API tests
+        run: pnpm --filter @fleetcore/api test
+
+      - name: Web build
+        run: pnpm --filter @fleetcore/web build
+
+      - name: Playwright E2E
+        run: pnpm exec playwright test

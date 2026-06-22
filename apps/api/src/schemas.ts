@@ -249,6 +249,22 @@ export const fileUploadInput = z.object({
   originalName: z.string().min(1).max(255),
 });
 
+export const dashboardFolderInput = z.object({
+  name: z.string().trim().min(1).max(120),
+});
+
+export const dashboardFolderPatchInput = dashboardFolderInput.partial().refine((value) => value.name !== undefined, {
+  message: "At least one folder field is required",
+});
+
+export const dashboardFolderFileInput = z.object({
+  fileId: z.string().trim().min(1),
+});
+
+export const dashboardFolderNoteInput = z.object({
+  text: z.string().trim().min(1).max(5000),
+});
+
 export const aiSearchInput = z.object({
   query: z.string().trim().min(2).max(500),
 });

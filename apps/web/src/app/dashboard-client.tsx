@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
-import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, Company, Customer, CustomerDocument, DashboardFolder, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { EmptyWorkspaceState, ListControlBar, type SavedView } from "../features/common/list-control-bar";
 import { RentalWorkbench } from "../features/rentals/rental-workbench";
 
@@ -165,29 +165,6 @@ type GlobalSearchResult = {
   customerId?: string;
   rentalId?: string;
   preview?: DocumentPreview;
-};
-
-type DashboardFolder = {
-  createdAt: string;
-  files?: DashboardFolderFile[];
-  id: string;
-  name: string;
-  notes?: DashboardFolderNote[];
-};
-
-type DashboardFolderFile = {
-  addedAt: string;
-  fileUrl: string;
-  id: string;
-  mimeType: string;
-  name: string;
-  sizeBytes: number;
-};
-
-type DashboardFolderNote = {
-  createdAt: string;
-  id: string;
-  text: string;
 };
 
 type AiSearchResponse = {
@@ -5095,16 +5072,6 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
   );
 }
 
-function createDashboardFolder(index: number, name?: string): DashboardFolder {
-  return {
-    createdAt: new Date().toISOString(),
-    files: [],
-    id: `folder_${Date.now().toString(36)}_${index.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-    name: name?.trim() || `Папка ${index}`,
-    notes: [],
-  };
-}
-
 function defaultDashboardFolders() {
   return [];
 }
@@ -5122,69 +5089,102 @@ function normalizeDashboardFolder(folder: DashboardFolder): DashboardFolder {
 }
 
 function DashboardFolders({ token }: { token: string | undefined }) {
-  const storageKey = "fleetcore-dashboard-folders";
   const [activeFolderId, setActiveFolderId] = useState<string | undefined>();
   const [folderNote, setFolderNote] = useState("");
   const [folderBusy, setFolderBusy] = useState(false);
   const [folderMessage, setFolderMessage] = useState("");
-  const [folders, setFolders] = useState<DashboardFolder[]>(() => {
-    if (typeof window === "undefined") return defaultDashboardFolders();
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (!stored) return defaultDashboardFolders();
-      const parsed = JSON.parse(stored) as DashboardFolder[];
-      if (!Array.isArray(parsed)) return defaultDashboardFolders();
-      return parsed.filter((folder) => !isLegacyDashboardFolder(folder)).map(normalizeDashboardFolder);
-    } catch {
-      return defaultDashboardFolders();
-    }
-  });
+  const [folders, setFolders] = useState<DashboardFolder[]>(defaultDashboardFolders);
   const activeFolder = folders.find((folder) => folder.id === activeFolderId);
 
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(folders));
-  }, [folders]);
+  async function loadFolders(currentToken = token) {
+    if (!currentToken) return;
+    try {
+      const response = await api<DashboardFolder[]>("/dashboard/folders", {}, currentToken);
+      setFolders(response.data.filter((folder) => !isLegacyDashboardFolder(folder)).map(normalizeDashboardFolder));
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось загрузить папки");
+    }
+  }
 
-  function addFolder() {
+  useEffect(() => {
+    void loadFolders();
+  }, [token]);
+
+  async function addFolder() {
+    if (!token) {
+      setFolderMessage("Сначала войдите в аккаунт, чтобы создать папку.");
+      return;
+    }
     const nextIndex = folders.length + 1;
     const requestedName = window.prompt("Название папки", `Папка ${nextIndex}`) ?? "";
-    setFolders((current) => [...current, createDashboardFolder(nextIndex, requestedName || `Папка ${nextIndex}`)]);
+    const name = requestedName.trim() || `Папка ${nextIndex}`;
+    setFolderBusy(true);
+    setFolderMessage("Создаём папку...");
+    try {
+      const response = await api<DashboardFolder>("/dashboard/folders", {
+        body: JSON.stringify({ name }),
+        method: "POST",
+      }, token);
+      setFolders((current) => [normalizeDashboardFolder(response.data), ...current]);
+      setActiveFolderId(response.data.id);
+      setFolderMessage("Папка создана");
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось создать папку");
+    } finally {
+      setFolderBusy(false);
+    }
   }
 
-  function updateFolder(folderId: string, updater: (folder: DashboardFolder) => DashboardFolder) {
-    setFolders((current) => current.map((folder) => folder.id === folderId ? normalizeDashboardFolder(updater(normalizeDashboardFolder(folder))) : folder));
-  }
-
-  function addFolderNote() {
+  async function addFolderNote() {
     const text = folderNote.trim();
     if (!activeFolder || !text) return;
-    updateFolder(activeFolder.id, (folder) => ({
-      ...folder,
-      notes: [
-        ...(folder.notes ?? []),
-        {
-          createdAt: new Date().toISOString(),
-          id: `note_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          text,
-        },
-      ],
-    }));
-    setFolderNote("");
-    setFolderMessage("Заметка добавлена");
+    if (!token) {
+      setFolderMessage("Сначала войдите в аккаунт, чтобы добавлять данные.");
+      return;
+    }
+    setFolderBusy(true);
+    setFolderMessage("Сохраняем данные...");
+    try {
+      await api(`/dashboard/folders/${activeFolder.id}/notes`, {
+        body: JSON.stringify({ text }),
+        method: "POST",
+      }, token);
+      setFolderNote("");
+      await loadFolders(token);
+      setFolderMessage("Данные добавлены");
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось добавить данные");
+    } finally {
+      setFolderBusy(false);
+    }
   }
 
-  function removeFolderNote(folderId: string, noteId: string) {
-    updateFolder(folderId, (folder) => ({
-      ...folder,
-      notes: (folder.notes ?? []).filter((note) => note.id !== noteId),
-    }));
+  async function removeFolderNote(folderId: string, noteId: string) {
+    if (!token) return;
+    setFolderBusy(true);
+    try {
+      await api(`/dashboard/folders/${folderId}/notes/${noteId}`, { method: "DELETE" }, token);
+      await loadFolders(token);
+      setFolderMessage("Заметка удалена");
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось удалить заметку");
+    } finally {
+      setFolderBusy(false);
+    }
   }
 
-  function removeFolderFile(folderId: string, fileId: string) {
-    updateFolder(folderId, (folder) => ({
-      ...folder,
-      files: (folder.files ?? []).filter((file) => file.id !== fileId),
-    }));
+  async function removeFolderFile(folderId: string, folderFileId: string) {
+    if (!token) return;
+    setFolderBusy(true);
+    try {
+      await api(`/dashboard/folders/${folderId}/files/${folderFileId}`, { method: "DELETE" }, token);
+      await loadFolders(token);
+      setFolderMessage("Файл убран из папки");
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось убрать файл");
+    } finally {
+      setFolderBusy(false);
+    }
   }
 
   async function uploadFolderFiles(folder: DashboardFolder, files: FileList | null) {
@@ -5208,20 +5208,13 @@ function DashboardFolders({ token }: { token: string | undefined }) {
         }, token);
         return response.data;
       }));
-      updateFolder(folder.id, (current) => ({
-        ...current,
-        files: [
-          ...(current.files ?? []),
-          ...uploaded.map<DashboardFolderFile>((file) => ({
-            addedAt: new Date().toISOString(),
-            fileUrl: file.publicUrl,
-            id: file.id,
-            mimeType: file.mimeType,
-            name: file.originalName,
-            sizeBytes: file.sizeBytes,
-          })),
-        ],
-      }));
+      for (const file of uploaded) {
+        await api(`/dashboard/folders/${folder.id}/files`, {
+          body: JSON.stringify({ fileId: file.id }),
+          method: "POST",
+        }, token);
+      }
+      await loadFolders(token);
       setFolderMessage(`Файлы добавлены: ${uploaded.length}`);
     } catch (error) {
       setFolderMessage(error instanceof Error ? error.message : "Не удалось загрузить файлы");
@@ -5286,14 +5279,14 @@ function DashboardFolders({ token }: { token: string | undefined }) {
             <div className="folder-content-grid">
               <section>
                 <h4>Файлы</h4>
-                {(activeFolder.files ?? []).length ? (activeFolder.files ?? []).map((file) => (
-                  <article className="folder-content-row" key={file.id}>
+                {(activeFolder.files ?? []).length ? (activeFolder.files ?? []).map((folderFile) => (
+                  <article className="folder-content-row" key={folderFile.id}>
                     <div>
-                      <strong>{file.name}</strong>
-                      <small>{formatBytes(file.sizeBytes)} · {file.mimeType}</small>
+                      <strong>{folderFile.file.originalName}</strong>
+                      <small>{formatBytes(folderFile.file.sizeBytes)} · {folderFile.file.mimeType}</small>
                     </div>
-                    <a className="ghost-button" href={file.fileUrl} rel="noreferrer" target="_blank">Открыть</a>
-                    <button className="ghost-button" onClick={() => removeFolderFile(activeFolder.id, file.id)} type="button">Убрать</button>
+                    <a className="ghost-button" href={folderFile.file.publicUrl} rel="noreferrer" target="_blank">Открыть</a>
+                    <button className="ghost-button" disabled={folderBusy} onClick={() => void removeFolderFile(activeFolder.id, folderFile.id)} type="button">Убрать</button>
                   </article>
                 )) : <p className="folder-empty">Файлов пока нет.</p>}
               </section>
@@ -5305,7 +5298,7 @@ function DashboardFolders({ token }: { token: string | undefined }) {
                     <p>{note.text}</p>
                     <div>
                       <small>{new Date(note.createdAt).toLocaleString("ru-RU")}</small>
-                      <button className="ghost-button" onClick={() => removeFolderNote(activeFolder.id, note.id)} type="button">Удалить</button>
+                      <button className="ghost-button" disabled={folderBusy} onClick={() => void removeFolderNote(activeFolder.id, note.id)} type="button">Удалить</button>
                     </div>
                   </article>
                 )) : <p className="folder-empty">Добавьте первую заметку или ссылку.</p>}

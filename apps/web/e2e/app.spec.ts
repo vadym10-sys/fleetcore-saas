@@ -29,7 +29,6 @@ test("desktop user can enter demo SaaS and use the command surface", async ({ pa
     await dialog.accept("Папка QA");
   });
   await page.locator(".dashboard-folder-add").click();
-  await page.getByRole("button", { name: /Папка QA/ }).click();
   await expect(page.getByRole("dialog", { name: "Папка Папка QA" })).toBeVisible();
   await expect(page.getByText("Добавить файлы")).toBeVisible();
   await expect(page.getByText("Данные и заметки")).toBeVisible();

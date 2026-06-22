@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, FleetDocument, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { Company, Customer, CustomerDocument, DashboardFolder, DashboardFolderFile, DashboardFolderNote, DashboardMetrics, Expense, FileObject, FleetDocument, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
@@ -9,6 +9,10 @@ import type {
   customerPatchInput,
   companyBrandingInput,
   customerDocumentInput,
+  dashboardFolderFileInput,
+  dashboardFolderInput,
+  dashboardFolderNoteInput,
+  dashboardFolderPatchInput,
   expenseInput,
   fileUploadInput,
   gpsDeviceInput,
@@ -49,6 +53,10 @@ type RegisterCompanyInput = z.infer<typeof registerCompanyInput>;
 type ExpenseInput = z.infer<typeof expenseInput>;
 type ServiceRecordInput = z.infer<typeof serviceRecordInput>;
 type CustomerDocumentInput = z.infer<typeof customerDocumentInput>;
+type DashboardFolderInput = z.infer<typeof dashboardFolderInput>;
+type DashboardFolderPatchInput = z.infer<typeof dashboardFolderPatchInput>;
+type DashboardFolderFileInput = z.infer<typeof dashboardFolderFileInput>;
+type DashboardFolderNoteInput = z.infer<typeof dashboardFolderNoteInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
 type FileUploadInput = z.infer<typeof fileUploadInput>;
 type TeamMemberInput = z.infer<typeof teamMemberInput>;
@@ -337,6 +345,202 @@ export async function getFileObject(fileId: string): Promise<{ companyId: string
     originalName: String(result.rows[0].original_name),
     ...(result.rows[0].sha256 ? { sha256: String(result.rows[0].sha256) } : {}),
   };
+}
+
+type DashboardFolderRow = {
+  company_id: string;
+  created_at: Date | string;
+  id: string;
+  name: string;
+  tenant_id: string;
+  updated_at: Date | string;
+};
+
+function mapDashboardFolder(
+  row: DashboardFolderRow,
+  files: DashboardFolderFile[],
+  notes: DashboardFolderNote[],
+): DashboardFolder {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+    files,
+    name: String(row.name),
+    notes,
+  };
+}
+
+async function hydrateDashboardFolders(scope: TenantScope, rows: DashboardFolderRow[], publicUrlForId: (id: string, originalName: string) => string): Promise<DashboardFolder[]> {
+  if (!rows.length) return [];
+
+  const folderIds = rows.map((row) => row.id);
+  const [filesResult, notesResult] = await Promise.all([
+    pool.query(
+      `select dashboard_folder_files.id as folder_file_id,
+              dashboard_folder_files.folder_id,
+              dashboard_folder_files.created_at as added_at,
+              file_objects.id,
+              file_objects.tenant_id,
+              file_objects.company_id,
+              file_objects.original_name,
+              file_objects.mime_type,
+              file_objects.size_bytes,
+              file_objects.storage_provider,
+              file_objects.storage_key,
+              file_objects.sha256,
+              file_objects.created_at,
+              file_objects.updated_at
+       from dashboard_folder_files
+       join file_objects on file_objects.id = dashboard_folder_files.file_id
+       where dashboard_folder_files.tenant_id = $1
+         and dashboard_folder_files.company_id = $2
+         and dashboard_folder_files.folder_id = any($3::text[])
+       order by dashboard_folder_files.created_at desc`,
+      [scope.tenantId, scope.companyId, folderIds],
+    ),
+    pool.query(
+      `select id, folder_id, text, created_at, updated_at
+       from dashboard_folder_notes
+       where tenant_id = $1 and company_id = $2 and folder_id = any($3::text[])
+       order by created_at desc`,
+      [scope.tenantId, scope.companyId, folderIds],
+    ),
+  ]);
+
+  const filesByFolder = new Map<string, DashboardFolderFile[]>();
+  for (const row of filesResult.rows) {
+    const folderId = String(row.folder_id);
+    const list = filesByFolder.get(folderId) ?? [];
+    list.push({
+      addedAt: row.added_at instanceof Date ? row.added_at.toISOString() : String(row.added_at),
+      file: mapFileObject(row, publicUrlForId(String(row.id), String(row.original_name))),
+      id: String(row.folder_file_id),
+    });
+    filesByFolder.set(folderId, list);
+  }
+
+  const notesByFolder = new Map<string, DashboardFolderNote[]>();
+  for (const row of notesResult.rows) {
+    const folderId = String(row.folder_id);
+    const list = notesByFolder.get(folderId) ?? [];
+    list.push({
+      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      id: String(row.id),
+      text: String(row.text),
+      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+    });
+    notesByFolder.set(folderId, list);
+  }
+
+  return rows.map((row) => mapDashboardFolder(row, filesByFolder.get(row.id) ?? [], notesByFolder.get(row.id) ?? []));
+}
+
+export async function listDashboardFolders(scope: TenantScope, publicUrlForId: (id: string, originalName: string) => string): Promise<DashboardFolder[]> {
+  const result = await pool.query(
+    `select id, tenant_id, company_id, name, created_at, updated_at
+     from dashboard_folders
+     where tenant_id = $1 and company_id = $2
+     order by updated_at desc, created_at desc`,
+    [scope.tenantId, scope.companyId],
+  );
+  return hydrateDashboardFolders(scope, result.rows, publicUrlForId);
+}
+
+export async function createDashboardFolder(scope: TenantScope, input: DashboardFolderInput, userId?: string): Promise<DashboardFolder> {
+  const id = createId("folder");
+  const result = await pool.query(
+    `insert into dashboard_folders (id, tenant_id, company_id, name, created_by)
+     values ($1, $2, $3, $4, $5)
+     returning id, tenant_id, company_id, name, created_at, updated_at`,
+    [id, scope.tenantId, scope.companyId, input.name, userId ?? null],
+  );
+  return mapDashboardFolder(result.rows[0], [], []);
+}
+
+export async function updateDashboardFolder(scope: TenantScope, folderId: string, input: DashboardFolderPatchInput): Promise<DashboardFolder | undefined> {
+  const result = await pool.query(
+    `update dashboard_folders
+     set name = coalesce($3, name), updated_at = now()
+     where tenant_id = $1 and company_id = $2 and id = $4
+     returning id, tenant_id, company_id, name, created_at, updated_at`,
+    [scope.tenantId, scope.companyId, input.name ?? null, folderId],
+  );
+  if (!result.rows[0]) return undefined;
+  return mapDashboardFolder(result.rows[0], [], []);
+}
+
+export async function deleteDashboardFolder(scope: TenantScope, folderId: string): Promise<boolean> {
+  const result = await pool.query(
+    "delete from dashboard_folders where tenant_id = $1 and company_id = $2 and id = $3",
+    [scope.tenantId, scope.companyId, folderId],
+  );
+  return Boolean(result.rowCount);
+}
+
+export async function addDashboardFolderFile(scope: TenantScope, folderId: string, input: DashboardFolderFileInput, userId?: string): Promise<boolean> {
+  const id = createId("folder_file");
+  const result = await pool.query(
+    `insert into dashboard_folder_files (id, tenant_id, company_id, folder_id, file_id, created_by)
+     select $1, $2, $3, dashboard_folders.id, file_objects.id, $6
+     from dashboard_folders
+     join file_objects on file_objects.id = $5
+      and file_objects.tenant_id = dashboard_folders.tenant_id
+      and file_objects.company_id = dashboard_folders.company_id
+     where dashboard_folders.tenant_id = $2
+       and dashboard_folders.company_id = $3
+       and dashboard_folders.id = $4
+     on conflict (tenant_id, company_id, folder_id, file_id) do nothing`,
+    [id, scope.tenantId, scope.companyId, folderId, input.fileId, userId ?? null],
+  );
+  if (result.rowCount) {
+    await pool.query("update dashboard_folders set updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3", [scope.tenantId, scope.companyId, folderId]);
+  }
+  return Boolean(result.rowCount);
+}
+
+export async function removeDashboardFolderFile(scope: TenantScope, folderId: string, folderFileId: string): Promise<boolean> {
+  const result = await pool.query(
+    "delete from dashboard_folder_files where tenant_id = $1 and company_id = $2 and folder_id = $3 and id = $4",
+    [scope.tenantId, scope.companyId, folderId, folderFileId],
+  );
+  if (result.rowCount) {
+    await pool.query("update dashboard_folders set updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3", [scope.tenantId, scope.companyId, folderId]);
+  }
+  return Boolean(result.rowCount);
+}
+
+export async function addDashboardFolderNote(scope: TenantScope, folderId: string, input: DashboardFolderNoteInput, userId?: string): Promise<DashboardFolderNote | undefined> {
+  const id = createId("folder_note");
+  const result = await pool.query(
+    `insert into dashboard_folder_notes (id, tenant_id, company_id, folder_id, text, created_by)
+     select $1, $2, $3, id, $5, $6
+     from dashboard_folders
+     where tenant_id = $2 and company_id = $3 and id = $4
+     returning id, text, created_at, updated_at`,
+    [id, scope.tenantId, scope.companyId, folderId, input.text, userId ?? null],
+  );
+  if (!result.rows[0]) return undefined;
+  await pool.query("update dashboard_folders set updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3", [scope.tenantId, scope.companyId, folderId]);
+  return {
+    createdAt: result.rows[0].created_at instanceof Date ? result.rows[0].created_at.toISOString() : String(result.rows[0].created_at),
+    id: String(result.rows[0].id),
+    text: String(result.rows[0].text),
+    updatedAt: result.rows[0].updated_at instanceof Date ? result.rows[0].updated_at.toISOString() : String(result.rows[0].updated_at),
+  };
+}
+
+export async function removeDashboardFolderNote(scope: TenantScope, folderId: string, noteId: string): Promise<boolean> {
+  const result = await pool.query(
+    "delete from dashboard_folder_notes where tenant_id = $1 and company_id = $2 and folder_id = $3 and id = $4",
+    [scope.tenantId, scope.companyId, folderId, noteId],
+  );
+  if (result.rowCount) {
+    await pool.query("update dashboard_folders set updated_at = now() where tenant_id = $1 and company_id = $2 and id = $3", [scope.tenantId, scope.companyId, folderId]);
+  }
+  return Boolean(result.rowCount);
 }
 
 export async function listCompanies(scope: TenantScope) {

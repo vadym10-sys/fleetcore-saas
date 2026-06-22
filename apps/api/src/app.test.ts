@@ -618,6 +618,86 @@ test("authenticated API stores and serves uploaded files", async () => {
   assert.equal(download.body, content);
 });
 
+test("authenticated API manages dashboard folders with files and notes", async () => {
+  const suffix = Date.now();
+  const folderResponse = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: { name: `QA Folder ${suffix}` },
+    url: "/dashboard/folders",
+  });
+  assert.equal(folderResponse.statusCode, 201);
+  const folder = folderResponse.json().data;
+  assert.equal(folder.name, `QA Folder ${suffix}`);
+  assert.deepEqual(folder.files, []);
+  assert.deepEqual(folder.notes, []);
+
+  const upload = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      base64: Buffer.from("folder file").toString("base64"),
+      mimeType: "text/plain",
+      originalName: `folder-${suffix}.txt`,
+    },
+    url: "/uploads",
+  });
+  assert.equal(upload.statusCode, 201);
+  const file = upload.json().data;
+
+  const attach = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: { fileId: file.id },
+    url: `/dashboard/folders/${folder.id}/files`,
+  });
+  assert.equal(attach.statusCode, 200);
+  const foldersAfterFile = attach.json().data;
+  const folderAfterFile = foldersAfterFile.find((item: { id: string }) => item.id === folder.id);
+  assert.equal(folderAfterFile.files.length, 1);
+  assert.equal(folderAfterFile.files[0].file.originalName, `folder-${suffix}.txt`);
+
+  const note = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: { text: "Internal rental folder note" },
+    url: `/dashboard/folders/${folder.id}/notes`,
+  });
+  assert.equal(note.statusCode, 201);
+  assert.equal(note.json().data.text, "Internal rental folder note");
+
+  const list = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/dashboard/folders",
+  });
+  assert.equal(list.statusCode, 200);
+  const listedFolder = list.json().data.find((item: { id: string }) => item.id === folder.id);
+  assert.equal(listedFolder.files.length, 1);
+  assert.equal(listedFolder.notes.length, 1);
+
+  const removeFile = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "DELETE",
+    url: `/dashboard/folders/${folder.id}/files/${listedFolder.files[0].id}`,
+  });
+  assert.equal(removeFile.statusCode, 200);
+
+  const removeNote = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "DELETE",
+    url: `/dashboard/folders/${folder.id}/notes/${listedFolder.notes[0].id}`,
+  });
+  assert.equal(removeNote.statusCode, 200);
+
+  const deleteFolder = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "DELETE",
+    url: `/dashboard/folders/${folder.id}`,
+  });
+  assert.equal(deleteFolder.statusCode, 200);
+});
+
 test("rental API rejects invalid dates, overlapping bookings and settlement without return act", async () => {
   const suffix = Date.now();
   const customerResponse = await app.inject({

@@ -306,6 +306,26 @@ export interface FileObject extends TenantScopedEntity {
   publicUrl: string;
 }
 
+export interface DashboardFolderFile {
+  addedAt: string;
+  file: FileObject;
+  id: string;
+}
+
+export interface DashboardFolderNote {
+  createdAt: string;
+  id: string;
+  text: string;
+  updatedAt: string;
+}
+
+export interface DashboardFolder extends TenantScopedEntity {
+  companyId: string;
+  files: DashboardFolderFile[];
+  name: string;
+  notes: DashboardFolderNote[];
+}
+
 export interface DashboardMetrics {
   activeRentals: number;
   availableVehicles: number;

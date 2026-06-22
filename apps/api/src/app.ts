@@ -4,6 +4,7 @@ import { installTenantContext } from "./plugins/tenant-context.js";
 import { aiRoutes } from "./routes/ai.js";
 import { authRoutes } from "./routes/auth.js";
 import { companyRoutes } from "./routes/companies.js";
+import { dashboardFolderRoutes } from "./routes/dashboard-folders.js";
 import { customerRoutes } from "./routes/customers.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { documentRoutes } from "./routes/documents.js";
@@ -90,6 +91,7 @@ export async function buildServer() {
   await app.register(aiRoutes);
   await app.register(authRoutes);
   await app.register(dashboardRoutes);
+  await app.register(dashboardFolderRoutes);
   await app.register(companyRoutes);
   await app.register(fleetRoutes);
   await app.register(customerRoutes);

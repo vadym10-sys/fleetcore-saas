@@ -109,7 +109,12 @@ test("dashboard client keeps production account and document flows wired", () =>
     "Карта автопарка",
     "DashboardFolders",
     "dashboard-folder-board",
-    "fleetcore-dashboard-folders",
+    "/dashboard/folders",
+    "/uploads",
+    "uploadFolderFiles",
+    "addFolderNote",
+    "removeFolderFile",
+    "removeFolderNote",
     "Добавить папку",
     "today-operations-board",
     "SimplifiedCommandCenter",
@@ -205,6 +210,7 @@ test("dashboard client does not ship inert buttons", () => {
 
   assert.doesNotMatch(source, /MobileAppNav|mobile-app-nav|mobile-account-strip/);
   assert.doesNotMatch(source, /openExternalMap|maps\.apple\.com|google\.com\/maps\/search/);
+  assert.doesNotMatch(source, /fleetcore-dashboard-folders/);
 });
 
 test("dashboard client keeps forms, uploads and mobile shell actionable", () => {
