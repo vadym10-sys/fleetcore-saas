@@ -24,12 +24,16 @@ test("desktop user can enter demo SaaS and use the command surface", async ({ pa
   await expect(page.locator("[data-testid='dashboard-map-overview']")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Карта автопарка" })).toBeVisible();
   await expect(page.locator("[data-testid='dashboard-folder-board']")).toBeVisible();
-  await expect(page.getByText("Папка 1")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Добавить папку" })).toBeVisible();
   page.once("dialog", async (dialog) => {
     await dialog.accept("Папка QA");
   });
   await page.locator(".dashboard-folder-add").click();
-  await expect(page.getByText("Папка QA")).toBeVisible();
+  await page.getByRole("button", { name: /Папка QA/ }).click();
+  await expect(page.getByRole("dialog", { name: "Папка Папка QA" })).toBeVisible();
+  await expect(page.getByText("Добавить файлы")).toBeVisible();
+  await expect(page.getByText("Данные и заметки")).toBeVisible();
+  await page.getByRole("button", { name: "Закрыть" }).click();
 
   await globalSearch.fill("BMW");
   await expect(page.locator(".global-search-results")).toBeVisible();
