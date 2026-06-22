@@ -3991,7 +3991,7 @@ h3 {
 .dashboard-folder-card {
   position: relative;
   border: 1px solid rgba(221, 227, 236, 0.9);
-  padding: 18px 14px 64px;
+  padding: 18px 14px;
 }
 
 .dashboard-folder-card .folder-icon {
@@ -4030,27 +4030,6 @@ h3 {
   color: #94a3b8;
   font-size: 12px;
   font-weight: 800;
-}
-
-.dashboard-folder-card button {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  min-height: 52px;
-  border: 0;
-  border-top: 1px solid rgba(221, 227, 236, 0.82);
-  border-radius: 0 0 8px 8px;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 20px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.dashboard-folder-card button:hover {
-  background: #eef2ff;
-  color: var(--primary);
 }
 
 .dashboard-folder-add {

@@ -5086,7 +5086,11 @@ function createDashboardFolder(index: number, name?: string): DashboardFolder {
 }
 
 function defaultDashboardFolders() {
-  return Array.from({ length: 5 }, (_, index) => createDashboardFolder(index + 1));
+  return [];
+}
+
+function isLegacyDashboardFolder(folder: DashboardFolder) {
+  return /^Папка\s+[1-7]$/i.test(folder.name.trim());
 }
 
 function DashboardFolders() {
@@ -5097,7 +5101,8 @@ function DashboardFolders() {
       const stored = window.localStorage.getItem(storageKey);
       if (!stored) return defaultDashboardFolders();
       const parsed = JSON.parse(stored) as DashboardFolder[];
-      return Array.isArray(parsed) && parsed.length ? parsed : defaultDashboardFolders();
+      if (!Array.isArray(parsed)) return defaultDashboardFolders();
+      return parsed.filter((folder) => !isLegacyDashboardFolder(folder));
     } catch {
       return defaultDashboardFolders();
     }
@@ -5121,7 +5126,6 @@ function DashboardFolders() {
             <span className="folder-icon" aria-hidden="true" />
             <strong>{folder.name}</strong>
             <small>{new Date(folder.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</small>
-            <button aria-label={`Добавить папку после ${folder.name}`} onClick={addFolder} type="button">+</button>
           </article>
         ))}
         <button className="dashboard-folder-add" onClick={addFolder} type="button">
