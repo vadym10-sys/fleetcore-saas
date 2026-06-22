@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { buildServer } from "./app.js";
+import { validateProductionEnv } from "./config/env.js";
 
 const app = await buildServer();
 let token = "";
@@ -34,6 +35,39 @@ test("readiness endpoint verifies database availability", async () => {
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().data.ok, true);
   assert.equal(response.json().data.checks.database, "ok");
+});
+
+test("production env validation keeps pilot mode safe and fails strict production clearly", () => {
+  assert.deepEqual(validateProductionEnv({}), { mode: "pilot", ok: true });
+
+  assert.throws(
+    () => validateProductionEnv({ PRODUCTION: "true" }),
+    /DATABASE_URL.*JWT_SECRET.*STRIPE_SECRET_KEY/u,
+  );
+
+  assert.equal(validateProductionEnv({
+    API_PUBLIC_URL: "https://fleetcore-api.example.com",
+    DATABASE_URL: "postgresql://fleetcore:secret@db.example.com:5432/fleetcore",
+    GDPR_DOCS_URL: "https://fleetcore.example.com/gdpr",
+    JWT_SECRET: "production-jwt-secret-at-least-32-characters",
+    PRIVACY_POLICY_URL: "https://fleetcore.example.com/privacy",
+    PRODUCTION: "true",
+    RESEND_API_KEY: "re_live_example",
+    S3_ACCESS_KEY_ID: "s3-access",
+    S3_BUCKET: "fleetcore-production",
+    S3_REGION: "eu-central-1",
+    S3_SECRET_ACCESS_KEY: "s3-secret",
+    SENTRY_DSN: "https://public@example.com/1",
+    STRIPE_PRICE_ENTERPRISE: "price_enterprise",
+    STRIPE_PRICE_GROWTH: "price_growth",
+    STRIPE_PRICE_STARTER: "price_starter",
+    STRIPE_SECRET_KEY: "sk_live_example",
+    TELEGRAM_BOT_TOKEN: "telegram-live-token",
+    TERMS_URL: "https://fleetcore.example.com/terms",
+    WEB_ORIGIN: "https://fleetcore.example.com",
+    WHATSAPP_ACCESS_TOKEN: "whatsapp-live-token",
+    WHATSAPP_PHONE_NUMBER_ID: "123456789",
+  }).mode, "production");
 });
 
 test("login returns a signed access token", async () => {

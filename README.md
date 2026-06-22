@@ -34,6 +34,28 @@ pnpm dev:api
 
 The backend uses PostgreSQL through the API repository layer. Startup seed data is inserted idempotently when the API boots.
 
+Copy `.env.example` to `.env` for local development or Render environment setup.
+
+## Production Environment Validation
+
+FleetCore supports two runtime modes:
+
+- **Pilot mode**: `PRODUCTION=false` or unset. Missing Stripe, email, WhatsApp, Telegram, S3, monitoring and legal-doc variables do not block startup. `/status` reports them as `missing`.
+- **Commercial production mode**: `PRODUCTION=true`. The API validates required production variables at startup and exits before serving traffic when anything critical is missing.
+
+Required when `PRODUCTION=true`:
+
+- Core: `DATABASE_URL`, `JWT_SECRET`, `WEB_ORIGIN`, `API_PUBLIC_URL`
+- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_ENTERPRISE`
+- Email: `RESEND_API_KEY` or `SMTP_URL`
+- WhatsApp: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`
+- Telegram: `TELEGRAM_BOT_TOKEN`
+- Object storage: `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`
+- Monitoring: `SENTRY_DSN`, `MONITORING_DSN` or `UPTIME_MONITOR_URL`
+- Legal/GDPR: `PRIVACY_POLICY_URL`, `TERMS_URL`, `GDPR_DOCS_URL`
+
+Use `https://fleetcore-web.onrender.com/status` or `GET /status` on the API to see each integration as `connected`, `missing` or `test_mode`.
+
 ## MVP API Surface
 
 - `POST /auth/login`
