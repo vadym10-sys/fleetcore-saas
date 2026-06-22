@@ -56,6 +56,29 @@ Required when `PRODUCTION=true`:
 
 Use `https://fleetcore-web.onrender.com/status` or `GET /status` on the API to see each integration as `connected`, `missing` or `test_mode`.
 
+### Transactional Email
+
+FleetCore sends transactional emails through a provider selected by environment:
+
+- `EMAIL_PROVIDER=resend` uses `RESEND_API_KEY`.
+- `EMAIL_PROVIDER=smtp` uses `SMTP_URL`.
+- `EMAIL_PROVIDER=log` records delivery rows without sending external email.
+
+Supported transactional emails:
+
+- welcome email after company registration;
+- password reset link;
+- email verification / magic link;
+- payment success after verified Stripe webhook;
+- payment failed after verified Stripe webhook;
+- admin notification from `POST /delivery/messages`.
+
+Safety defaults:
+
+- `NODE_ENV=test` and `EMAIL_TEST_MODE=true` suppress external delivery.
+- Set `EMAIL_SEND_IN_TEST=true` only when you intentionally want a test run to send real emails.
+- Delivery errors are logged by the API and stored on `delivery_messages.error`.
+
 ### Stripe Checkout and Webhooks
 
 FleetCore creates Stripe Checkout Sessions on `POST /billing/checkout`, but does not grant paid-plan access during checkout creation. Plan access is synchronized only after a verified Stripe webhook confirms payment or an active subscription event.

@@ -1,8 +1,9 @@
 import type { AuthSession } from "@fleetcore/shared";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
-import { createAuthToken, createCompanyAccount, createTeamUser, getActiveAuthToken, getUserByEmail, getUserCredentialsByEmail, listAuditLogs, listTeamUsers, markAuthTokenUsed, markUserEmailVerified, revokeAuthToken, revokeUserRefreshTokens, touchUserLogin, updateUserPassword, updateUserProfile, writeAuditLog } from "../db/repositories.js";
+import { createAuthToken, createCompanyAccount, createDeliveryMessage, createTeamUser, getActiveAuthToken, getUserByEmail, getUserCredentialsByEmail, listAuditLogs, listTeamUsers, markAuthTokenUsed, markUserEmailVerified, revokeAuthToken, revokeUserRefreshTokens, touchUserLogin, updateDeliveryMessageStatus, updateUserPassword, updateUserProfile, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { accessTokenExpiresAt, createOpaqueToken, hashOpaqueToken, hashPassword, refreshTokenExpiresAt, signAccessToken, verifyPassword } from "../lib/auth.js";
+import { buildActionLink, sendTransactionalEmail, type TransactionalEmailInput } from "../lib/email.js";
 import { envelope } from "../lib/http.js";
 import { emailVerificationInput, emailVerificationRequestInput, loginInput, logoutInput, passwordResetInput, passwordResetRequestInput, profileUpdateInput, refreshTokenInput, registerCompanyInput, teamMemberInput } from "../schemas.js";
 
@@ -58,6 +59,35 @@ async function createSession(user: AuthSession["user"], request: FastifyRequest)
 
 function shouldExposeDevToken() {
   return process.env.NODE_ENV !== "production" || process.env.AUTH_TOKEN_PREVIEW === "true";
+}
+
+async function sendAuthEmail(app: Parameters<FastifyPluginAsync>[0], input: TransactionalEmailInput & {
+  companyId: string;
+  tenantId: string;
+  userId?: string;
+}) {
+  const scope = { companyId: input.companyId, tenantId: input.tenantId };
+  const renderedBody = input.data?.link ? `Open secure FleetCore link: ${input.data.link}` : `FleetCore ${input.kind}`;
+  let message = await createDeliveryMessage(scope, {
+    body: renderedBody,
+    channel: "email",
+    entityType: "system",
+    recipient: input.to,
+    subject: input.subject ?? input.kind.replace(/_/gu, " "),
+  }, input.userId);
+  try {
+    const result = await sendTransactionalEmail(input);
+    message = await updateDeliveryMessageStatus(scope, message.id, {
+      status: result.sent ? "sent" : "queued",
+      ...(result.messageId ? { providerMessageId: result.messageId } : {}),
+    }) ?? message;
+  } catch (error) {
+    app.log.error({ error, messageId: message.id }, "Auth transactional email failed");
+    await updateDeliveryMessageStatus(scope, message.id, {
+      error: error instanceof Error ? error.message : "Unknown email delivery error",
+      status: "failed",
+    });
+  }
 }
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
@@ -131,6 +161,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         metadata: { plan: account.company.plan },
         tenantId: account.user.tenantId,
         userAgent: userAgent(request),
+        userId: account.user.id,
+      });
+      await sendAuthEmail(app, {
+        companyId: account.user.companyId,
+        data: { company: account.company.tradingName, name: account.user.fullName },
+        kind: "welcome",
+        tenantId: account.user.tenantId,
+        to: account.user.email,
         userId: account.user.id,
       });
 
@@ -225,6 +263,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         userAgent: userAgent(request),
         userId: user.id,
       });
+      await sendAuthEmail(app, {
+        companyId: user.companyId,
+        data: { link: buildActionLink("/reset-password", resetToken), name: user.fullName },
+        kind: "password_reset",
+        tenantId: user.tenantId,
+        to: user.email,
+        userId: user.id,
+      });
       if (shouldExposeDevToken()) response.resetToken = resetToken;
     }
 
@@ -297,6 +343,14 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       ipAddress: requestIp(request),
       tenantId: user.tenantId,
       userAgent: userAgent(request),
+      userId: user.id,
+    });
+    await sendAuthEmail(app, {
+      companyId: user.companyId,
+      data: { link: buildActionLink("/verify-email", verificationToken), name: user.fullName },
+      kind: "magic_link",
+      tenantId: user.tenantId,
+      to: user.email,
       userId: user.id,
     });
 

@@ -470,10 +470,22 @@ type StripeWebhookEvent = {
 };
 
 export type StripeWebhookProcessResult = {
+  companyId?: string;
   duplicate: boolean;
+  plan?: Subscription["plan"];
   processed: boolean;
   status: "processed" | "ignored" | "failed";
+  subscriptionStatus?: Subscription["status"];
+  tenantId?: string;
   type: string;
+};
+
+type StripeWebhookOutcome = {
+  companyId?: string;
+  plan?: Subscription["plan"];
+  status: StripeWebhookProcessResult["status"];
+  subscriptionStatus?: Subscription["status"];
+  tenantId?: string;
 };
 
 function stringValue(value: unknown) {
@@ -541,9 +553,9 @@ async function markStripeWebhookEvent(id: string, status: StripeWebhookProcessRe
   );
 }
 
-async function handleCheckoutSessionCompleted(object: Record<string, unknown>) {
+async function handleCheckoutSessionCompleted(object: Record<string, unknown>): Promise<StripeWebhookOutcome> {
   const scope = await findScopeForStripeObject(object);
-  if (!scope) return "ignored";
+  if (!scope) return { status: "ignored" as const };
 
   const paymentStatus = stringValue(object.payment_status);
   const plan = metadataValue(object, "plan") as Subscription["plan"] | undefined;
@@ -562,36 +574,47 @@ async function handleCheckoutSessionCompleted(object: Record<string, unknown>) {
     provider: "stripe",
     status: grantAccess ? "active" : "incomplete",
   }, grantAccess);
-  return "processed";
+  return {
+    ...scope,
+    status: "processed" as const,
+    subscriptionStatus: grantAccess ? "active" as const : "incomplete" as const,
+    ...(plan ? { plan } : {}),
+  };
 }
 
-async function handleStripeSubscriptionObject(object: Record<string, unknown>) {
+async function handleStripeSubscriptionObject(object: Record<string, unknown>): Promise<StripeWebhookOutcome> {
   const scope = await findScopeForStripeObject(object);
-  if (!scope) return "ignored";
+  if (!scope) return { status: "ignored" as const };
   const status = stripeStatus(object.status);
+  const plan = metadataValue(object, "plan") as Subscription["plan"] | undefined;
   await syncStripeSubscriptionFromWebhook(scope, {
     cancelAt: epochSecondsToIso(object.cancel_at),
     currentPeriodEnd: epochSecondsToIso(object.current_period_end),
     currentPeriodStart: epochSecondsToIso(object.current_period_start),
     externalCustomerId: stringValue(object.customer),
     externalSubscriptionId: stringValue(object.id),
-    plan: metadataValue(object, "plan") as Subscription["plan"] | undefined,
+    plan,
     provider: "stripe",
     status,
   }, status === "active" || status === "trialing");
-  return "processed";
+  return {
+    ...scope,
+    status: "processed" as const,
+    subscriptionStatus: status,
+    ...(plan ? { plan } : {}),
+  };
 }
 
-async function handleStripeInvoice(object: Record<string, unknown>, status: Subscription["status"], grantAccess: boolean) {
+async function handleStripeInvoice(object: Record<string, unknown>, status: Subscription["status"], grantAccess: boolean): Promise<StripeWebhookOutcome> {
   const scope = await findScopeForStripeObject(object);
-  if (!scope) return "ignored";
+  if (!scope) return { status: "ignored" as const };
   await syncStripeSubscriptionFromWebhook(scope, {
     externalCustomerId: stringValue(object.customer),
     externalSubscriptionId: stringValue(object.subscription),
     provider: "stripe",
     status,
   }, grantAccess);
-  return "processed";
+  return { ...scope, status: "processed" as const, subscriptionStatus: status };
 }
 
 export async function processStripeWebhookEvent(event: StripeWebhookEvent): Promise<StripeWebhookProcessResult> {
@@ -607,15 +630,15 @@ export async function processStripeWebhookEvent(event: StripeWebhookEvent): Prom
 
   try {
     const object = event.data.object;
-    const status = event.type === "checkout.session.completed"
+    const outcome = event.type === "checkout.session.completed"
       ? await handleCheckoutSessionCompleted(object)
       : event.type === "checkout.session.expired"
-        ? await (async () => {
+        ? await (async (): Promise<StripeWebhookOutcome> => {
           await pool.query(
             "update stripe_checkout_sessions set status = 'expired', updated_at = now() where stripe_session_id = $1",
             [stringValue(object.id) ?? null],
           );
-          return "processed" as const;
+          return { status: "processed" };
         })()
         : event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted"
           ? await handleStripeSubscriptionObject(object)
@@ -623,29 +646,30 @@ export async function processStripeWebhookEvent(event: StripeWebhookEvent): Prom
             ? await handleStripeInvoice(object, "past_due", false)
             : event.type === "invoice.payment_succeeded"
               ? await handleStripeInvoice(object, "active", true)
-              : "ignored";
+              : { status: "ignored" as const };
 
-    await markStripeWebhookEvent(event.id, status);
-    return { duplicate: false, processed: status === "processed", status, type: event.type };
+    await markStripeWebhookEvent(event.id, outcome.status);
+    return {
+      duplicate: false,
+      processed: outcome.status === "processed",
+      status: outcome.status,
+      type: event.type,
+      ...(outcome.companyId ? { companyId: outcome.companyId } : {}),
+      ...(outcome.plan ? { plan: outcome.plan } : {}),
+      ...(outcome.subscriptionStatus ? { subscriptionStatus: outcome.subscriptionStatus } : {}),
+      ...(outcome.tenantId ? { tenantId: outcome.tenantId } : {}),
+    };
   } catch (error) {
     await markStripeWebhookEvent(event.id, "failed", error instanceof Error ? error.message : "Unknown Stripe webhook processing error");
     throw error;
   }
 }
 
-function providerConfigured(channel: DeliveryMessageInput["channel"]) {
-  if (channel === "email") return Boolean(process.env.RESEND_API_KEY || process.env.SMTP_URL);
-  if (channel === "telegram") return Boolean(process.env.TELEGRAM_BOT_TOKEN);
-  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
-}
-
 export async function createDeliveryMessage(scope: TenantScope, input: DeliveryMessageInput, userId?: string): Promise<DeliveryMessage> {
-  const configured = providerConfigured(input.channel);
-  const status: DeliveryMessage["status"] = configured ? "sent" : "queued";
   const result = await pool.query(
     `insert into delivery_messages (
       id, tenant_id, company_id, user_id, channel, recipient, subject, body, entity_type, entity_id, status, sent_at
-    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, case when $11 = 'sent' then now() else null end)
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', null)
     returning *`,
     [
       createId("msg"),
@@ -658,10 +682,28 @@ export async function createDeliveryMessage(scope: TenantScope, input: DeliveryM
       input.body,
       input.entityType,
       input.entityId ?? null,
-      status,
     ],
   );
   return mapDeliveryMessage(result.rows[0]);
+}
+
+export async function updateDeliveryMessageStatus(scope: TenantScope, messageId: string, input: {
+  error?: string;
+  providerMessageId?: string;
+  status: DeliveryMessage["status"];
+}): Promise<DeliveryMessage | undefined> {
+  const result = await pool.query(
+    `update delivery_messages
+     set status = $4,
+         provider_message_id = $5,
+         error = $6,
+         sent_at = case when $4 = 'sent' then now() else sent_at end,
+         updated_at = now()
+     where tenant_id = $1 and company_id = $2 and id = $3
+     returning *`,
+    [scope.tenantId, scope.companyId, messageId, input.status, input.providerMessageId ?? null, input.error ?? null],
+  );
+  return result.rows[0] ? mapDeliveryMessage(result.rows[0]) : undefined;
 }
 
 export async function listDeliveryMessages(scope: TenantScope, entityId?: string): Promise<DeliveryMessage[]> {

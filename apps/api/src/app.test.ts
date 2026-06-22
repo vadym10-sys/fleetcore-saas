@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { after, before, test } from "node:test";
 import { buildServer } from "./app.js";
 import { validateProductionEnv } from "./config/env.js";
+import { sendTransactionalEmail } from "./lib/email.js";
 
 const app = await buildServer();
 let token = "";
@@ -80,6 +81,50 @@ test("production env validation keeps pilot mode safe and fails strict productio
     WHATSAPP_ACCESS_TOKEN: "whatsapp-live-token",
     WHATSAPP_PHONE_NUMBER_ID: "123456789",
   }).mode, "production");
+});
+
+test("transactional email switches provider and suppresses external sending in test mode", async () => {
+  const suppressed = await sendTransactionalEmail({
+    data: { name: "Owner" },
+    kind: "welcome",
+    to: "owner@example.com",
+  }, {
+    EMAIL_PROVIDER: "resend",
+    NODE_ENV: "test",
+    RESEND_API_KEY: "re_test_key",
+  } as NodeJS.ProcessEnv);
+  assert.equal(suppressed.provider, "resend");
+  assert.equal(suppressed.sent, false);
+  assert.equal(suppressed.skipped, true);
+
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async (_input, init) => {
+    called = true;
+    assert.equal((init?.headers as Record<string, string>).Authorization, "Bearer re_test_key");
+    return new Response(JSON.stringify({ id: "email_test_123" }), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+  try {
+    const sent = await sendTransactionalEmail({
+      data: { amount: "500 EUR", company: "FleetCore Test", plan: "growth" },
+      kind: "payment_success",
+      to: "billing@example.com",
+    }, {
+      EMAIL_FROM: "FleetCore <test@example.com>",
+      EMAIL_PROVIDER: "resend",
+      EMAIL_SEND_IN_TEST: "true",
+      NODE_ENV: "test",
+      RESEND_API_KEY: "re_test_key",
+    } as NodeJS.ProcessEnv);
+    assert.equal(called, true);
+    assert.equal(sent.sent, true);
+    assert.equal(sent.messageId, "email_test_123");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("login returns a signed access token", async () => {
