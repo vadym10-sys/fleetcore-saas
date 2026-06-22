@@ -391,6 +391,9 @@ test("commercial readiness APIs expose billing, delivery and compliance controls
   assert.equal(status.json().data.ok, true);
   assert.equal(status.json().data.checks.database, "ok");
   assert.equal(typeof status.json().data.commercialReadiness.billingConfigured, "boolean");
+  assert.equal(status.json().data.integrations.stripe.label, "Stripe");
+  assert.equal(["connected", "missing", "test_mode"].includes(status.json().data.integrations.whatsapp.state), true);
+  assert.equal(status.json().data.integrations.gdprLegalDocs.requiredForCommercialLaunch, true);
 
   const subscription = await app.inject({
     headers: { authorization: `Bearer ${token}` },

@@ -378,6 +378,15 @@ export interface ComplianceExport {
   vehicles: Vehicle[];
 }
 
+export type ProductionIntegrationState = "connected" | "missing" | "test_mode";
+
+export interface ProductionIntegrationStatus {
+  description: string;
+  label: string;
+  requiredForCommercialLaunch: boolean;
+  state: ProductionIntegrationState;
+}
+
 export interface SystemStatus {
   checks: {
     database: "ok" | "error";
@@ -390,6 +399,15 @@ export interface SystemStatus {
     objectStorageConfigured: boolean;
     telegramConfigured: boolean;
     whatsappConfigured: boolean;
+  };
+  integrations: {
+    email: ProductionIntegrationStatus;
+    gdprLegalDocs: ProductionIntegrationStatus;
+    monitoring: ProductionIntegrationStatus;
+    objectStorage: ProductionIntegrationStatus;
+    stripe: ProductionIntegrationStatus;
+    telegram: ProductionIntegrationStatus;
+    whatsapp: ProductionIntegrationStatus;
   };
   ok: boolean;
 }

@@ -35,6 +35,84 @@ function resolveCorsOrigin(origin: string | undefined) {
   return configuredOrigin;
 }
 
+type IntegrationState = "connected" | "missing" | "test_mode";
+
+function configuredState(value: string | undefined, testPatterns: string[] = []): IntegrationState {
+  if (!value) return "missing";
+  const normalized = value.toLowerCase();
+  return testPatterns.some((pattern) => normalized.includes(pattern)) ? "test_mode" : "connected";
+}
+
+function productionIntegrations() {
+  const stripeState = configuredState(process.env.STRIPE_SECRET_KEY, ["sk_test", "test"]);
+  const emailState = configuredState(process.env.RESEND_API_KEY ?? process.env.SMTP_URL, ["test", "sandbox", "localhost"]);
+  const whatsappState = process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID
+    ? configuredState(process.env.WHATSAPP_ACCESS_TOKEN, ["test", "sandbox"])
+    : "missing";
+  const telegramState = configuredState(process.env.TELEGRAM_BOT_TOKEN, ["test", "sandbox"]);
+  const objectStorageState = configuredState(process.env.S3_BUCKET, ["test", "dev", "local"]);
+  const monitoringState = configuredState(process.env.SENTRY_DSN ?? process.env.MONITORING_DSN ?? process.env.UPTIME_MONITOR_URL, ["test", "localhost"]);
+  const legalState = process.env.GDPR_DOCS_URL || process.env.PRIVACY_POLICY_URL || process.env.TERMS_URL
+    ? configuredState(process.env.GDPR_DOCS_URL ?? process.env.PRIVACY_POLICY_URL ?? process.env.TERMS_URL, ["draft", "test", "localhost"])
+    : "missing";
+
+  return {
+    email: {
+      description: emailState === "missing" ? "Email provider is not configured yet." : "Email provider credentials are present.",
+      label: "Email provider",
+      requiredForCommercialLaunch: true,
+      state: emailState,
+    },
+    gdprLegalDocs: {
+      description: legalState === "missing" ? "Privacy, terms or GDPR/DPA links are not configured." : "Legal documentation link is configured.",
+      label: "GDPR / legal docs",
+      requiredForCommercialLaunch: true,
+      state: legalState,
+    },
+    monitoring: {
+      description: monitoringState === "missing" ? "Production error monitoring or uptime URL is not configured." : "Monitoring configuration is present.",
+      label: "Monitoring",
+      requiredForCommercialLaunch: true,
+      state: monitoringState,
+    },
+    objectStorage: {
+      description: objectStorageState === "missing" ? "Using database/local fallback for uploaded files." : "S3-compatible object storage bucket is configured.",
+      label: "S3 / object storage",
+      requiredForCommercialLaunch: true,
+      state: objectStorageState,
+    },
+    stripe: {
+      description: stripeState === "missing" ? "Stripe secret key and price IDs are not configured." : "Stripe key is configured.",
+      label: "Stripe",
+      requiredForCommercialLaunch: true,
+      state: stripeState,
+    },
+    telegram: {
+      description: telegramState === "missing" ? "Telegram bot token is not configured." : "Telegram bot token is configured.",
+      label: "Telegram bot",
+      requiredForCommercialLaunch: false,
+      state: telegramState,
+    },
+    whatsapp: {
+      description: whatsappState === "missing" ? "WhatsApp Business token or phone number ID is not configured." : "WhatsApp Business API credentials are configured.",
+      label: "WhatsApp Business API",
+      requiredForCommercialLaunch: true,
+      state: whatsappState,
+    },
+  } satisfies Record<string, { description: string; label: string; requiredForCommercialLaunch: boolean; state: IntegrationState }>;
+}
+
+function commercialReadiness() {
+  const integrations = productionIntegrations();
+  return {
+    billingConfigured: integrations.stripe.state !== "missing",
+    emailConfigured: integrations.email.state !== "missing",
+    objectStorageConfigured: integrations.objectStorage.state !== "missing",
+    telegramConfigured: integrations.telegram.state !== "missing",
+    whatsappConfigured: integrations.whatsapp.state !== "missing",
+  };
+}
+
 export async function buildServer() {
   const app = Fastify({ bodyLimit: Number(process.env.MAX_UPLOAD_BODY_BYTES ?? 12 * 1024 * 1024), logger: true });
 
@@ -90,6 +168,8 @@ export async function buildServer() {
     }
   });
   app.get("/status", async (_request, reply) => {
+    const integrations = productionIntegrations();
+    const readiness = commercialReadiness();
     try {
       await pool.query("select 1");
       return envelope({
@@ -98,13 +178,8 @@ export async function buildServer() {
           migrations: "ok",
           storage: process.env.S3_BUCKET ? "s3" : "database",
         },
-        commercialReadiness: {
-          billingConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
-          emailConfigured: Boolean(process.env.RESEND_API_KEY || process.env.SMTP_URL),
-          objectStorageConfigured: Boolean(process.env.S3_BUCKET),
-          telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
-          whatsappConfigured: Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),
-        },
+        commercialReadiness: readiness,
+        integrations,
         ok: true,
       });
     } catch (error) {
@@ -116,13 +191,8 @@ export async function buildServer() {
             migrations: "unknown",
             storage: process.env.S3_BUCKET ? "s3" : "database",
           },
-          commercialReadiness: {
-            billingConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
-            emailConfigured: Boolean(process.env.RESEND_API_KEY || process.env.SMTP_URL),
-            objectStorageConfigured: Boolean(process.env.S3_BUCKET),
-            telegramConfigured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
-            whatsappConfigured: Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),
-          },
+          commercialReadiness: readiness,
+          integrations,
           ok: false,
         },
       });
