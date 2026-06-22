@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import type { AuthSession, Company, Customer, CustomerDocument, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { EmptyWorkspaceState, ListControlBar, type SavedView } from "../features/common/list-control-bar";
 import { RentalWorkbench } from "../features/rentals/rental-workbench";
@@ -251,7 +251,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Executive view of fleet, revenue, returns and operational alerts.",
     "section.subtitle.GPS": "Connect trackers, platforms and live vehicle positions in one control room.",
     "section.subtitle.Vehicles": "Manage fleet records, documents, service and profitability per vehicle.",
-    "section.subtitle.Calendar": "Reservations, availability, free days and Calendly booking slots.",
+    "section.subtitle.Calendar": "Calendly booking slots and FleetCore reservations in one scheduling view.",
     "section.subtitle.Drivers/Clients": "Customer CRM, documents, rental history and verification files.",
     "section.subtitle.Bookings": "Create bookings, contracts, signatures and WhatsApp customer links.",
     "section.subtitle.Finance": "Payments, expenses, deposits, refunds and ROI by vehicle.",
@@ -412,7 +412,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Главный обзор автопарка, доходов, возвратов и операционных событий.",
     "section.subtitle.GPS": "Подключайте трекеры, платформы и живые позиции автомобилей в одном центре.",
     "section.subtitle.Vehicles": "Управляйте авто, документами, сервисом и прибыльностью каждой машины.",
-    "section.subtitle.Calendar": "Резервации, свободные дни, занятость автопарка и Calendly.",
+    "section.subtitle.Calendar": "Calendly-слоты и резервации FleetCore в одном календаре.",
     "section.subtitle.Drivers/Clients": "CRM клиентов, документы, история аренд и проверочные файлы.",
     "section.subtitle.Bookings": "Брони, договоры, подписи и WhatsApp-ссылки для клиентов.",
     "section.subtitle.Finance": "Оплаты, расходы, депозиты, возвраты и ROI по автомобилям.",
@@ -573,7 +573,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Vista ejecutiva de flota, ingresos, devoluciones y alertas operativas.",
     "section.subtitle.GPS": "Conecta rastreadores, plataformas y posiciones en vivo en un solo centro.",
     "section.subtitle.Vehicles": "Gestiona flota, documentos, servicio y rentabilidad por vehículo.",
-    "section.subtitle.Calendar": "Reservas, disponibilidad, días libres y slots de Calendly.",
+    "section.subtitle.Calendar": "Reservas de FleetCore y slots de Calendly en un calendario.",
     "section.subtitle.Drivers/Clients": "CRM de clientes, documentos, historial de alquileres y verificación.",
     "section.subtitle.Bookings": "Reservas, contratos, firmas y enlaces WhatsApp para clientes.",
     "section.subtitle.Finance": "Pagos, gastos, depósitos, reembolsos y ROI por vehículo.",
@@ -734,7 +734,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Vue dirigeant de la flotte, des revenus, des retours et des alertes.",
     "section.subtitle.GPS": "Connectez traceurs, plateformes et positions en direct dans un centre unique.",
     "section.subtitle.Vehicles": "Gérez flotte, documents, service et rentabilité par véhicule.",
-    "section.subtitle.Calendar": "Réservations, disponibilités, jours libres et créneaux Calendly.",
+    "section.subtitle.Calendar": "Réservations FleetCore et créneaux Calendly dans un seul calendrier.",
     "section.subtitle.Drivers/Clients": "CRM clients, documents, historique de location et vérification.",
     "section.subtitle.Bookings": "Réservations, contrats, signatures et liens WhatsApp clients.",
     "section.subtitle.Finance": "Paiements, dépenses, dépôts, remboursements et ROI par véhicule.",
@@ -895,7 +895,7 @@ const uiCopy = {
     "section.subtitle.Dashboard": "Managementblick auf Flotte, Umsatz, Rückgaben und operative Alerts.",
     "section.subtitle.GPS": "Tracker, Plattformen und Live-Positionen in einer Leitstelle verbinden.",
     "section.subtitle.Vehicles": "Fahrzeuge, Dokumente, Service und Profitabilität je Fahrzeug verwalten.",
-    "section.subtitle.Calendar": "Reservierungen, Verfügbarkeit, freie Tage und Calendly-Zeiten.",
+    "section.subtitle.Calendar": "FleetCore-Reservierungen und Calendly-Zeiten in einem Kalender.",
     "section.subtitle.Drivers/Clients": "Kunden-CRM, Dokumente, Mietverlauf und Verifizierungsdateien.",
     "section.subtitle.Bookings": "Buchungen, Verträge, Signaturen und WhatsApp-Kundenlinks.",
     "section.subtitle.Finance": "Zahlungen, Kosten, Kautionen, Rückgaben und ROI je Fahrzeug.",
@@ -4054,7 +4054,7 @@ export default function DashboardClient() {
           { label: "Открыть аренды", onClick: () => selectSection("Bookings") },
           { label: "Обновить календарь", onClick: () => void loadData() },
         ],
-        title: "Календарь резерваций и свободных дней",
+        title: "Calendly календарь резерваций",
       };
     }
     if (activeSection === "Drivers/Clients") {
@@ -4590,8 +4590,11 @@ export default function DashboardClient() {
                   <button className="primary-button full" disabled={Boolean(busyAction)} onClick={openRentalWorkflow} type="button">Создать аренду</button>
                 </section>
                 <details className="calendar-collapse">
-                  <summary>Календарь доступности</summary>
-                  <BookingCalendar customers={data.customers} locale={locale} rentals={visibleRentals} vehicles={visibleVehicles.slice(0, 6)} />
+                  <summary>Calendly резервации</summary>
+                  <section className="calendly-mini-panel">
+                    <p>Используйте Calendly как единый календарь свободных слотов. FleetCore аренды остаются в карточке аренды и готовы к отправке клиенту.</p>
+                    <a className="ghost-button full" href={CALENDLY_URL} rel="noreferrer" target="_blank">Открыть Calendly</a>
+                  </section>
                 </details>
               </aside>
             </div>
@@ -5881,30 +5884,30 @@ function CalendarWorkspace({
   const upcomingReturns = activeRentals
     .filter((rental) => new Date(rental.returnAt).getTime() >= now)
     .slice(0, 5);
-  const freeDays = Array.from({ length: 7 }, (_, index) => {
-    const day = new Date();
-    day.setHours(0, 0, 0, 0);
-    day.setDate(day.getDate() + index);
-    const start = day.getTime();
-    const end = start + 24 * 60 * 60 * 1000;
-    const occupiedVehicleIds = new Set(activeRentals
-      .filter((rental) => new Date(rental.pickupAt).getTime() < end && new Date(rental.returnAt).getTime() >= start)
-      .map((rental) => rental.vehicleId));
-    return {
-      date: day,
-      freeCount: vehicles.filter((vehicle) => !occupiedVehicleIds.has(vehicle.id) && vehicle.status !== "maintenance").length,
-      total: vehicles.length,
-    };
-  });
   const validCalendlyUrl = calendlyUrl.startsWith("https://calendly.com/");
+  const dateLocale = locale === "ru" ? "ru-RU" : locale === "es" ? "es-ES" : locale === "fr" ? "fr-FR" : locale === "de" ? "de-DE" : "en-US";
+
+  function calendlyReservationUrl(rental: Rental) {
+    const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+    const customer = customers.find((item) => item.id === rental.customerId);
+    if (!validCalendlyUrl) return calendlyUrl;
+    const url = new URL(calendlyUrl);
+    if (customer?.displayName) url.searchParams.set("name", customer.displayName);
+    if (customer?.email) url.searchParams.set("email", customer.email);
+    url.searchParams.set("a1", `${vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль"} · ${vehicle?.plateNumber ?? "без номера"}`);
+    url.searchParams.set("a2", `${new Date(rental.pickupAt).toLocaleString(dateLocale)} - ${new Date(rental.returnAt).toLocaleString(dateLocale)}`);
+    url.searchParams.set("hide_gdpr_banner", "1");
+    url.searchParams.set("primary_color", "2346d8");
+    return url.toString();
+  }
 
   return (
     <section className="calendar-workspace">
       <div className="calendar-hero table-panel">
         <div>
-          <span className="eyebrow">FleetCore Calendar</span>
-          <h2>Календарь резерваций</h2>
-          <p>Резервации FleetCore, свободные автомобили, ближайшие возвраты и Calendly для свободных слотов в одном месте.</p>
+          <span className="eyebrow">Calendly</span>
+          <h2>Calendly календарь резерваций</h2>
+          <p>Один внешний календарь для свободных слотов. Резервации FleetCore получают готовую Calendly-ссылку с клиентом, автомобилем и датами.</p>
         </div>
         <button className="primary-button" onClick={onCreateBooking} type="button">Создать аренду</button>
       </div>
@@ -5926,56 +5929,12 @@ function CalendarWorkspace({
 
       <div className="calendar-layout">
         <div className="calendar-main">
-          <BookingCalendar customers={customers} locale={locale} rentals={rentals} vehicles={vehicles} />
-          <section className="table-panel free-days-panel">
-            <div className="section-title compact-title">
-              <div>
-                <h2>Свободные дни</h2>
-                <p>Сколько автомобилей доступно каждый день.</p>
-              </div>
-            </div>
-            <div className="free-days-grid">
-              {freeDays.map((day) => (
-                <article key={day.date.toISOString()}>
-                  <span>{day.date.toLocaleDateString(locale === "ru" ? "ru-RU" : "en-US", { day: "2-digit", month: "short" })}</span>
-                  <strong>{day.freeCount}</strong>
-                  <small>из {day.total} авто свободно</small>
-                </article>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <aside className="calendar-side">
-          <section className="table-panel reservations-panel">
-            <div className="section-title compact-title">
-              <div>
-                <h2>Ближайшие резервации</h2>
-                <p>Что уже занято в автопарке.</p>
-              </div>
-            </div>
-            {activeRentals.slice(0, 6).map((rental) => {
-              const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
-              const customer = customers.find((item) => item.id === rental.customerId);
-              return (
-                <article className="reservation-row" key={rental.id}>
-                  <div>
-                    <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль"}</strong>
-                    <span>{vehicle?.plateNumber ?? "без номера"} · {customer?.displayName ?? "Без клиента"}</span>
-                  </div>
-                  <small>{new Date(rental.pickupAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })} - {new Date(rental.returnAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</small>
-                </article>
-              );
-            })}
-            {!activeRentals.length ? <p className="history-row">Резерваций пока нет. Создайте первую аренду.</p> : null}
-          </section>
-
-          <section className="table-panel calendly-panel">
+          <section className="table-panel calendly-panel primary-calendly-panel">
             <div className="section-title compact-title">
               <div>
                 <span className="eyebrow">Calendly</span>
                 <h2>Свободное время</h2>
-                <p>Клиент может выбрать свободный слот через Calendly.</p>
+                <p>Клиент выбирает слот напрямую через Calendly.</p>
               </div>
             </div>
             {validCalendlyUrl ? (
@@ -5991,60 +5950,36 @@ function CalendarWorkspace({
               </div>
             )}
           </section>
-        </aside>
-      </div>
-    </section>
-  );
-}
-
-function BookingCalendar({ customers, locale, rentals, vehicles }: { customers: Customer[]; locale: Locale; rentals: Rental[]; vehicles: Vehicle[] }) {
-  const days = Array.from({ length: 14 }, (_, index) => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + index);
-    return date;
-  });
-
-  function rentalForDay(vehicle: Vehicle, day: Date) {
-    const start = day.getTime();
-    const end = start + 24 * 60 * 60 * 1000;
-    return rentals.find((rental) => {
-      if (rental.vehicleId !== vehicle.id || rental.status === "closed") return false;
-      const pickup = new Date(rental.pickupAt).getTime();
-      const dropoff = new Date(rental.returnAt).getTime();
-      return pickup < end && dropoff >= start;
-    });
-  }
-
-  return (
-    <section className="booking-calendar">
-      <div className="section-title compact-title">
-        <h2>Booking calendar</h2>
-        <Badge value={`${vehicles.length} авто`} />
-      </div>
-      <div className="calendar-scroll">
-        <div className="calendar-grid" style={{ gridTemplateColumns: `180px repeat(${days.length}, minmax(78px, 1fr))` }}>
-          <div className="calendar-head">Автомобиль</div>
-          {days.map((day) => <div className="calendar-head" key={day.toISOString()}>{day.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</div>)}
-          {vehicles.map((vehicle) => (
-            <Fragment key={vehicle.id}>
-              <div className="calendar-car" key={`${vehicle.id}-car`}>
-                <strong>{vehicle.make} {vehicle.model}</strong>
-                <span>{vehicle.plateNumber}</span>
-              </div>
-              {days.map((day) => {
-                const rental = rentalForDay(vehicle, day);
-                const customer = customers.find((item) => item.id === rental?.customerId);
-                return (
-                  <div className={`calendar-slot ${rental ? rental.status : "free"}`} key={`${vehicle.id}-${day.toISOString()}`}>
-                    <strong>{rental ? rentalStatusLabel(locale, rental.status) : translate(locale, "status.available")}</strong>
-                    <span>{customer?.displayName ?? ""}</span>
-                  </div>
-                );
-              })}
-            </Fragment>
-          ))}
         </div>
+
+        <aside className="calendar-side">
+          <section className="table-panel reservations-panel">
+            <div className="section-title compact-title">
+              <div>
+                <h2>Резервации FleetCore</h2>
+                <p>Созданные аренды готовы к привязке и отправке через Calendly.</p>
+              </div>
+            </div>
+            {activeRentals.slice(0, 6).map((rental) => {
+              const vehicle = vehicles.find((item) => item.id === rental.vehicleId);
+              const customer = customers.find((item) => item.id === rental.customerId);
+              return (
+                <article className="reservation-row" key={rental.id}>
+                  <div>
+                    <strong>{vehicle ? `${vehicle.make} ${vehicle.model}` : "Автомобиль"}</strong>
+                    <span>{vehicle?.plateNumber ?? "без номера"} · {customer?.displayName ?? "Без клиента"}</span>
+                    <em>Calendly ready</em>
+                  </div>
+                  <div className="reservation-actions">
+                    <small>{new Date(rental.pickupAt).toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })} - {new Date(rental.returnAt).toLocaleDateString(dateLocale, { day: "2-digit", month: "short" })}</small>
+                    <a className="ghost-button" href={calendlyReservationUrl(rental)} rel="noreferrer" target="_blank">Calendly</a>
+                  </div>
+                </article>
+              );
+            })}
+            {!activeRentals.length ? <p className="history-row">Резерваций пока нет. Создайте первую аренду.</p> : null}
+          </section>
+        </aside>
       </div>
     </section>
   );

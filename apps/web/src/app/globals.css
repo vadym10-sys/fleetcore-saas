@@ -4323,7 +4323,7 @@ h3 {
 
 .rental-secondary-details .rental-document-strip,
 .rental-secondary-details .rental-flow-plus-grid,
-.calendar-collapse .calendar-scroll {
+.calendar-collapse .calendly-mini-panel {
   margin: 0 14px 14px;
 }
 
@@ -4937,7 +4937,6 @@ h3 {
 }
 
 .calendar-kpi-grid article,
-.free-days-grid article,
 .reservation-row {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -4952,10 +4951,9 @@ h3 {
 }
 
 .calendar-kpi-grid span,
-.free-days-grid span,
-.free-days-grid small,
 .reservation-row span,
-.reservation-row small {
+.reservation-row small,
+.reservation-row em {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
@@ -4980,28 +4978,9 @@ h3 {
   gap: 16px;
 }
 
-.free-days-panel,
 .reservations-panel,
 .calendly-panel {
   padding: 16px;
-}
-
-.free-days-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.free-days-grid article {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-}
-
-.free-days-grid strong {
-  color: var(--primary);
-  font-size: 24px;
-  line-height: 1;
 }
 
 .reservation-row {
@@ -5017,7 +4996,8 @@ h3 {
 }
 
 .reservation-row strong,
-.reservation-row span {
+.reservation-row span,
+.reservation-row em {
   display: block;
 }
 
@@ -5028,6 +5008,30 @@ h3 {
 
 .reservation-row small {
   white-space: nowrap;
+}
+
+.reservation-row em {
+  width: fit-content;
+  margin-top: 7px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 159, 110, 0.1);
+  color: #047857;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.reservation-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.reservation-actions .ghost-button {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .calendly-panel iframe {
@@ -5055,79 +5059,21 @@ h3 {
   color: var(--ink);
 }
 
-.booking-calendar {
+.calendly-mini-panel {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcff;
 }
 
-.calendar-scroll {
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.calendar-grid {
-  display: grid;
-  gap: 6px;
-  min-width: 1260px;
-}
-
-.calendar-head,
-.calendar-car,
-.calendar-slot {
-  min-height: 54px;
-  padding: 9px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: white;
-}
-
-.calendar-head {
-  display: grid;
-  place-items: center;
+.calendly-mini-panel p {
+  margin: 0;
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 950;
-  text-transform: uppercase;
-}
-
-.calendar-car strong,
-.calendar-car span,
-.calendar-slot strong,
-.calendar-slot span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.calendar-car span,
-.calendar-slot span {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.calendar-slot {
-  background: #f8fafc;
-  color: #64748b;
-}
-
-.calendar-slot.reserved,
-.calendar-slot.active {
-  border-color: rgba(35, 70, 216, 0.28);
-  background: #edf1ff;
-  color: var(--primary);
-}
-
-.calendar-slot.return_due {
-  border-color: rgba(242, 155, 56, 0.32);
-  background: var(--orange-soft);
-  color: #b45309;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.45;
 }
 
 @media (max-width: 1180px) {
@@ -5284,20 +5230,8 @@ h3 {
     grid-template-columns: 1fr;
   }
 
-  .booking-calendar {
-    padding: 10px;
-  }
-
   .calendar-layout {
     grid-template-columns: 1fr;
-  }
-
-  .free-days-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .calendar-grid {
-    min-width: 1040px;
   }
 }
 
@@ -5334,8 +5268,7 @@ h3 {
     min-height: 48px;
   }
 
-  .calendar-kpi-grid,
-  .free-days-grid {
+  .calendar-kpi-grid {
     grid-template-columns: 1fr;
   }
 
@@ -8242,11 +8175,11 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .rental-secondary-details .rental-document-strip,
-  .rental-secondary-details .rental-flow-plus-grid,
-  .calendar-collapse .calendar-scroll {
-    margin: 0 10px 10px;
-  }
+.rental-secondary-details .rental-document-strip,
+.rental-secondary-details .rental-flow-plus-grid,
+.calendar-collapse .calendly-mini-panel {
+  margin: 0 10px 10px;
+}
 
   .rental-flow-plus-grid.compact {
     grid-template-columns: 1fr;

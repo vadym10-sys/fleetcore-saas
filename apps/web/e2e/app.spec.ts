@@ -90,8 +90,9 @@ test("desktop user can manage professional list controls", async ({ page, isMobi
 
   await sidebarNav.getByRole("button", { name: /Календарь/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Календарь" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Календарь резерваций" })).toBeVisible();
-  await expect(page.locator(".calendly-panel")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Calendly календарь резерваций" })).toBeVisible();
+  await expect(page.locator(".primary-calendly-panel")).toBeVisible();
+  await expect(page.locator(".booking-calendar")).toHaveCount(0);
 });
 
 test("desktop primary buttons open real workflows without blank surfaces", async ({ page, isMobile }) => {
