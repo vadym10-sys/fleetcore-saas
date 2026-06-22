@@ -169,8 +169,25 @@ type GlobalSearchResult = {
 
 type DashboardFolder = {
   createdAt: string;
+  files?: DashboardFolderFile[];
   id: string;
   name: string;
+  notes?: DashboardFolderNote[];
+};
+
+type DashboardFolderFile = {
+  addedAt: string;
+  fileUrl: string;
+  id: string;
+  mimeType: string;
+  name: string;
+  sizeBytes: number;
+};
+
+type DashboardFolderNote = {
+  createdAt: string;
+  id: string;
+  text: string;
 };
 
 type AiSearchResponse = {
@@ -4378,6 +4395,7 @@ export default function DashboardClient() {
               onSelectVehicle={setSelectedVehicleId}
               rentals={visibleRentals}
               selectedVehicleId={selectedVehicle?.id}
+              token={session.accessToken}
               vehicles={filteredVehicles}
             />
           )
@@ -5080,8 +5098,10 @@ function WorkspaceStatusBanner({ loading, message }: { loading: boolean; message
 function createDashboardFolder(index: number, name?: string): DashboardFolder {
   return {
     createdAt: new Date().toISOString(),
+    files: [],
     id: `folder_${Date.now().toString(36)}_${index.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     name: name?.trim() || `Папка ${index}`,
+    notes: [],
   };
 }
 
@@ -5093,8 +5113,20 @@ function isLegacyDashboardFolder(folder: DashboardFolder) {
   return /^Папка\s+[1-7]$/i.test(folder.name.trim());
 }
 
-function DashboardFolders() {
+function normalizeDashboardFolder(folder: DashboardFolder): DashboardFolder {
+  return {
+    ...folder,
+    files: Array.isArray(folder.files) ? folder.files : [],
+    notes: Array.isArray(folder.notes) ? folder.notes : [],
+  };
+}
+
+function DashboardFolders({ token }: { token: string | undefined }) {
   const storageKey = "fleetcore-dashboard-folders";
+  const [activeFolderId, setActiveFolderId] = useState<string | undefined>();
+  const [folderNote, setFolderNote] = useState("");
+  const [folderBusy, setFolderBusy] = useState(false);
+  const [folderMessage, setFolderMessage] = useState("");
   const [folders, setFolders] = useState<DashboardFolder[]>(() => {
     if (typeof window === "undefined") return defaultDashboardFolders();
     try {
@@ -5102,11 +5134,12 @@ function DashboardFolders() {
       if (!stored) return defaultDashboardFolders();
       const parsed = JSON.parse(stored) as DashboardFolder[];
       if (!Array.isArray(parsed)) return defaultDashboardFolders();
-      return parsed.filter((folder) => !isLegacyDashboardFolder(folder));
+      return parsed.filter((folder) => !isLegacyDashboardFolder(folder)).map(normalizeDashboardFolder);
     } catch {
       return defaultDashboardFolders();
     }
   });
+  const activeFolder = folders.find((folder) => folder.id === activeFolderId);
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(folders));
@@ -5118,21 +5151,169 @@ function DashboardFolders() {
     setFolders((current) => [...current, createDashboardFolder(nextIndex, requestedName || `Папка ${nextIndex}`)]);
   }
 
+  function updateFolder(folderId: string, updater: (folder: DashboardFolder) => DashboardFolder) {
+    setFolders((current) => current.map((folder) => folder.id === folderId ? normalizeDashboardFolder(updater(normalizeDashboardFolder(folder))) : folder));
+  }
+
+  function addFolderNote() {
+    const text = folderNote.trim();
+    if (!activeFolder || !text) return;
+    updateFolder(activeFolder.id, (folder) => ({
+      ...folder,
+      notes: [
+        ...(folder.notes ?? []),
+        {
+          createdAt: new Date().toISOString(),
+          id: `note_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+          text,
+        },
+      ],
+    }));
+    setFolderNote("");
+    setFolderMessage("Заметка добавлена");
+  }
+
+  function removeFolderNote(folderId: string, noteId: string) {
+    updateFolder(folderId, (folder) => ({
+      ...folder,
+      notes: (folder.notes ?? []).filter((note) => note.id !== noteId),
+    }));
+  }
+
+  function removeFolderFile(folderId: string, fileId: string) {
+    updateFolder(folderId, (folder) => ({
+      ...folder,
+      files: (folder.files ?? []).filter((file) => file.id !== fileId),
+    }));
+  }
+
+  async function uploadFolderFiles(folder: DashboardFolder, files: FileList | null) {
+    if (!files?.length) return;
+    if (!token) {
+      setFolderMessage("Сначала войдите в аккаунт, чтобы загружать файлы.");
+      return;
+    }
+
+    setFolderBusy(true);
+    setFolderMessage("Загружаем файлы...");
+    try {
+      const uploaded = await Promise.all(Array.from(files).map(async (file) => {
+        const response = await api<FileObject>("/uploads", {
+          body: JSON.stringify({
+            base64: await fileToBase64(file),
+            mimeType: file.type || "application/octet-stream",
+            originalName: file.name,
+          }),
+          method: "POST",
+        }, token);
+        return response.data;
+      }));
+      updateFolder(folder.id, (current) => ({
+        ...current,
+        files: [
+          ...(current.files ?? []),
+          ...uploaded.map<DashboardFolderFile>((file) => ({
+            addedAt: new Date().toISOString(),
+            fileUrl: file.publicUrl,
+            id: file.id,
+            mimeType: file.mimeType,
+            name: file.originalName,
+            sizeBytes: file.sizeBytes,
+          })),
+        ],
+      }));
+      setFolderMessage(`Файлы добавлены: ${uploaded.length}`);
+    } catch (error) {
+      setFolderMessage(error instanceof Error ? error.message : "Не удалось загрузить файлы");
+    } finally {
+      setFolderBusy(false);
+    }
+  }
+
   return (
     <section className="dashboard-folder-board" data-testid="dashboard-folder-board" aria-label="Dashboard folders">
       <div className="dashboard-folder-grid">
         {folders.map((folder) => (
-          <article className="dashboard-folder-card" key={folder.id}>
+          <button className="dashboard-folder-card" key={folder.id} onClick={() => {
+            setActiveFolderId(folder.id);
+            setFolderMessage("");
+          }} type="button">
             <span className="folder-icon" aria-hidden="true" />
             <strong>{folder.name}</strong>
-            <small>{new Date(folder.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" })}</small>
-          </article>
+            <small>{(folder.files ?? []).length} файлов · {(folder.notes ?? []).length} заметок</small>
+          </button>
         ))}
         <button className="dashboard-folder-add" onClick={addFolder} type="button">
           <span>+</span>
           <strong>Добавить папку</strong>
         </button>
       </div>
+
+      {activeFolder ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="folder-detail-modal" role="dialog" aria-modal="true" aria-label={`Папка ${activeFolder.name}`}>
+            <header>
+              <div>
+                <span className="eyebrow">Папка</span>
+                <h3>{activeFolder.name}</h3>
+                <p>{new Date(activeFolder.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })}</p>
+              </div>
+              <button className="icon-button" onClick={() => setActiveFolderId(undefined)} type="button" aria-label="Закрыть">×</button>
+            </header>
+
+            <div className="folder-drop-zone">
+              <input
+                disabled={folderBusy}
+                multiple
+                onChange={(event) => void uploadFolderFiles(activeFolder, event.currentTarget.files)}
+                type="file"
+              />
+              <strong>Добавить файлы</strong>
+              <small>PDF, фото, договоры, таблицы, документы клиента или любые рабочие файлы.</small>
+            </div>
+
+            <div className="folder-note-form">
+              <textarea
+                onChange={(event) => setFolderNote(event.target.value)}
+                placeholder="Добавить заметку, ссылку, инструкцию или внутреннюю информацию..."
+                value={folderNote}
+              />
+              <button className="primary-button" disabled={!folderNote.trim()} onClick={addFolderNote} type="button">Добавить данные</button>
+            </div>
+
+            {folderMessage ? <p className="folder-message">{folderMessage}</p> : null}
+
+            <div className="folder-content-grid">
+              <section>
+                <h4>Файлы</h4>
+                {(activeFolder.files ?? []).length ? (activeFolder.files ?? []).map((file) => (
+                  <article className="folder-content-row" key={file.id}>
+                    <div>
+                      <strong>{file.name}</strong>
+                      <small>{formatBytes(file.sizeBytes)} · {file.mimeType}</small>
+                    </div>
+                    <a className="ghost-button" href={file.fileUrl} rel="noreferrer" target="_blank">Открыть</a>
+                    <button className="ghost-button" onClick={() => removeFolderFile(activeFolder.id, file.id)} type="button">Убрать</button>
+                  </article>
+                )) : <p className="folder-empty">Файлов пока нет.</p>}
+              </section>
+
+              <section>
+                <h4>Данные и заметки</h4>
+                {(activeFolder.notes ?? []).length ? (activeFolder.notes ?? []).map((note) => (
+                  <article className="folder-note-row" key={note.id}>
+                    <p>{note.text}</p>
+                    <div>
+                      <small>{new Date(note.createdAt).toLocaleString("ru-RU")}</small>
+                      <button className="ghost-button" onClick={() => removeFolderNote(activeFolder.id, note.id)} type="button">Удалить</button>
+                    </div>
+                  </article>
+                )) : <p className="folder-empty">Добавьте первую заметку или ссылку.</p>}
+              </section>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -5145,6 +5326,7 @@ function TodayOperationsDashboard({
   onSelectVehicle,
   rentals,
   selectedVehicleId,
+  token,
   vehicles,
 }: {
   cards: readonly (readonly [string, string | number, string])[];
@@ -5154,6 +5336,7 @@ function TodayOperationsDashboard({
   onSelectVehicle: (id: string) => void;
   rentals: Rental[];
   selectedVehicleId: string | undefined;
+  token: string | undefined;
   vehicles: Vehicle[];
 }) {
   return (
@@ -5179,7 +5362,7 @@ function TodayOperationsDashboard({
         ))}
       </div>
 
-      <DashboardFolders />
+      <DashboardFolders token={token} />
     </section>
   );
 }

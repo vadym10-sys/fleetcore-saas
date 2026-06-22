@@ -3992,6 +3992,8 @@ h3 {
   position: relative;
   border: 1px solid rgba(221, 227, 236, 0.9);
   padding: 18px 14px;
+  cursor: pointer;
+  font: inherit;
 }
 
 .dashboard-folder-card .folder-icon {
@@ -4048,6 +4050,161 @@ h3 {
 .dashboard-folder-add:hover {
   border-color: rgba(35, 70, 216, 0.42);
   background: rgba(35, 70, 216, 0.06);
+}
+
+.folder-detail-modal {
+  width: min(980px, calc(100vw - 28px));
+  max-height: min(760px, calc(100vh - 32px));
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(221, 227, 236, 0.88);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.26);
+}
+
+.folder-detail-modal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.folder-detail-modal h3,
+.folder-detail-modal p,
+.folder-detail-modal h4 {
+  margin: 0;
+}
+
+.folder-detail-modal h3 {
+  color: var(--ink);
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.folder-detail-modal header p,
+.folder-empty,
+.folder-message {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.folder-drop-zone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 138px;
+  padding: 18px;
+  border: 1px dashed rgba(35, 70, 216, 0.35);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(35, 70, 216, 0.08), rgba(15, 159, 110, 0.05)),
+    #fff;
+  text-align: center;
+}
+
+.folder-drop-zone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.folder-drop-zone strong {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.folder-drop-zone small {
+  max-width: 520px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.folder-note-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.folder-note-form textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.folder-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.folder-content-grid section {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(221, 227, 236, 0.88);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.folder-content-grid h4 {
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.folder-content-row,
+.folder-note-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(221, 227, 236, 0.9);
+  border-radius: 8px;
+  background: white;
+}
+
+.folder-content-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.folder-content-row strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-content-row small,
+.folder-note-row small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.folder-note-row p {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.folder-note-row > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .rental-details-layout {
@@ -9475,5 +9632,24 @@ h3 {
   .rental-workflow-footer .ghost-button {
     width: 100%;
     min-height: 50px;
+  }
+
+  .folder-detail-modal {
+    width: calc(100vw - 16px);
+    max-height: 92dvh;
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .folder-note-form,
+  .folder-content-grid,
+  .folder-content-row {
+    grid-template-columns: 1fr;
+  }
+
+  .folder-content-row .ghost-button,
+  .folder-note-form .primary-button {
+    width: 100%;
+    min-height: 48px;
   }
 }
