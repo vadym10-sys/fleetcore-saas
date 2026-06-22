@@ -6101,6 +6101,7 @@ function RentalWorkflow({
   const [customerFiles, setCustomerFiles] = useState<FileList | null>(null);
   const [returnFiles, setReturnFiles] = useState<FileList | null>(null);
   const [savedRentalId, setSavedRentalId] = useState(draft.selectedRentalId);
+  const [sendPanelOpen, setSendPanelOpen] = useState(Boolean(draft.selectedRentalId));
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(draft));
@@ -6113,6 +6114,8 @@ function RentalWorkflow({
   const days = Math.max(1, Math.ceil((new Date(draft.returnAt).getTime() - new Date(draft.pickupAt).getTime()) / (24 * 60 * 60 * 1000)) || 1);
   const totalPreview = Number(draft.rentalAmount || 0);
   const depositPreview = Number(draft.depositAmount || 0);
+  const canSaveRental = Boolean(draft.clientName.trim() && draft.clientPhone.trim() && draft.selectedVehicleId);
+  const canSendRental = Boolean(savedRentalId || draft.selectedRentalId);
 
   function patch(key: keyof RentalWorkflowDraft, value: string) {
     setDraft((current) => normalizeRentalWorkflowDates({ ...current, [key]: value }));
@@ -6154,11 +6157,21 @@ function RentalWorkflow({
     }
   }
 
+  async function saveAndPrepareSend() {
+    const rental = await onSave(draft, customerFiles);
+    if (rental) {
+      setSavedRentalId(rental.id);
+      setSendPanelOpen(true);
+      setDraft((current) => ({ ...current, selectedRentalId: rental.id, selectedVehicleId: rental.vehicleId }));
+    }
+  }
+
   async function send(channel: "email" | "telegram" | "whatsapp") {
     const nextDraft = savedRentalId ? { ...draft, selectedRentalId: savedRentalId } : draft;
     const rental = await onSend(channel, nextDraft);
     if (rental) {
       setSavedRentalId(rental.id);
+      setSendPanelOpen(true);
       setDraft((current) => ({ ...current, selectedRentalId: rental.id, selectedVehicleId: rental.vehicleId }));
     }
   }
@@ -6189,6 +6202,17 @@ function RentalWorkflow({
             <span className={index < (savedRentalId ? 2 : 1) ? "active" : ""} key={step}>{index + 1}. {step}</span>
           ))}
         </div>
+
+        <section className="rental-workflow-promo" aria-label="Быстрая сборка аренды">
+          <div>
+            <span className="eyebrow">One-click rental assembly</span>
+            <h3>Соберите аренду и подготовьте ссылку клиенту одним действием</h3>
+            <p>FleetCore создаст клиента, аренду, счет, оплату по статусу и подготовит отправку в WhatsApp, Telegram или email.</p>
+          </div>
+          <button className="primary-button" disabled={busy || !canSaveRental} onClick={() => void saveAndPrepareSend()} type="button">
+            Собрать аренду
+          </button>
+        </section>
 
         <div className="rental-workflow-summary" aria-label="Rental workflow summary">
           <article>
@@ -6342,12 +6366,12 @@ function RentalWorkflow({
             <label>Сумма внесенной оплаты<input inputMode="decimal" value={draft.paymentAmount} onChange={(event) => patch("paymentAmount", event.target.value)} /></label>
           </section>
 
-          <section className="workflow-block workflow-send-block">
+          <section className={`workflow-block workflow-send-block ${sendPanelOpen ? "ready" : ""}`}>
             <div className="workflow-block-title">
               <span>•</span>
               <div>
-                <h3>Подтверждение клиенту</h3>
-                <p>Отправьте клиенту ссылку после сохранения аренды.</p>
+                <h3>Отправить клиенту</h3>
+                <p>{canSendRental ? "Ссылка готова. Выберите канал отправки." : "Сначала сохраните аренду, затем отправьте подтверждение клиенту."}</p>
               </div>
             </div>
             <div className="workflow-confirmation-card">
@@ -6357,9 +6381,9 @@ function RentalWorkflow({
               <span>{draft.paymentMethod} · {draft.paymentStatus}</span>
             </div>
             <div className="workflow-send-actions">
-              <button className="ghost-button" disabled={busy || !savedRentalId} onClick={() => void send("whatsapp")} type="button">WhatsApp</button>
-              <button className="ghost-button" disabled={busy || !savedRentalId} onClick={() => void send("telegram")} type="button">Telegram</button>
-              <button className="ghost-button" disabled={busy || !savedRentalId} onClick={() => void send("email")} type="button">Email</button>
+              <button className="ghost-button" disabled={busy || !canSendRental} onClick={() => void send("whatsapp")} type="button">WhatsApp</button>
+              <button className="ghost-button" disabled={busy || !canSendRental} onClick={() => void send("telegram")} type="button">Telegram</button>
+              <button className="ghost-button" disabled={busy || !canSendRental} onClick={() => void send("email")} type="button">Email</button>
             </div>
           </section>
 
@@ -6392,7 +6416,10 @@ function RentalWorkflow({
               <strong>{savedRentalId ? "Аренда сохранена" : "Черновик автосохранён"}</strong>
               <span>{savedRentalId || "Заполните блоки и нажмите сохранить."}</span>
             </div>
-            <button className="primary-button" disabled={busy} type="submit">Сохранить аренду</button>
+            <div className="rental-workflow-footer-actions">
+              <button className="ghost-button" disabled={busy || !canSaveRental} onClick={() => void saveAndPrepareSend()} type="button">Сохранить и подготовить отправку</button>
+              <button className="primary-button" disabled={busy || !canSaveRental} type="submit">Сохранить аренду</button>
+            </div>
           </div>
         </form>
       </section>

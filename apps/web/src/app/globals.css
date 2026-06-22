@@ -9085,6 +9085,46 @@ h3 {
   background: rgba(15, 159, 110, 0.08);
 }
 
+.rental-workflow-promo {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin: 14px 18px 0;
+  border: 1px solid rgba(35, 70, 216, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(35, 70, 216, 0.12), rgba(15, 159, 110, 0.08)),
+    #ffffff;
+  padding: 16px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+.rental-workflow-promo h3,
+.rental-workflow-promo p {
+  margin: 0;
+}
+
+.rental-workflow-promo h3 {
+  color: #0f172a;
+  font-size: 22px;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.rental-workflow-promo p {
+  max-width: 760px;
+  margin-top: 6px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.rental-workflow-promo .primary-button {
+  min-width: 190px;
+}
+
 .rental-workflow-result {
   display: flex;
   justify-content: space-between;
@@ -9267,6 +9307,11 @@ h3 {
   gap: 8px;
 }
 
+.workflow-send-block.ready {
+  border-color: rgba(15, 159, 110, 0.3);
+  background: linear-gradient(180deg, rgba(15, 159, 110, 0.08), #ffffff 42%);
+}
+
 .rental-workflow-footer {
   position: sticky;
   bottom: 0;
@@ -9290,6 +9335,12 @@ h3 {
 .rental-workflow-footer span {
   color: #64748b;
   font-weight: 750;
+}
+
+.rental-workflow-footer-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }
 
 @media (max-width: 860px) {
@@ -9327,6 +9378,22 @@ h3 {
     padding: 12px 12px 4px;
   }
 
+  .rental-workflow-promo {
+    align-items: stretch;
+    flex-direction: column;
+    margin: 12px 12px 0;
+    padding: 14px;
+  }
+
+  .rental-workflow-promo h3 {
+    font-size: 19px;
+  }
+
+  .rental-workflow-promo .primary-button {
+    width: 100%;
+    min-height: 50px;
+  }
+
   .rental-workflow-result {
     align-items: stretch;
     flex-direction: column;
@@ -9353,7 +9420,13 @@ h3 {
     flex-direction: column;
   }
 
-  .rental-workflow-footer .primary-button {
+  .rental-workflow-footer-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .rental-workflow-footer .primary-button,
+  .rental-workflow-footer .ghost-button {
     width: 100%;
     min-height: 50px;
   }
