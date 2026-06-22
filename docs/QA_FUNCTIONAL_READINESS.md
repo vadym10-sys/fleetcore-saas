@@ -11,7 +11,7 @@ Scope: Web app, API, database-backed endpoints, auth, rentals, documents, upload
 | `pnpm --filter @fleetcore/web test` | Pass, 5/5 |
 | `pnpm --filter @fleetcore/web build` | Pass |
 | `pnpm --filter @fleetcore/api build` | Pass |
-| `pnpm --filter @fleetcore/api test` | Pass, 24/24 |
+| `pnpm --filter @fleetcore/api test` | Pass, 25/25 |
 | `pnpm exec playwright test` | Pass, 6 passed / 6 expected skipped |
 
 ## Scores
@@ -20,10 +20,10 @@ Scope: Web app, API, database-backed endpoints, auth, rentals, documents, upload
 | --- | ---: | --- | --- |
 | Authentication | 8/10 | Strong | Login, demo, registration, refresh, logout, email verification and password reset are covered by API tests. Needs real email provider verification in production. |
 | Multi-tenant data isolation | 8/10 | Strong | API rejects unauthenticated tenant fallback and registration creates isolated tenant data. Needs broader cross-tenant negative tests for every module. |
-| Backend API | 8/10 | Strong | Core endpoints for fleet, rentals, finance, GPS, uploads, documents and operations pass integration tests. Needs API contract docs/OpenAPI and rate limits. |
+| Backend API | 8.5/10 | Strong | Core endpoints for fleet, rentals, finance, GPS, uploads, documents, operations, billing, delivery, compliance export and status pass integration tests. Needs API contract docs/OpenAPI and rate limits. |
 | Database integrity | 8/10 | Strong | Rental overlap, invalid dates, overpayments, return settlement rules and dashboard folder ownership are tested. Needs migration rollback checks and broader cross-tenant negative tests. |
 | Rental flow | 8/10 | Strong | E2E creates a rental, enables send actions, closes return and finds rental in global search. Needs more edge cases: partial payment, damage on return, deposit refund. |
-| Documents and uploads | 8/10 | Strong | Uploads are stored and served by API; contracts, public signing and PostgreSQL-backed dashboard folders are tested. Needs larger-file production QA and object storage provider hardening. |
+| Documents and uploads | 8.5/10 | Strong | Uploads are stored and served by API; contracts, public signing, compliance export and PostgreSQL-backed dashboard folders are tested. Needs larger-file production QA and object storage provider hardening. |
 | Dashboard folders | 9/10 | Strong | Users can create folders, attach uploaded files, add/remove notes and delete folder content through tenant-scoped API. Needs Playwright coverage for real file upload/open in production before 10/10. |
 | Frontend buttons/forms | 8/10 | Strong | Static tests reject inert buttons/forms; E2E covers primary create actions and section navigation. Needs broader per-section CRUD E2E. |
 | Mobile UX | 7/10 | Good | Mobile demo login and drawer navigation pass. Needs full mobile CRUD coverage for rental, files and forms. |
@@ -33,14 +33,16 @@ Scope: Web app, API, database-backed endpoints, auth, rentals, documents, upload
 | Calendly | 6/10 | Partial | UI uses Calendly and old calendar is removed. Needs real webhook/API sync from Calendly reservations into rentals. |
 | Design system consistency | 7/10 | Good | Buttons, cards, modals and mobile shell are mostly consistent. Needs component extraction from monolithic dashboard file. |
 | Performance | 6/10 | Needs work | Web build is healthy, first load JS is acceptable for MVP. Needs lazy loading, bundle analysis and dashboard component split. |
-| Monitoring/observability | 5/10 | Weak | API logs exist. Needs frontend error tracking, production alerting, uptime checks and deploy health gates. |
+| Monitoring/observability | 6/10 | Improving | API logs exist and `/status` exposes database, migration, storage and commercial integration readiness. Needs frontend error tracking, production alerting, uptime checks and deploy health gates. |
+| Billing/subscription | 6.5/10 | Improving | Subscription model, checkout session API, sync endpoint and Settings UI are wired. Needs real Stripe keys, signed Stripe webhook and automated monthly billing production QA. |
+| Delivery channels | 6.5/10 | Improving | WhatsApp, Telegram and email delivery attempts are recorded in database and audit log. Needs real provider API calls, retries and provider webhook status updates. |
 | CI/CD release safety | 8/10 | Strong | GitHub Actions QA gate now runs PostgreSQL migrations, lint, web/API tests, builds and Playwright before automatic Render deploy. Needs required branch protection and production smoke verification after deploy. |
 
 ## Overall Score
 
-FleetCore functional readiness: **7.6/10**.
+FleetCore functional readiness: **7.9/10**.
 
-The product is usable as an MVP demo and early pilot SaaS. The biggest gap is not button wiring anymore; it is production provider integrations, automated release gates, monitoring and broader cross-module E2E coverage.
+The product is usable as an MVP demo and early pilot SaaS. The biggest gap is not button wiring anymore; it is real production provider integrations, monitoring, signed webhooks, object storage hardening and broader cross-module E2E coverage.
 
 ## Highest Priority Weak Points
 
@@ -89,6 +91,10 @@ The product is usable as an MVP demo and early pilot SaaS. The biggest gap is no
 - Customer create API.
 - Upload storage and file serving.
 - PostgreSQL-backed dashboard folders with files and notes.
+- Billing subscription status and checkout preparation.
+- Delivery message audit for WhatsApp, Telegram and email actions.
+- Compliance export for owner accounts.
+- Public `/status` endpoint for production readiness checks.
 - Rental validation and return settlement guards.
 - Contracts, public signing and contract events.
 - Payments and overpayment prevention.

@@ -382,6 +382,87 @@ test("owner can update company branding and billing profile", async () => {
   assert.equal(updated.json().data.logoUrl, "https://example.com/logo.png");
 });
 
+test("commercial readiness APIs expose billing, delivery and compliance controls", async () => {
+  const status = await app.inject({
+    method: "GET",
+    url: "/status",
+  });
+  assert.equal(status.statusCode, 200);
+  assert.equal(status.json().data.ok, true);
+  assert.equal(status.json().data.checks.database, "ok");
+  assert.equal(typeof status.json().data.commercialReadiness.billingConfigured, "boolean");
+
+  const subscription = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/billing/subscription",
+  });
+  assert.equal(subscription.statusCode, 200);
+  assert.equal(["manual", "stripe"].includes(subscription.json().data.provider), true);
+  assert.equal(["starter", "growth", "enterprise"].includes(subscription.json().data.plan), true);
+
+  const checkout = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: { plan: "growth" },
+    url: "/billing/checkout",
+  });
+  assert.equal(checkout.statusCode, 200);
+  assert.equal(["manual", "stripe"].includes(checkout.json().data.mode), true);
+
+  const synced = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      currentPeriodStart: new Date().toISOString(),
+      externalCustomerId: "cus_test_fleetcore",
+      externalSubscriptionId: "sub_test_fleetcore",
+      plan: "growth",
+      provider: "stripe",
+      status: "active",
+    },
+    url: "/billing/subscription/sync",
+  });
+  assert.equal(synced.statusCode, 200);
+  assert.equal(synced.json().data.provider, "stripe");
+  assert.equal(synced.json().data.status, "active");
+
+  const delivery = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      body: "FleetCore rental confirmation",
+      channel: "email",
+      entityType: "system",
+      recipient: "client@example.com",
+      subject: "Rental confirmation",
+    },
+    url: "/delivery/messages",
+  });
+  assert.equal(delivery.statusCode, 201);
+  assert.equal(delivery.json().data.channel, "email");
+  assert.equal(["queued", "sent"].includes(delivery.json().data.status), true);
+
+  const deliveryList = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/delivery/messages",
+  });
+  assert.equal(deliveryList.statusCode, 200);
+  assert.ok(deliveryList.json().data.some((item: { id: string }) => item.id === delivery.json().data.id));
+
+  const compliance = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "GET",
+    url: "/compliance/export",
+  });
+  assert.equal(compliance.statusCode, 200);
+  assert.equal(compliance.json().data.company.id, "company_atlas");
+  assert.ok(Array.isArray(compliance.json().data.auditLogs));
+  assert.ok(Array.isArray(compliance.json().data.vehicles));
+});
+
 test("authenticated API can create an invoice payment", async () => {
   const customers = await app.inject({
     headers: { authorization: `Bearer ${token}` },

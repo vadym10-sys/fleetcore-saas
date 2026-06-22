@@ -268,3 +268,27 @@ export const dashboardFolderNoteInput = z.object({
 export const aiSearchInput = z.object({
   query: z.string().trim().min(2).max(500),
 });
+
+export const subscriptionCheckoutInput = z.object({
+  plan: z.enum(["starter", "growth", "enterprise"]),
+});
+
+export const subscriptionSyncInput = z.object({
+  cancelAt: z.string().datetime().nullable().optional(),
+  currentPeriodEnd: z.string().datetime().nullable().optional(),
+  currentPeriodStart: z.string().datetime().nullable().optional(),
+  externalCustomerId: z.string().trim().min(1).max(255).optional(),
+  externalSubscriptionId: z.string().trim().min(1).max(255).optional(),
+  plan: z.enum(["starter", "growth", "enterprise"]).optional(),
+  provider: z.enum(["manual", "stripe"]).default("stripe"),
+  status: z.enum(["trialing", "active", "past_due", "canceled", "incomplete"]),
+});
+
+export const deliveryMessageInput = z.object({
+  body: z.string().trim().min(1).max(4000),
+  channel: z.enum(["email", "telegram", "whatsapp"]),
+  entityId: z.string().trim().min(1).max(120).optional(),
+  entityType: z.enum(["rental", "contract", "client_intake", "system"]).default("system"),
+  recipient: z.string().trim().min(3).max(320),
+  subject: z.string().trim().min(1).max(180).optional(),
+});

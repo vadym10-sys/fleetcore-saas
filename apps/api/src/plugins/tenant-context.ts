@@ -6,6 +6,7 @@ import { verifyAccessToken } from "../lib/auth.js";
 const publicRoutes = new Set([
   "/health",
   "/readiness",
+  "/status",
   "/version",
   "/auth/demo",
   "/auth/login",

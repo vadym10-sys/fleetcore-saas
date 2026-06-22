@@ -1,4 +1,4 @@
-import type { Company, Customer, CustomerDocument, DashboardFolder, DashboardFolderFile, DashboardFolderNote, DashboardMetrics, Expense, FileObject, FleetDocument, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { BillingCheckoutSession, Company, ComplianceExport, Customer, CustomerDocument, DashboardFolder, DashboardFolderFile, DashboardFolderNote, DeliveryMessage, DashboardMetrics, Expense, FileObject, FleetDocument, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, RentalFlowStep, ServiceRecord, Subscription, User, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { createHash } from "node:crypto";
 import type { TenantScope } from "../lib/access-control.js";
 import { pool } from "./client.js";
@@ -13,6 +13,7 @@ import type {
   dashboardFolderInput,
   dashboardFolderNoteInput,
   dashboardFolderPatchInput,
+  deliveryMessageInput,
   expenseInput,
   fileUploadInput,
   gpsDeviceInput,
@@ -27,6 +28,8 @@ import type {
   rentalPatchInput,
   profileUpdateInput,
   serviceRecordInput,
+  subscriptionCheckoutInput,
+  subscriptionSyncInput,
   teamMemberInput,
   vehicleDocumentInput,
   vehicleInput,
@@ -57,8 +60,11 @@ type DashboardFolderInput = z.infer<typeof dashboardFolderInput>;
 type DashboardFolderPatchInput = z.infer<typeof dashboardFolderPatchInput>;
 type DashboardFolderFileInput = z.infer<typeof dashboardFolderFileInput>;
 type DashboardFolderNoteInput = z.infer<typeof dashboardFolderNoteInput>;
+type DeliveryMessageInput = z.infer<typeof deliveryMessageInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
 type FileUploadInput = z.infer<typeof fileUploadInput>;
+type SubscriptionCheckoutInput = z.infer<typeof subscriptionCheckoutInput>;
+type SubscriptionSyncInput = z.infer<typeof subscriptionSyncInput>;
 type TeamMemberInput = z.infer<typeof teamMemberInput>;
 
 export class PaymentValidationError extends Error {
@@ -281,6 +287,184 @@ export async function listAuditLogs(scope: TenantScope, limit = 100) {
     metadata: row.metadata as Record<string, unknown>,
     userAgent: row.user_agent ? String(row.user_agent) : undefined,
   }));
+}
+
+function mapSubscription(row: Record<string, unknown>): Subscription {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    provider: String(row.provider) as Subscription["provider"],
+    plan: String(row.plan) as Subscription["plan"],
+    status: String(row.status) as Subscription["status"],
+    ...(row.external_customer_id ? { externalCustomerId: String(row.external_customer_id) } : {}),
+    ...(row.external_subscription_id ? { externalSubscriptionId: String(row.external_subscription_id) } : {}),
+    ...(row.current_period_start ? { currentPeriodStart: row.current_period_start instanceof Date ? row.current_period_start.toISOString() : String(row.current_period_start) } : {}),
+    ...(row.current_period_end ? { currentPeriodEnd: row.current_period_end instanceof Date ? row.current_period_end.toISOString() : String(row.current_period_end) } : {}),
+    ...(row.cancel_at ? { cancelAt: row.cancel_at instanceof Date ? row.cancel_at.toISOString() : String(row.cancel_at) } : {}),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  };
+}
+
+function mapDeliveryMessage(row: Record<string, unknown>): DeliveryMessage {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    companyId: String(row.company_id),
+    channel: String(row.channel) as DeliveryMessage["channel"],
+    recipient: String(row.recipient),
+    ...(row.subject ? { subject: String(row.subject) } : {}),
+    entityType: String(row.entity_type) as DeliveryMessage["entityType"],
+    ...(row.entity_id ? { entityId: String(row.entity_id) } : {}),
+    status: String(row.status) as DeliveryMessage["status"],
+    ...(row.error ? { error: String(row.error) } : {}),
+    ...(row.sent_at ? { sentAt: row.sent_at instanceof Date ? row.sent_at.toISOString() : String(row.sent_at) } : {}),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  };
+}
+
+export async function getSubscription(scope: TenantScope): Promise<Subscription> {
+  const existing = await pool.query(
+    "select * from subscriptions where tenant_id = $1 and company_id = $2 limit 1",
+    [scope.tenantId, scope.companyId],
+  );
+  if (existing.rows[0]) return mapSubscription(existing.rows[0]);
+
+  const company = await getCompany(scope, scope.companyId);
+  const result = await pool.query(
+    `insert into subscriptions (id, tenant_id, company_id, provider, plan, status, current_period_start, current_period_end)
+     values ($1, $2, $3, 'manual', $4, 'trialing', now(), now() + interval '14 days')
+     on conflict (tenant_id, company_id) do update set updated_at = now()
+     returning *`,
+    [createId("sub"), scope.tenantId, scope.companyId, company?.plan ?? "starter"],
+  );
+  return mapSubscription(result.rows[0]);
+}
+
+export async function createBillingCheckoutSession(scope: TenantScope, input: SubscriptionCheckoutInput): Promise<BillingCheckoutSession> {
+  const subscription = await getSubscription(scope);
+  const stripePriceId = process.env[`STRIPE_PRICE_${input.plan.toUpperCase()}`];
+  const appUrl = process.env.WEB_ORIGIN ?? "https://fleetcore-web.onrender.com";
+
+  if (!process.env.STRIPE_SECRET_KEY || !stripePriceId) {
+    return {
+      mode: "manual",
+      message: "Stripe is not configured yet. Add STRIPE_SECRET_KEY and STRIPE_PRICE_* to enable paid checkout.",
+      subscription,
+    };
+  }
+
+  const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    body: new URLSearchParams({
+      "line_items[0][price]": stripePriceId,
+      "line_items[0][quantity]": "1",
+      mode: "subscription",
+      success_url: `${appUrl}?billing=success`,
+      cancel_url: `${appUrl}?billing=cancelled`,
+      client_reference_id: scope.companyId,
+      "metadata[tenant_id]": scope.tenantId,
+      "metadata[company_id]": scope.companyId,
+    }),
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Stripe checkout failed: ${errorBody}`);
+  }
+
+  const session = await response.json() as { url?: string };
+  return {
+    ...(session.url ? { checkoutUrl: session.url } : {}),
+    mode: "stripe",
+    message: "Stripe checkout session created.",
+    subscription,
+  };
+}
+
+export async function syncSubscription(scope: TenantScope, input: SubscriptionSyncInput): Promise<Subscription> {
+  const current = await getSubscription(scope);
+  const result = await pool.query(
+    `insert into subscriptions (
+      id, tenant_id, company_id, provider, plan, status, external_customer_id, external_subscription_id,
+      current_period_start, current_period_end, cancel_at
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    on conflict (tenant_id, company_id)
+    do update set
+      provider = excluded.provider,
+      plan = excluded.plan,
+      status = excluded.status,
+      external_customer_id = coalesce(excluded.external_customer_id, subscriptions.external_customer_id),
+      external_subscription_id = coalesce(excluded.external_subscription_id, subscriptions.external_subscription_id),
+      current_period_start = excluded.current_period_start,
+      current_period_end = excluded.current_period_end,
+      cancel_at = excluded.cancel_at,
+      updated_at = now()
+    returning *`,
+    [
+      current.id,
+      scope.tenantId,
+      scope.companyId,
+      input.provider,
+      input.plan ?? current.plan,
+      input.status,
+      input.externalCustomerId ?? null,
+      input.externalSubscriptionId ?? null,
+      input.currentPeriodStart ?? null,
+      input.currentPeriodEnd ?? null,
+      input.cancelAt ?? null,
+    ],
+  );
+  return mapSubscription(result.rows[0]);
+}
+
+function providerConfigured(channel: DeliveryMessageInput["channel"]) {
+  if (channel === "email") return Boolean(process.env.RESEND_API_KEY || process.env.SMTP_URL);
+  if (channel === "telegram") return Boolean(process.env.TELEGRAM_BOT_TOKEN);
+  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+}
+
+export async function createDeliveryMessage(scope: TenantScope, input: DeliveryMessageInput, userId?: string): Promise<DeliveryMessage> {
+  const configured = providerConfigured(input.channel);
+  const status: DeliveryMessage["status"] = configured ? "sent" : "queued";
+  const result = await pool.query(
+    `insert into delivery_messages (
+      id, tenant_id, company_id, user_id, channel, recipient, subject, body, entity_type, entity_id, status, sent_at
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, case when $11 = 'sent' then now() else null end)
+    returning *`,
+    [
+      createId("msg"),
+      scope.tenantId,
+      scope.companyId,
+      userId ?? null,
+      input.channel,
+      input.recipient,
+      input.subject ?? null,
+      input.body,
+      input.entityType,
+      input.entityId ?? null,
+      status,
+    ],
+  );
+  return mapDeliveryMessage(result.rows[0]);
+}
+
+export async function listDeliveryMessages(scope: TenantScope, entityId?: string): Promise<DeliveryMessage[]> {
+  const result = await pool.query(
+    `select *
+     from delivery_messages
+     where tenant_id = $1 and company_id = $2 and ($3::text is null or entity_id = $3)
+     order by created_at desc
+     limit 200`,
+    [scope.tenantId, scope.companyId, entityId ?? null],
+  );
+  return result.rows.map(mapDeliveryMessage);
 }
 
 export async function createFileObject(scope: TenantScope, input: FileUploadInput, publicUrlForId: (id: string, originalName: string) => string, uploadedByUserId?: string): Promise<FileObject> {
@@ -1532,6 +1716,56 @@ export async function listFleetDocuments(
     values,
   );
   return result.rows.map(mapFleetDocument);
+}
+
+export async function buildComplianceExport(
+  scope: TenantScope,
+  publicUrlForId: (id: string, originalName: string) => string,
+): Promise<ComplianceExport | undefined> {
+  const company = await getCompany(scope, scope.companyId);
+  if (!company) return undefined;
+
+  const [
+    auditLogs,
+    customers,
+    dashboardFolders,
+    documents,
+    files,
+    invoices,
+    payments,
+    rentals,
+    serviceRecords,
+    teamUsers,
+    vehicles,
+  ] = await Promise.all([
+    listAuditLogs(scope, 500),
+    listCustomers(scope),
+    listDashboardFolders(scope, publicUrlForId),
+    listFleetDocuments(scope),
+    listFileObjects(scope, publicUrlForId),
+    listInvoices(scope),
+    listPayments(scope),
+    listRentals(scope),
+    listServiceRecords(scope),
+    listTeamUsers(scope),
+    listVehicles(scope),
+  ]);
+
+  return {
+    auditLogs,
+    company,
+    customers,
+    dashboardFolders,
+    documents,
+    files,
+    generatedAt: new Date().toISOString(),
+    invoices,
+    payments,
+    rentals,
+    serviceRecords,
+    teamUsers,
+    vehicles,
+  };
 }
 
 export async function customerExists(scope: TenantScope, customerId: string) {

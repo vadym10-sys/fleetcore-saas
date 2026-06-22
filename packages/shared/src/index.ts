@@ -326,6 +326,74 @@ export interface DashboardFolder extends TenantScopedEntity {
   notes: DashboardFolderNote[];
 }
 
+export type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "incomplete";
+
+export interface Subscription extends TenantScopedEntity {
+  cancelAt?: string;
+  companyId: string;
+  currentPeriodEnd?: string;
+  currentPeriodStart?: string;
+  externalCustomerId?: string;
+  externalSubscriptionId?: string;
+  plan: Company["plan"];
+  provider: "manual" | "stripe";
+  status: SubscriptionStatus;
+}
+
+export interface BillingCheckoutSession {
+  checkoutUrl?: string;
+  mode: "manual" | "stripe";
+  message: string;
+  subscription: Subscription;
+}
+
+export type DeliveryChannel = "email" | "telegram" | "whatsapp";
+export type DeliveryStatus = "queued" | "sent" | "failed";
+
+export interface DeliveryMessage extends TenantScopedEntity {
+  channel: DeliveryChannel;
+  companyId: string;
+  entityId?: string;
+  entityType: "rental" | "contract" | "client_intake" | "system";
+  error?: string;
+  recipient: string;
+  sentAt?: string;
+  status: DeliveryStatus;
+  subject?: string;
+}
+
+export interface ComplianceExport {
+  auditLogs: Array<Record<string, unknown>>;
+  company: Company;
+  customers: Customer[];
+  dashboardFolders: DashboardFolder[];
+  documents: FleetDocument[];
+  files: FileObject[];
+  generatedAt: string;
+  invoices: Invoice[];
+  payments: Payment[];
+  rentals: Rental[];
+  serviceRecords: ServiceRecord[];
+  teamUsers: User[];
+  vehicles: Vehicle[];
+}
+
+export interface SystemStatus {
+  checks: {
+    database: "ok" | "error";
+    migrations: "ok" | "unknown";
+    storage: "database" | "s3";
+  };
+  commercialReadiness: {
+    billingConfigured: boolean;
+    emailConfigured: boolean;
+    objectStorageConfigured: boolean;
+    telegramConfigured: boolean;
+    whatsappConfigured: boolean;
+  };
+  ok: boolean;
+}
+
 export interface DashboardMetrics {
   activeRentals: number;
   availableVehicles: number;

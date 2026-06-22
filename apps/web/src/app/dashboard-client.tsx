@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
-import type { AuthSession, Company, Customer, CustomerDocument, DashboardFolder, DashboardMetrics, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
+import type { AuthSession, BillingCheckoutSession, Company, ComplianceExport, Customer, CustomerDocument, DashboardFolder, DashboardMetrics, DeliveryMessage, Expense, FileObject, GpsDevice, Invoice, Payment, Rental, RentalChecklist, RentalContract, RentalContractEvent, RentalFlow, ServiceRecord, Subscription, SystemStatus, User, UserRole, Vehicle, VehicleDocument } from "@fleetcore/shared";
 import { EmptyWorkspaceState, ListControlBar, type SavedView } from "../features/common/list-control-bar";
 import { RentalWorkbench } from "../features/rentals/rental-workbench";
 
@@ -1841,6 +1841,8 @@ export default function DashboardClient() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [busyAction, setBusyAction] = useState<string | undefined>();
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | undefined>();
+  const [subscription, setSubscription] = useState<Subscription | undefined>();
   const [operation, setOperation] = useState<OperationKind | undefined>();
   const [documentPreview, setDocumentPreview] = useState<DocumentPreview | undefined>();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -2072,6 +2074,7 @@ export default function DashboardClient() {
         taxId: company.data.taxId ?? "",
         tradingName: company.data.tradingName,
       });
+      await refreshCommercialStatus(currentToken);
       if (session && localStorage.getItem(`fleetcore-onboarding-open:${session.companyId}`) === "1") {
         setOnboardingOpen(true);
       }
@@ -2696,6 +2699,65 @@ export default function DashboardClient() {
     } finally {
       setBusyAction(undefined);
     }
+  }
+
+  async function refreshCommercialStatus(currentToken = token) {
+    const [statusResponse, subscriptionResponse] = await Promise.all([
+      api<SystemStatus>("/status", {}, currentToken),
+      session ? api<Subscription>("/billing/subscription", {}, currentToken) : Promise.resolve({ data: undefined as unknown as Subscription }),
+    ]);
+    setSystemStatus(statusResponse.data);
+    if (subscriptionResponse.data) {
+      setSubscription(subscriptionResponse.data);
+    }
+  }
+
+  async function startBillingCheckout() {
+    if (!session) {
+      setMessage("Сессия не найдена. Войдите в аккаунт еще раз.");
+      return;
+    }
+    await runAction("Готовим billing checkout...", async () => {
+      const response = await api<BillingCheckoutSession>("/billing/checkout", {
+        body: JSON.stringify({ plan: data.company?.plan ?? "growth" }),
+        method: "POST",
+      }, token);
+      setSubscription(response.data.subscription);
+      if (response.data.checkoutUrl) {
+        window.open(response.data.checkoutUrl, "_blank", "noreferrer");
+        setMessage("Stripe checkout открыт в новом окне");
+      } else {
+        setMessage(response.data.message);
+      }
+    });
+  }
+
+  async function exportComplianceData() {
+    await runAction("Готовим compliance export...", async () => {
+      const response = await api<ComplianceExport>("/compliance/export", {}, token);
+      const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `fleetcore-compliance-export-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setMessage("Compliance export скачан");
+    });
+  }
+
+  async function recordDeliveryMessage(input: {
+    body: string;
+    channel: "email" | "telegram" | "whatsapp";
+    entityId?: string;
+    entityType: "rental" | "contract" | "client_intake" | "system";
+    recipient: string;
+    subject?: string;
+  }) {
+    return api<DeliveryMessage>("/delivery/messages", {
+      body: JSON.stringify(input),
+      method: "POST",
+    }, token);
   }
 
   async function createVehicleRecord(overrides: Partial<typeof vehicleForm> = {}) {
@@ -3475,6 +3537,14 @@ export default function DashboardClient() {
         `Депозит: ${money.format(rental.depositAmount)}`,
         `Документ и подпись: ${contractUrl}`,
       ].join("\n");
+      await recordDeliveryMessage({
+        body: text,
+        channel,
+        entityId: rental.id,
+        entityType: "contract",
+        recipient: channel === "email" ? customer.email : customer.phone,
+        subject: "FleetCore rental confirmation",
+      });
       await loadData();
       if (channel === "whatsapp") {
         openWhatsApp(customer.phone, text);
@@ -3652,6 +3722,14 @@ export default function DashboardClient() {
         `Оплата: ${draft.paymentMethod}, статус ${draft.paymentStatus}`,
         `Документ: ${contractUrl}`,
       ].join("\n");
+      await recordDeliveryMessage({
+        body: text,
+        channel,
+        entityId: rental.id,
+        entityType: "rental",
+        recipient: channel === "email" ? (draft.clientEmail || customer.email) : (draft.clientWhatsApp || customer.phone),
+        subject: "FleetCore rental confirmation",
+      });
       await loadData();
       if (channel === "whatsapp") {
         openWhatsApp(draft.clientWhatsApp || customer.phone, text);
@@ -4732,9 +4810,10 @@ export default function DashboardClient() {
 
             <section className="table-panel settings-panel">
               <h2>Subscription</h2>
-              <p className="history-row">Business plan: €499 / {t("tariff.month")}</p>
-              <p className="history-row">Automatic monthly billing: Stripe-ready</p>
-              <button className="ghost-button full-button" onClick={() => setMessage("Stripe billing готов к подключению. Следующий шаг: добавить Stripe keys и webhook.")} type="button">Подключить Stripe позже</button>
+              <p className="history-row">Plan: {subscription?.plan ?? data.company?.plan ?? "growth"} · status: {subscription?.status ?? "trialing"}</p>
+              <p className="history-row">Billing provider: {subscription?.provider ?? "manual"} · Stripe: {systemStatus?.commercialReadiness.billingConfigured ? "configured" : "waiting for keys"}</p>
+              <button className="primary-button full" disabled={Boolean(busyAction) || session.user.role !== "owner"} onClick={() => void startBillingCheckout()} type="button">Open billing checkout</button>
+              <button className="ghost-button full-button" disabled={Boolean(busyAction)} onClick={() => void refreshCommercialStatus()} type="button">Refresh production status</button>
             </section>
 
             <section className="table-panel settings-panel">
@@ -4744,6 +4823,16 @@ export default function DashboardClient() {
               <p className="history-row">{t("settings.documents")}: {data.documents.length + data.customerDocuments.length}</p>
               <p className="history-row">{t("settings.contracts")}: {data.rentalContracts.length}</p>
               <button className="ghost-button full-button" onClick={() => void loadData()} type="button">{t("settings.update")}</button>
+              <button className="ghost-button full-button" disabled={Boolean(busyAction) || session.user.role !== "owner"} onClick={() => void exportComplianceData()} type="button">Download compliance export</button>
+            </section>
+
+            <section className="table-panel settings-panel">
+              <h2>Production status</h2>
+              <p className="history-row">API: {systemStatus?.ok ? "online" : "checking"} · DB: {systemStatus?.checks.database ?? "unknown"}</p>
+              <p className="history-row">Storage: {systemStatus?.checks.storage ?? "unknown"} · Object storage: {systemStatus?.commercialReadiness.objectStorageConfigured ? "configured" : "database fallback"}</p>
+              <p className="history-row">Email: {systemStatus?.commercialReadiness.emailConfigured ? "configured" : "waiting for provider"}</p>
+              <p className="history-row">WhatsApp: {systemStatus?.commercialReadiness.whatsappConfigured ? "configured" : "waiting for provider"}</p>
+              <p className="history-row">Telegram: {systemStatus?.commercialReadiness.telegramConfigured ? "configured" : "waiting for provider"}</p>
             </section>
 
             <section className="table-panel settings-panel settings-wide">
