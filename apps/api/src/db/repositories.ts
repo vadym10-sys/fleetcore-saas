@@ -13,6 +13,7 @@ import type {
   dashboardFolderInput,
   dashboardFolderNoteInput,
   dashboardFolderPatchInput,
+  dataSubjectRequestInput,
   deliveryMessageInput,
   expenseInput,
   fileUploadInput,
@@ -60,6 +61,7 @@ type DashboardFolderInput = z.infer<typeof dashboardFolderInput>;
 type DashboardFolderPatchInput = z.infer<typeof dashboardFolderPatchInput>;
 type DashboardFolderFileInput = z.infer<typeof dashboardFolderFileInput>;
 type DashboardFolderNoteInput = z.infer<typeof dashboardFolderNoteInput>;
+type DataSubjectRequestInput = z.infer<typeof dataSubjectRequestInput>;
 type DeliveryMessageInput = z.infer<typeof deliveryMessageInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
 type FileUploadInput = z.infer<typeof fileUploadInput>;
@@ -102,7 +104,10 @@ function patchSet(
   };
 }
 
-export async function createCompanyAccount(input: RegisterCompanyInput, passwordHash: string): Promise<{ company: Company; user: User }> {
+export async function createCompanyAccount(input: RegisterCompanyInput, passwordHash: string, consentMeta: {
+  ipAddress?: string | undefined;
+  userAgent?: string | undefined;
+} = {}): Promise<{ company: Company; user: User }> {
   const client = await pool.connect();
   const tenantId = createId("tenant");
   const companyId = createId("company");
@@ -145,6 +150,27 @@ export async function createCompanyAccount(input: RegisterCompanyInput, password
       ) values ($1, $2, $3, $4, $5, $6, 'owner')
       returning *`,
       [userId, tenantId, companyId, input.owner.email.toLowerCase(), passwordHash, input.owner.fullName],
+    );
+
+    await client.query(
+      `insert into legal_consents (
+        id, tenant_id, company_id, user_id, email, policy_version, privacy_accepted, terms_accepted,
+        cookie_acknowledged, marketing_opt_in, ip_address, user_agent
+      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        createId("consent"),
+        tenantId,
+        companyId,
+        userId,
+        input.owner.email.toLowerCase(),
+        input.consent.policyVersion,
+        input.consent.privacyAccepted,
+        input.consent.termsAccepted,
+        input.consent.cookieAcknowledged,
+        input.consent.marketingOptIn,
+        consentMeta.ipAddress,
+        consentMeta.userAgent,
+      ],
     );
 
     await client.query("commit");
@@ -286,6 +312,78 @@ export async function listAuditLogs(scope: TenantScope, limit = 100) {
     ipAddress: row.ip_address ? String(row.ip_address) : undefined,
     metadata: row.metadata as Record<string, unknown>,
     userAgent: row.user_agent ? String(row.user_agent) : undefined,
+  }));
+}
+
+export async function createDataSubjectRequest(scope: TenantScope, input: DataSubjectRequestInput, meta: {
+  ipAddress?: string | undefined;
+  userAgent?: string | undefined;
+  userId?: string | undefined;
+}) {
+  const result = await pool.query(
+    `insert into data_subject_requests (
+      id, tenant_id, company_id, user_id, email, request_type, message, ip_address, user_agent
+    ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    returning id, email, request_type, status, message, created_at`,
+    [
+      createId("dsr"),
+      scope.tenantId,
+      scope.companyId,
+      meta.userId,
+      input.email,
+      input.requestType,
+      input.message,
+      meta.ipAddress,
+      meta.userAgent,
+    ],
+  );
+  const row = result.rows[0];
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    requestType: String(row.request_type),
+    status: String(row.status),
+    message: row.message ? String(row.message) : undefined,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+  };
+}
+
+export async function listLegalConsents(scope: TenantScope) {
+  const result = await pool.query(
+    `select id, email, policy_version, privacy_accepted, terms_accepted, cookie_acknowledged, marketing_opt_in, created_at
+     from legal_consents
+     where tenant_id = $1 and company_id = $2
+     order by created_at desc`,
+    [scope.tenantId, scope.companyId],
+  );
+  return result.rows.map((row) => ({
+    id: String(row.id),
+    cookieAcknowledged: Boolean(row.cookie_acknowledged),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    email: String(row.email),
+    marketingOptIn: Boolean(row.marketing_opt_in),
+    policyVersion: String(row.policy_version),
+    privacyAccepted: Boolean(row.privacy_accepted),
+    termsAccepted: Boolean(row.terms_accepted),
+  }));
+}
+
+export async function listDataSubjectRequests(scope: TenantScope) {
+  const result = await pool.query(
+    `select id, email, request_type, status, message, created_at, updated_at
+     from data_subject_requests
+     where tenant_id = $1 and company_id = $2
+     order by created_at desc`,
+    [scope.tenantId, scope.companyId],
+  );
+  return result.rows.map((row) => ({
+    id: String(row.id),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    email: String(row.email),
+    message: row.message ? String(row.message) : undefined,
+    requestType: String(row.request_type),
+    status: String(row.status),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   }));
 }
 
@@ -2029,9 +2127,11 @@ export async function buildComplianceExport(
     auditLogs,
     customers,
     dashboardFolders,
+    dataSubjectRequests,
     documents,
     files,
     invoices,
+    legalConsents,
     payments,
     rentals,
     serviceRecords,
@@ -2041,9 +2141,11 @@ export async function buildComplianceExport(
     listAuditLogs(scope, 500),
     listCustomers(scope),
     listDashboardFolders(scope, publicUrlForId),
+    listDataSubjectRequests(scope),
     listFleetDocuments(scope),
     listFileObjects(scope, publicUrlForId),
     listInvoices(scope),
+    listLegalConsents(scope),
     listPayments(scope),
     listRentals(scope),
     listServiceRecords(scope),
@@ -2056,10 +2158,12 @@ export async function buildComplianceExport(
     company,
     customers,
     dashboardFolders,
+    dataSubjectRequests,
     documents,
     files,
     generatedAt: new Date().toISOString(),
     invoices,
+    legalConsents,
     payments,
     rentals,
     serviceRecords,

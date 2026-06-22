@@ -19,6 +19,13 @@ export const registerCompanyInput = z.object({
     fullName: z.string().trim().min(2),
     password: z.string().min(8),
   }),
+  consent: z.object({
+    cookieAcknowledged: z.boolean().default(false),
+    marketingOptIn: z.boolean().default(false),
+    policyVersion: z.string().trim().min(1).max(40).default("2026-06-22"),
+    privacyAccepted: z.literal(true),
+    termsAccepted: z.literal(true),
+  }),
 });
 
 export const refreshTokenInput = z.object({
@@ -292,4 +299,10 @@ export const deliveryMessageInput = z.object({
   entityType: z.enum(["rental", "contract", "client_intake", "system"]).default("system"),
   recipient: z.string().trim().min(3).max(320),
   subject: z.string().trim().min(1).max(180).optional(),
+});
+
+export const dataSubjectRequestInput = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  message: z.string().trim().max(1000).optional(),
+  requestType: z.enum(["delete", "export"]),
 });

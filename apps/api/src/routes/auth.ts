@@ -152,13 +152,25 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      const account = await createCompanyAccount(parsed.data, hashPassword(parsed.data.owner.password));
+      const account = await createCompanyAccount(parsed.data, hashPassword(parsed.data.owner.password), {
+        ipAddress: requestIp(request),
+        userAgent: userAgent(request),
+      });
       await writeAuditLog({
         action: "auth.register_company",
         actorEmail: account.user.email,
         companyId: account.user.companyId,
         ipAddress: requestIp(request),
-        metadata: { plan: account.company.plan },
+        metadata: {
+          consent: {
+            cookieAcknowledged: parsed.data.consent.cookieAcknowledged,
+            marketingOptIn: parsed.data.consent.marketingOptIn,
+            policyVersion: parsed.data.consent.policyVersion,
+            privacyAccepted: parsed.data.consent.privacyAccepted,
+            termsAccepted: parsed.data.consent.termsAccepted,
+          },
+          plan: account.company.plan,
+        },
         tenantId: account.user.tenantId,
         userAgent: userAgent(request),
         userId: account.user.id,

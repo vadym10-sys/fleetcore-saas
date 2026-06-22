@@ -9,6 +9,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 const CALENDLY_URL = process.env.NEXT_PUBLIC_CALENDLY_URL ?? "https://calendly.com/fleetcore-saas/rental-reservation";
 const TENANT_ID = "tenant_atlas";
+const LEGAL_LINKS = [
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+  { href: "/cookies", label: "Cookies" },
+  { href: "/data-processing", label: "Data Processing" },
+  { href: "/data-requests", label: "Delete / Export" },
+];
 
 type GoogleLatLngLiteral = { lat: number; lng: number };
 type GoogleMapInstance = {
@@ -1617,9 +1624,13 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
     fleetSizeLimit: "25",
     fullName: "",
     legalName: "",
+    marketingOptIn: false,
     password: "",
     passwordConfirm: "",
     plan: "starter",
+    privacyAccepted: false,
+    cookieAcknowledged: false,
+    termsAccepted: false,
     tradingName: "",
   });
 
@@ -1657,6 +1668,9 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
       if (mode === "register" && register.password !== register.passwordConfirm) {
         throw new Error("Пароли не совпадают");
       }
+      if (mode === "register" && (!register.privacyAccepted || !register.termsAccepted)) {
+        throw new Error("Подтвердите Privacy Policy и Terms of Service");
+      }
 
       const response = mode === "login"
         ? await api<AuthSession>("/auth/login", {
@@ -1680,6 +1694,13 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
                 email: register.email.trim().toLowerCase(),
                 fullName: register.fullName.trim(),
                 password: register.password,
+              },
+              consent: {
+                cookieAcknowledged: register.cookieAcknowledged,
+                marketingOptIn: register.marketingOptIn,
+                policyVersion: "2026-06-22",
+                privacyAccepted: register.privacyAccepted,
+                termsAccepted: register.termsAccepted,
               },
             }),
             method: "POST",
@@ -1777,6 +1798,24 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
               <label>{t("auth.ownerEmail")}<input autoComplete="email" inputMode="email" required type="email" value={register.email} onChange={(event) => setRegister({ ...register, email: event.target.value })} /></label>
               <label>{t("auth.password")}<input autoComplete="new-password" minLength={8} required type="password" value={register.password} onChange={(event) => setRegister({ ...register, password: event.target.value })} /></label>
               <label>{t("auth.passwordConfirm")}<input autoComplete="new-password" minLength={8} required type="password" value={register.passwordConfirm} onChange={(event) => setRegister({ ...register, passwordConfirm: event.target.value })} /></label>
+              <div className="auth-consent-box">
+                <label className="checkbox-line">
+                  <input required type="checkbox" checked={register.privacyAccepted} onChange={(event) => setRegister({ ...register, privacyAccepted: event.target.checked })} />
+                  <span>I accept the <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
+                </label>
+                <label className="checkbox-line">
+                  <input required type="checkbox" checked={register.termsAccepted} onChange={(event) => setRegister({ ...register, termsAccepted: event.target.checked })} />
+                  <span>I accept the <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>.</span>
+                </label>
+                <label className="checkbox-line">
+                  <input type="checkbox" checked={register.cookieAcknowledged} onChange={(event) => setRegister({ ...register, cookieAcknowledged: event.target.checked })} />
+                  <span>I understand FleetCore uses essential cookies and browser storage.</span>
+                </label>
+                <label className="checkbox-line">
+                  <input type="checkbox" checked={register.marketingOptIn} onChange={(event) => setRegister({ ...register, marketingOptIn: event.target.checked })} />
+                  <span>Send me product and onboarding updates.</span>
+                </label>
+              </div>
             </>
           )}
           <button className="primary-button full" disabled={loading} type="submit">{loading ? t("common.loading") : mode === "login" ? t("auth.login") : t("auth.register")}</button>
@@ -1787,6 +1826,7 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
             </div>
           ) : null}
         </form>
+        <LegalFooter />
       </section>
       <section className="auth-preview">
         <div className="auth-preview-shell">
@@ -1813,6 +1853,18 @@ function AuthScreen({ initialMode = "login", locale, onLocaleChange, onSession }
         </div>
       </section>
     </main>
+  );
+}
+
+function LegalFooter() {
+  return (
+    <footer className="legal-mini-footer">
+      {LEGAL_LINKS.map((link) => (
+        <a href={link.href} key={link.href} target={link.href === "/data-requests" ? undefined : "_blank"} rel="noreferrer">
+          {link.label}
+        </a>
+      ))}
+    </footer>
   );
 }
 
@@ -4824,6 +4876,16 @@ export default function DashboardClient() {
               <p className="history-row">{t("settings.contracts")}: {data.rentalContracts.length}</p>
               <button className="ghost-button full-button" onClick={() => void loadData()} type="button">{t("settings.update")}</button>
               <button className="ghost-button full-button" disabled={Boolean(busyAction) || session.user.role !== "owner"} onClick={() => void exportComplianceData()} type="button">Download compliance export</button>
+            </section>
+
+            <section className="table-panel settings-panel">
+              <h2>Legal & GDPR</h2>
+              <p className="history-row">Privacy, terms, cookies, DPA notice and data request workflow are available for owners and signup users.</p>
+              <div className="settings-link-grid">
+                {LEGAL_LINKS.map((link) => (
+                  <a className="ghost-button full-button" href={link.href} key={link.href} target="_blank" rel="noreferrer">{link.label}</a>
+                ))}
+              </div>
             </section>
 
             <section className="table-panel settings-panel">

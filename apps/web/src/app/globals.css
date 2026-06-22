@@ -7118,6 +7118,213 @@ h3 {
   background: white;
 }
 
+.auth-consent-box {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid rgba(203, 213, 225, 0.82);
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.checkbox-line {
+  display: grid !important;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px !important;
+  align-items: start;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.checkbox-line input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--primary);
+}
+
+.checkbox-line a,
+.legal-mini-footer a,
+.legal-footer-links a {
+  color: var(--primary);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.legal-mini-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.settings-link-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.legal-page {
+  min-height: 100vh;
+  padding: 48px 18px;
+  background:
+    radial-gradient(circle at 14% 12%, rgba(35, 70, 216, 0.12), transparent 28%),
+    linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+.legal-card {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 34px;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+}
+
+.legal-back,
+.legal-eyebrow {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  margin-bottom: 14px;
+  color: #8a641f;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.legal-eyebrow {
+  margin-left: 12px;
+}
+
+.legal-card h1 {
+  max-width: 760px;
+  margin: 0;
+  color: #0f172a;
+  font-size: 40px;
+  line-height: 1.05;
+}
+
+.legal-updated {
+  margin: 12px 0 28px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.legal-body {
+  display: grid;
+  gap: 18px;
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.legal-body h2 {
+  margin: 8px 0 -6px;
+  color: #111827;
+  font-size: 20px;
+}
+
+.legal-body p {
+  margin: 0;
+}
+
+.legal-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 32px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(203, 213, 225, 0.72);
+}
+
+.data-request-form {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+  margin-top: 8px;
+}
+
+.data-request-form label {
+  display: grid;
+  gap: 7px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.data-request-form input,
+.data-request-form select,
+.data-request-form textarea {
+  width: 100%;
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #111827;
+  font: inherit;
+  font-weight: 800;
+}
+
+.data-request-form input,
+.data-request-form select {
+  min-height: 48px;
+  padding: 0 12px;
+}
+
+.data-request-form textarea {
+  min-height: 110px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.data-request-state {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 850;
+}
+
+.data-request-state.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.data-request-state.error {
+  background: rgba(244, 63, 94, 0.11);
+  color: #be123c;
+}
+
+@media (max-width: 720px) {
+  .legal-page {
+    padding: 18px 12px;
+  }
+
+  .legal-card {
+    padding: 22px;
+  }
+
+  .legal-card h1 {
+    font-size: 30px;
+  }
+
+  .legal-eyebrow {
+    display: flex;
+    margin-left: 0;
+  }
+
+  .legal-footer-links,
+  .legal-mini-footer {
+    gap: 10px 12px;
+  }
+}
+
 .auth-preview {
   min-height: 680px;
   padding: 22px;

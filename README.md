@@ -141,6 +141,26 @@ Critical errors are reported from:
 - notification delivery failures;
 - startup, unhandled promise rejection and uncaught exception paths.
 
+### GDPR and Legal Basics
+
+FleetCore ships legal starter pages:
+
+- `/privacy` Privacy Policy
+- `/terms` Terms of Service
+- `/cookies` Cookie Policy
+- `/data-processing` Data Processing Notice
+- `/data-requests` Delete account / export data request flow
+
+Signup requires explicit Privacy Policy and Terms of Service consent. The API stores consent records in `legal_consents` with policy version, consent flags, email, IP address and user agent. Optional cookie acknowledgement and marketing opt-in are stored separately.
+
+Workspace owners can create data export or deletion review requests through `POST /compliance/data-subject-requests`. Requests are stored in `data_subject_requests` and audit logged. `GET /compliance/export` includes legal consent and data request history.
+
+Set these production URLs so `/status` reports legal docs as configured:
+
+- `PRIVACY_POLICY_URL`
+- `TERMS_URL`
+- `GDPR_DOCS_URL`
+
 ### Stripe Checkout and Webhooks
 
 FleetCore creates Stripe Checkout Sessions on `POST /billing/checkout`, but does not grant paid-plan access during checkout creation. Plan access is synchronized only after a verified Stripe webhook confirms payment or an active subscription event.

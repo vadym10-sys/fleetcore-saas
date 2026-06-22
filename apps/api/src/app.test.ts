@@ -9,6 +9,13 @@ import { sendNotification } from "./lib/notifications.js";
 
 const app = await buildServer();
 let token = "";
+const acceptedLegalConsent = {
+  cookieAcknowledged: true,
+  marketingOptIn: false,
+  policyVersion: "2026-06-22",
+  privacyAccepted: true,
+  termsAccepted: true,
+};
 
 function signedStripePayload(payload: Record<string, unknown>, secret = "whsec_test_secret") {
   const rawBody = JSON.stringify(payload);
@@ -401,6 +408,7 @@ test("password reset and email verification tokens work", async () => {
         fullName: "Security Owner",
         password: "secure-pass-123",
       },
+      consent: acceptedLegalConsent,
     },
   });
   assert.equal(register.statusCode, 201);
@@ -499,6 +507,27 @@ test("login rejects empty credentials", async () => {
 
 test("B2B company registration creates an isolated tenant account", async () => {
   const email = `owner-${Date.now()}@rental.example`;
+  const missingConsent = await app.inject({
+    method: "POST",
+    url: "/auth/register-company",
+    payload: {
+      company: {
+        country: "PL",
+        currency: "EUR",
+        fleetSizeLimit: 12,
+        legalName: "Warsaw Rental Sp. z o.o.",
+        plan: "starter",
+        tradingName: "Warsaw Rental",
+      },
+      owner: {
+        email: `no-consent-${Date.now()}@rental.example`,
+        fullName: "No Consent Owner",
+        password: "secure-pass-123",
+      },
+    },
+  });
+  assert.equal(missingConsent.statusCode, 400);
+
   const response = await app.inject({
     method: "POST",
     url: "/auth/register-company",
@@ -516,6 +545,7 @@ test("B2B company registration creates an isolated tenant account", async () => 
         fullName: "Owner Warsaw",
         password: "secure-pass-123",
       },
+      consent: acceptedLegalConsent,
     },
   });
 
@@ -533,6 +563,31 @@ test("B2B company registration creates an isolated tenant account", async () => 
 
   assert.equal(vehicles.statusCode, 200);
   assert.deepEqual(vehicles.json().data, []);
+
+  const exportData = await app.inject({
+    headers: { authorization: `Bearer ${session.accessToken}` },
+    method: "GET",
+    url: "/compliance/export",
+  });
+  assert.equal(exportData.statusCode, 200);
+  assert.ok(exportData.json().data.legalConsents.some((item: { email: string; privacyAccepted: boolean; termsAccepted: boolean }) => (
+    item.email === email && item.privacyAccepted && item.termsAccepted
+  )));
+
+  const dataRequest = await app.inject({
+    headers: { authorization: `Bearer ${session.accessToken}` },
+    method: "POST",
+    payload: {
+      email,
+      message: "Please export workspace owner data.",
+      requestType: "export",
+    },
+    url: "/compliance/data-subject-requests",
+  });
+  assert.equal(dataRequest.statusCode, 201);
+  assert.equal(dataRequest.json().data.email, email);
+  assert.equal(dataRequest.json().data.requestType, "export");
+  assert.equal(dataRequest.json().data.status, "received");
 });
 
 test("owner can update profile and add a manager account", async () => {
@@ -555,6 +610,7 @@ test("owner can update profile and add a manager account", async () => {
         fullName: "Team Owner",
         password: "secure-pass-123",
       },
+      consent: acceptedLegalConsent,
     },
   });
   assert.equal(register.statusCode, 201);
@@ -715,6 +771,8 @@ test("commercial readiness APIs expose billing, delivery and compliance controls
   assert.equal(compliance.statusCode, 200);
   assert.equal(compliance.json().data.company.id, "company_atlas");
   assert.ok(Array.isArray(compliance.json().data.auditLogs));
+  assert.ok(Array.isArray(compliance.json().data.dataSubjectRequests));
+  assert.ok(Array.isArray(compliance.json().data.legalConsents));
   assert.ok(Array.isArray(compliance.json().data.vehicles));
 });
 
@@ -806,6 +864,7 @@ test("stripe webhook verifies signatures, is idempotent and grants plan only aft
         fullName: "Stripe Owner",
         password: "development-only",
       },
+      consent: acceptedLegalConsent,
     },
     url: "/auth/register-company",
   });

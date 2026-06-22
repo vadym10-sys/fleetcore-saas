@@ -369,10 +369,12 @@ export interface ComplianceExport {
   company: Company;
   customers: Customer[];
   dashboardFolders: DashboardFolder[];
+  dataSubjectRequests: Array<Record<string, unknown>>;
   documents: FleetDocument[];
   files: FileObject[];
   generatedAt: string;
   invoices: Invoice[];
+  legalConsents: Array<Record<string, unknown>>;
   payments: Payment[];
   rentals: Rental[];
   serviceRecords: ServiceRecord[];
