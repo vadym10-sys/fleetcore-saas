@@ -341,7 +341,9 @@ export interface Subscription extends TenantScopedEntity {
 }
 
 export interface BillingCheckoutSession {
+  checkoutSessionId?: string;
   checkoutUrl?: string;
+  idempotencyKey?: string;
   mode: "manual" | "stripe";
   message: string;
   subscription: Subscription;

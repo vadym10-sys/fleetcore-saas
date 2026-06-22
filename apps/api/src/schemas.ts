@@ -270,6 +270,7 @@ export const aiSearchInput = z.object({
 });
 
 export const subscriptionCheckoutInput = z.object({
+  idempotencyKey: z.string().trim().min(8).max(160).optional(),
   plan: z.enum(["starter", "growth", "enterprise"]),
 });
 

@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { platformModules } from "@fleetcore/shared";
+import { Readable } from "node:stream";
 import { commercialReadiness, productionIntegrations, validateProductionEnv } from "./config/env.js";
 import { installTenantContext } from "./plugins/tenant-context.js";
 import { aiRoutes } from "./routes/ai.js";
@@ -23,6 +24,12 @@ import { runMigrations } from "./db/migrate.js";
 import { pool } from "./db/client.js";
 import { seedDatabase } from "./db/seed.js";
 
+declare module "fastify" {
+  interface FastifyRequest {
+    rawBody?: string;
+  }
+}
+
 function resolveCorsOrigin(origin: string | undefined) {
   const configuredOrigin = process.env.WEB_ORIGIN ?? "http://localhost:3000";
   if (!origin) return configuredOrigin;
@@ -42,6 +49,18 @@ export async function buildServer() {
 
   app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_request, body, done) => {
     done(null, body);
+  });
+
+  app.addHook("preParsing", async (request, _reply, payload) => {
+    if (request.url.split("?")[0] !== "/billing/stripe/webhook") return payload;
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of payload) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const rawBody = Buffer.concat(chunks);
+    request.rawBody = rawBody.toString("utf8");
+    return Readable.from(rawBody);
   });
 
   app.addHook("onRequest", async (request, reply) => {

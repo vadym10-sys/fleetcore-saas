@@ -1,10 +1,21 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { after, before, test } from "node:test";
 import { buildServer } from "./app.js";
 import { validateProductionEnv } from "./config/env.js";
 
 const app = await buildServer();
 let token = "";
+
+function signedStripePayload(payload: Record<string, unknown>, secret = "whsec_test_secret") {
+  const rawBody = JSON.stringify(payload);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${rawBody}`, "utf8").digest("hex");
+  return {
+    rawBody,
+    signatureHeader: `t=${timestamp},v1=${signature}`,
+  };
+}
 
 before(async () => {
   await app.ready();
@@ -62,6 +73,7 @@ test("production env validation keeps pilot mode safe and fails strict productio
     STRIPE_PRICE_GROWTH: "price_growth",
     STRIPE_PRICE_STARTER: "price_starter",
     STRIPE_SECRET_KEY: "sk_live_example",
+    STRIPE_WEBHOOK_SECRET: "whsec_live_example",
     TELEGRAM_BOT_TOKEN: "telegram-live-token",
     TERMS_URL: "https://fleetcore.example.com/terms",
     WEB_ORIGIN: "https://fleetcore.example.com",
@@ -498,6 +510,149 @@ test("commercial readiness APIs expose billing, delivery and compliance controls
   assert.equal(compliance.json().data.company.id, "company_atlas");
   assert.ok(Array.isArray(compliance.json().data.auditLogs));
   assert.ok(Array.isArray(compliance.json().data.vehicles));
+});
+
+test("stripe webhook verifies signatures, is idempotent and grants plan only after confirmed payment", async () => {
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_secret";
+  const runId = Date.now();
+  const email = `billing-${runId}@example.com`;
+  const registered = await app.inject({
+    method: "POST",
+    payload: {
+      company: {
+        country: "GB",
+        currency: "EUR",
+        fleetSizeLimit: 25,
+        legalName: "Stripe Billing Test Ltd",
+        plan: "starter",
+        tradingName: "Stripe Billing Test",
+      },
+      owner: {
+        email,
+        fullName: "Stripe Owner",
+        password: "development-only",
+      },
+    },
+    url: "/auth/register-company",
+  });
+  assert.equal(registered.statusCode, 201);
+  const billingToken = registered.json().data.accessToken as string;
+  const companyId = registered.json().data.user.companyId as string;
+  const tenantId = registered.json().data.user.tenantId as string;
+
+  const beforeCompany = await app.inject({
+    headers: { authorization: `Bearer ${billingToken}` },
+    method: "GET",
+    url: `/companies/${companyId}`,
+  });
+  assert.equal(beforeCompany.statusCode, 200);
+  assert.equal(beforeCompany.json().data.plan, "starter");
+
+  const expired = signedStripePayload({
+    data: {
+      object: {
+        id: `cs_test_expired_${runId}`,
+        metadata: { company_id: companyId, plan: "growth", tenant_id: tenantId },
+      },
+    },
+    id: `evt_test_expired_${runId}`,
+    type: "checkout.session.expired",
+  });
+  const expiredResponse = await app.inject({
+    headers: { "content-type": "application/json", "stripe-signature": expired.signatureHeader },
+    method: "POST",
+    payload: expired.rawBody,
+    url: "/billing/stripe/webhook",
+  });
+  assert.equal(expiredResponse.statusCode, 200);
+
+  const afterExpiredCompany = await app.inject({
+    headers: { authorization: `Bearer ${billingToken}` },
+    method: "GET",
+    url: `/companies/${companyId}`,
+  });
+  assert.equal(afterExpiredCompany.json().data.plan, "starter");
+
+  const completedPayload = {
+    data: {
+      object: {
+        customer: "cus_test_confirmed",
+        id: `cs_test_confirmed_${runId}`,
+        metadata: { company_id: companyId, plan: "growth", tenant_id: tenantId },
+        payment_status: "paid",
+        subscription: `sub_test_confirmed_${runId}`,
+      },
+    },
+    id: `evt_test_completed_${runId}`,
+    type: "checkout.session.completed",
+  };
+  const completed = signedStripePayload(completedPayload);
+  const completedResponse = await app.inject({
+    headers: { "content-type": "application/json", "stripe-signature": completed.signatureHeader },
+    method: "POST",
+    payload: completed.rawBody,
+    url: "/billing/stripe/webhook",
+  });
+  assert.equal(completedResponse.statusCode, 200);
+  assert.equal(completedResponse.json().data.processed, true);
+
+  const subscription = await app.inject({
+    headers: { authorization: `Bearer ${billingToken}` },
+    method: "GET",
+    url: "/billing/subscription",
+  });
+  assert.equal(subscription.json().data.provider, "stripe");
+  assert.equal(subscription.json().data.plan, "growth");
+  assert.equal(subscription.json().data.status, "active");
+
+  const afterCompletedCompany = await app.inject({
+    headers: { authorization: `Bearer ${billingToken}` },
+    method: "GET",
+    url: `/companies/${companyId}`,
+  });
+  assert.equal(afterCompletedCompany.json().data.plan, "growth");
+
+  const duplicateResponse = await app.inject({
+    headers: { "content-type": "application/json", "stripe-signature": completed.signatureHeader },
+    method: "POST",
+    payload: completed.rawBody,
+    url: "/billing/stripe/webhook",
+  });
+  assert.equal(duplicateResponse.statusCode, 200);
+  assert.equal(duplicateResponse.json().data.duplicate, true);
+
+  const failed = signedStripePayload({
+    data: {
+      object: {
+        customer: "cus_test_confirmed",
+        subscription: `sub_test_confirmed_${runId}`,
+      },
+    },
+    id: `evt_test_failed_payment_${runId}`,
+    type: "invoice.payment_failed",
+  });
+  const failedResponse = await app.inject({
+    headers: { "content-type": "application/json", "stripe-signature": failed.signatureHeader },
+    method: "POST",
+    payload: failed.rawBody,
+    url: "/billing/stripe/webhook",
+  });
+  assert.equal(failedResponse.statusCode, 200);
+
+  const pastDue = await app.inject({
+    headers: { authorization: `Bearer ${billingToken}` },
+    method: "GET",
+    url: "/billing/subscription",
+  });
+  assert.equal(pastDue.json().data.status, "past_due");
+
+  const badSignature = await app.inject({
+    headers: { "content-type": "application/json", "stripe-signature": "t=123,v1=bad" },
+    method: "POST",
+    payload: JSON.stringify(completedPayload),
+    url: "/billing/stripe/webhook",
+  });
+  assert.equal(badSignature.statusCode, 400);
 });
 
 test("authenticated API can create an invoice payment", async () => {

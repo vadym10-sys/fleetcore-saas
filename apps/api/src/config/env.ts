@@ -15,6 +15,7 @@ const productionEnvSchema = z.object({
   STRIPE_PRICE_GROWTH: z.string().min(1),
   STRIPE_PRICE_STARTER: z.string().min(1),
   STRIPE_SECRET_KEY: z.string().min(1),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TERMS_URL: z.string().url(),
   WEB_ORIGIN: z.string().url(),
@@ -56,7 +57,9 @@ function configuredState(value: string | undefined, testPatterns: string[] = [])
 }
 
 export function productionIntegrations(env: NodeJS.ProcessEnv = process.env) {
-  const stripeState = configuredState(env.STRIPE_SECRET_KEY, ["sk_test", "test"]);
+  const stripeState = env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET
+    ? configuredState(env.STRIPE_SECRET_KEY, ["sk_test", "test"])
+    : "missing";
   const emailState = configuredState(env.RESEND_API_KEY ?? env.SMTP_URL, ["test", "sandbox", "localhost"]);
   const whatsappState = env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID
     ? configuredState(env.WHATSAPP_ACCESS_TOKEN, ["test", "sandbox"])

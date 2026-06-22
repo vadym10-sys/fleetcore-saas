@@ -17,6 +17,7 @@ const publicRoutes = new Set([
   "/auth/request-password-reset",
   "/auth/reset-password",
   "/auth/verify-email",
+  "/billing/stripe/webhook",
 ]);
 function isPublicUploadPreview(url: string) {
   return /^\/uploads\/[^/]+\/.+/.test(url);

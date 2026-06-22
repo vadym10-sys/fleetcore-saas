@@ -46,7 +46,7 @@ FleetCore supports two runtime modes:
 Required when `PRODUCTION=true`:
 
 - Core: `DATABASE_URL`, `JWT_SECRET`, `WEB_ORIGIN`, `API_PUBLIC_URL`
-- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_ENTERPRISE`
+- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_GROWTH`, `STRIPE_PRICE_ENTERPRISE`
 - Email: `RESEND_API_KEY` or `SMTP_URL`
 - WhatsApp: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`
 - Telegram: `TELEGRAM_BOT_TOKEN`
@@ -55,6 +55,18 @@ Required when `PRODUCTION=true`:
 - Legal/GDPR: `PRIVACY_POLICY_URL`, `TERMS_URL`, `GDPR_DOCS_URL`
 
 Use `https://fleetcore-web.onrender.com/status` or `GET /status` on the API to see each integration as `connected`, `missing` or `test_mode`.
+
+### Stripe Checkout and Webhooks
+
+FleetCore creates Stripe Checkout Sessions on `POST /billing/checkout`, but does not grant paid-plan access during checkout creation. Plan access is synchronized only after a verified Stripe webhook confirms payment or an active subscription event.
+
+Local webhook test:
+
+```bash
+stripe listen --forward-to localhost:4000/billing/stripe/webhook
+```
+
+Copy the `whsec_...` value printed by Stripe CLI into `STRIPE_WEBHOOK_SECRET`, then trigger events from Stripe CLI or Stripe Dashboard. Failed payments move the subscription to `past_due`; duplicate webhook events are ignored by Stripe event id.
 
 ## MVP API Surface
 

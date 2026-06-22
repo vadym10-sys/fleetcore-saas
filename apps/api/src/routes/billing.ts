@@ -1,10 +1,31 @@
 import type { FastifyPluginAsync } from "fastify";
-import { createBillingCheckoutSession, getSubscription, syncSubscription, writeAuditLog } from "../db/repositories.js";
+import { createBillingCheckoutSession, getSubscription, processStripeWebhookEvent, syncSubscription, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
+import { parseStripeWebhookEvent, StripeSignatureError } from "../lib/stripe.js";
 import { subscriptionCheckoutInput, subscriptionSyncInput } from "../schemas.js";
 
 export const billingRoutes: FastifyPluginAsync = async (app) => {
+  app.post("/billing/stripe/webhook", async (request, reply) => {
+    const rawBody = request.rawBody;
+    if (!rawBody) {
+      return reply.code(400).send({ error: "Stripe webhook raw body is missing" });
+    }
+
+    try {
+      const signatureHeader = request.headers["stripe-signature"];
+      const event = parseStripeWebhookEvent(rawBody, Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader, process.env.STRIPE_WEBHOOK_SECRET);
+      const result = await processStripeWebhookEvent(event);
+      return envelope(result);
+    } catch (error) {
+      if (error instanceof StripeSignatureError || error instanceof SyntaxError) {
+        return reply.code(400).send({ error: error.message });
+      }
+      request.log.error(error);
+      return reply.code(500).send({ error: "Stripe webhook processing failed" });
+    }
+  });
+
   app.get("/billing/subscription", async (request, reply) => {
     if (!requireRoles(request, reply, ["owner", "manager"])) return;
     return envelope(await getSubscription(getTenantScope(request)));

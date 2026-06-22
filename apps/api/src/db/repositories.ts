@@ -347,12 +347,31 @@ export async function createBillingCheckoutSession(scope: TenantScope, input: Su
   const subscription = await getSubscription(scope);
   const stripePriceId = process.env[`STRIPE_PRICE_${input.plan.toUpperCase()}`];
   const appUrl = process.env.WEB_ORIGIN ?? "https://fleetcore-web.onrender.com";
+  const idempotencyKey = input.idempotencyKey ?? createId("stripe_idem");
 
   if (!process.env.STRIPE_SECRET_KEY || !stripePriceId) {
     return {
+      idempotencyKey,
       mode: "manual",
       message: "Stripe is not configured yet. Add STRIPE_SECRET_KEY and STRIPE_PRICE_* to enable paid checkout.",
       subscription,
+    };
+  }
+
+  const existingSession = await pool.query(
+    `select * from stripe_checkout_sessions
+     where tenant_id = $1 and company_id = $2 and idempotency_key = $3
+     limit 1`,
+    [scope.tenantId, scope.companyId, idempotencyKey],
+  );
+  if (existingSession.rows[0]?.checkout_url) {
+    return {
+      checkoutUrl: String(existingSession.rows[0].checkout_url),
+      idempotencyKey,
+      mode: "stripe",
+      message: "Stripe checkout session reused from idempotency key.",
+      subscription,
+      ...(existingSession.rows[0].stripe_session_id ? { checkoutSessionId: String(existingSession.rows[0].stripe_session_id) } : {}),
     };
   }
 
@@ -366,10 +385,17 @@ export async function createBillingCheckoutSession(scope: TenantScope, input: Su
       client_reference_id: scope.companyId,
       "metadata[tenant_id]": scope.tenantId,
       "metadata[company_id]": scope.companyId,
+      "metadata[plan]": input.plan,
+      "metadata[subscription_id]": subscription.id,
+      "subscription_data[metadata][tenant_id]": scope.tenantId,
+      "subscription_data[metadata][company_id]": scope.companyId,
+      "subscription_data[metadata][plan]": input.plan,
+      "subscription_data[metadata][subscription_id]": subscription.id,
     }),
     headers: {
       Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
       "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": idempotencyKey,
     },
     method: "POST",
   });
@@ -379,9 +405,22 @@ export async function createBillingCheckoutSession(scope: TenantScope, input: Su
     throw new Error(`Stripe checkout failed: ${errorBody}`);
   }
 
-  const session = await response.json() as { url?: string };
+  const session = await response.json() as { id?: string; url?: string };
+  await pool.query(
+    `insert into stripe_checkout_sessions (
+      id, tenant_id, company_id, subscription_id, plan, stripe_session_id, idempotency_key, status, checkout_url
+    ) values ($1, $2, $3, $4, $5, $6, $7, 'created', $8)
+    on conflict (idempotency_key) do update set
+      stripe_session_id = coalesce(excluded.stripe_session_id, stripe_checkout_sessions.stripe_session_id),
+      checkout_url = coalesce(excluded.checkout_url, stripe_checkout_sessions.checkout_url),
+      updated_at = now()
+    returning *`,
+    [createId("stripe_checkout"), scope.tenantId, scope.companyId, subscription.id, input.plan, session.id ?? null, idempotencyKey, session.url ?? null],
+  );
   return {
+    ...(session.id ? { checkoutSessionId: session.id } : {}),
     ...(session.url ? { checkoutUrl: session.url } : {}),
+    idempotencyKey,
     mode: "stripe",
     message: "Stripe checkout session created.",
     subscription,
@@ -422,6 +461,176 @@ export async function syncSubscription(scope: TenantScope, input: SubscriptionSy
     ],
   );
   return mapSubscription(result.rows[0]);
+}
+
+type StripeWebhookEvent = {
+  id: string;
+  type: string;
+  data: { object: Record<string, unknown> };
+};
+
+export type StripeWebhookProcessResult = {
+  duplicate: boolean;
+  processed: boolean;
+  status: "processed" | "ignored" | "failed";
+  type: string;
+};
+
+function stringValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function metadataValue(object: Record<string, unknown>, key: string) {
+  const metadata = object.metadata;
+  if (!metadata || typeof metadata !== "object") return undefined;
+  return stringValue((metadata as Record<string, unknown>)[key]);
+}
+
+function epochSecondsToIso(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
+}
+
+function stripeStatus(value: unknown): Subscription["status"] {
+  if (value === "trialing" || value === "active" || value === "past_due" || value === "canceled" || value === "incomplete") {
+    return value;
+  }
+  if (value === "unpaid" || value === "incomplete_expired") return "past_due";
+  return "incomplete";
+}
+
+async function findScopeForStripeObject(object: Record<string, unknown>): Promise<TenantScope | undefined> {
+  const metadataScope = {
+    companyId: metadataValue(object, "company_id") ?? stringValue(object.client_reference_id),
+    tenantId: metadataValue(object, "tenant_id"),
+  };
+  if (metadataScope.tenantId && metadataScope.companyId) return metadataScope as TenantScope;
+
+  const subscriptionId = stringValue(object.subscription) ?? stringValue(object.id);
+  if (!subscriptionId) return undefined;
+
+  const result = await pool.query(
+    `select tenant_id, company_id from subscriptions
+     where provider = 'stripe' and external_subscription_id = $1
+     limit 1`,
+    [subscriptionId],
+  );
+  return result.rows[0] ? { companyId: String(result.rows[0].company_id), tenantId: String(result.rows[0].tenant_id) } : undefined;
+}
+
+async function updateCompanyPlanAfterConfirmedStripePayment(scope: TenantScope, plan: Subscription["plan"]) {
+  await pool.query(
+    "update companies set plan = $3, updated_at = now() where tenant_id = $1 and id = $2",
+    [scope.tenantId, scope.companyId, plan],
+  );
+}
+
+async function syncStripeSubscriptionFromWebhook(scope: TenantScope, input: SubscriptionSyncInput, grantAccess: boolean) {
+  const subscription = await syncSubscription(scope, input);
+  if (grantAccess && (subscription.status === "active" || subscription.status === "trialing")) {
+    await updateCompanyPlanAfterConfirmedStripePayment(scope, subscription.plan);
+  }
+  return subscription;
+}
+
+async function markStripeWebhookEvent(id: string, status: StripeWebhookProcessResult["status"], error?: string) {
+  await pool.query(
+    `update stripe_webhook_events
+     set status = $2, error = $3, processed_at = now()
+     where id = $1`,
+    [id, status, error ?? null],
+  );
+}
+
+async function handleCheckoutSessionCompleted(object: Record<string, unknown>) {
+  const scope = await findScopeForStripeObject(object);
+  if (!scope) return "ignored";
+
+  const paymentStatus = stringValue(object.payment_status);
+  const plan = metadataValue(object, "plan") as Subscription["plan"] | undefined;
+  const grantAccess = paymentStatus === "paid" || paymentStatus === "no_payment_required";
+  await pool.query(
+    `update stripe_checkout_sessions
+     set status = $4, stripe_session_id = coalesce(stripe_session_id, $3), updated_at = now()
+     where tenant_id = $1 and company_id = $2 and stripe_session_id = $3`,
+    [scope.tenantId, scope.companyId, stringValue(object.id) ?? null, grantAccess ? "completed" : "failed"],
+  );
+
+  await syncStripeSubscriptionFromWebhook(scope, {
+    externalCustomerId: stringValue(object.customer),
+    externalSubscriptionId: stringValue(object.subscription),
+    plan,
+    provider: "stripe",
+    status: grantAccess ? "active" : "incomplete",
+  }, grantAccess);
+  return "processed";
+}
+
+async function handleStripeSubscriptionObject(object: Record<string, unknown>) {
+  const scope = await findScopeForStripeObject(object);
+  if (!scope) return "ignored";
+  const status = stripeStatus(object.status);
+  await syncStripeSubscriptionFromWebhook(scope, {
+    cancelAt: epochSecondsToIso(object.cancel_at),
+    currentPeriodEnd: epochSecondsToIso(object.current_period_end),
+    currentPeriodStart: epochSecondsToIso(object.current_period_start),
+    externalCustomerId: stringValue(object.customer),
+    externalSubscriptionId: stringValue(object.id),
+    plan: metadataValue(object, "plan") as Subscription["plan"] | undefined,
+    provider: "stripe",
+    status,
+  }, status === "active" || status === "trialing");
+  return "processed";
+}
+
+async function handleStripeInvoice(object: Record<string, unknown>, status: Subscription["status"], grantAccess: boolean) {
+  const scope = await findScopeForStripeObject(object);
+  if (!scope) return "ignored";
+  await syncStripeSubscriptionFromWebhook(scope, {
+    externalCustomerId: stringValue(object.customer),
+    externalSubscriptionId: stringValue(object.subscription),
+    provider: "stripe",
+    status,
+  }, grantAccess);
+  return "processed";
+}
+
+export async function processStripeWebhookEvent(event: StripeWebhookEvent): Promise<StripeWebhookProcessResult> {
+  const inserted = await pool.query(
+    `insert into stripe_webhook_events (id, type, status, payload)
+     values ($1, $2, 'processing', $3::jsonb)
+     on conflict (id) do nothing`,
+    [event.id, event.type, JSON.stringify(event)],
+  );
+  if (!inserted.rowCount) {
+    return { duplicate: true, processed: false, status: "ignored", type: event.type };
+  }
+
+  try {
+    const object = event.data.object;
+    const status = event.type === "checkout.session.completed"
+      ? await handleCheckoutSessionCompleted(object)
+      : event.type === "checkout.session.expired"
+        ? await (async () => {
+          await pool.query(
+            "update stripe_checkout_sessions set status = 'expired', updated_at = now() where stripe_session_id = $1",
+            [stringValue(object.id) ?? null],
+          );
+          return "processed" as const;
+        })()
+        : event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted"
+          ? await handleStripeSubscriptionObject(object)
+          : event.type === "invoice.payment_failed"
+            ? await handleStripeInvoice(object, "past_due", false)
+            : event.type === "invoice.payment_succeeded"
+              ? await handleStripeInvoice(object, "active", true)
+              : "ignored";
+
+    await markStripeWebhookEvent(event.id, status);
+    return { duplicate: false, processed: status === "processed", status, type: event.type };
+  } catch (error) {
+    await markStripeWebhookEvent(event.id, "failed", error instanceof Error ? error.message : "Unknown Stripe webhook processing error");
+    throw error;
+  }
 }
 
 function providerConfigured(channel: DeliveryMessageInput["channel"]) {
