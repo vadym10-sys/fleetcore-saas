@@ -3469,16 +3469,25 @@ export default function DashboardClient() {
     await runAction(`Готовим ссылку договора: ${channel}`, async () => {
       const rental = rentalOverride ?? await ensureRental();
       const customer = data.customers.find((item) => item.id === rental.customerId) ?? await ensureCustomer();
+      const vehicle = data.vehicles.find((item) => item.id === rental.vehicleId) ?? await ensureVehicle();
       const contract = await createContractRecord("sent", channel, rental);
       const contractUrl = contract.publicUrl ?? contract.documentUrl;
-      const text = `Здравствуйте, ${customer.displayName}. Ваш договор аренды FleetCore: ${contractUrl}`;
+      const text = [
+        `Здравствуйте, ${customer.displayName}.`,
+        "Ваше подтверждение аренды FleetCore:",
+        `Автомобиль: ${vehicle.make} ${vehicle.model} (${vehicle.plateNumber})`,
+        `Период: ${new Date(rental.pickupAt).toLocaleString()} - ${new Date(rental.returnAt).toLocaleString()}`,
+        `Сумма аренды: ${money.format(rental.totalAmount)}`,
+        `Депозит: ${money.format(rental.depositAmount)}`,
+        `Документ и подпись: ${contractUrl}`,
+      ].join("\n");
       await loadData();
       if (channel === "whatsapp") {
         openWhatsApp(customer.phone, text);
       } else if (channel === "telegram") {
-        openTelegram(`Договор аренды FleetCore для ${customer.displayName}`, contractUrl);
+        openTelegram(text, contractUrl);
       } else {
-        openEmail(customer.email, "FleetCore rental contract", text);
+        openEmail(customer.email, "FleetCore rental confirmation", text);
       }
       setMessage(`Ссылка договора открыта для отправки: ${channel}`);
     });
@@ -5314,6 +5323,20 @@ function RentalDetailPanel({
         </article>
       </div>
 
+      <section className="rental-delivery-card" aria-label="Отправка аренды клиенту">
+        <div>
+          <span className="eyebrow">Client delivery</span>
+          <h3>Отправить клиенту договор и детали аренды</h3>
+          <p>FleetCore подготовит публичную ссылку договора, текст с автомобилем, датами, суммой и депозитом, затем откроет нужный канал отправки.</p>
+        </div>
+        <div className="rental-delivery-actions">
+          <button className="primary-button" disabled={busy} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
+          <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
+          <button className="ghost-button" disabled={busy} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
+        </div>
+        <small>{detail.contract ? `Текущий договор: ${contractStatusLabel(locale, detail.contract.status)}` : "Если договора еще нет, FleetCore создаст его автоматически перед отправкой."}</small>
+      </section>
+
       <div className="rental-health-strip" aria-label="Rental health">
         {operationalHealth.slice(0, 4).map((item) => (
           <article className={item.done ? "done" : "attention"} key={item.label}>
@@ -5363,11 +5386,12 @@ function RentalDetailPanel({
         <details className="action-menu">
           <summary>Еще действия</summary>
           <div>
+            <button className="ghost-button" disabled={busy} onClick={() => onCreateContract()} type="button">{detail.contract ? "Обновить договор" : "Создать договор"}</button>
             <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onOpenPdf(detail)} type="button">Открыть PDF</button>
             <button className="ghost-button" disabled={busy} onClick={onRequestContractUpload} type="button">Загрузить договор</button>
-            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
-            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
-            <button className="ghost-button" disabled={busy || !detail.contract} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onShare("whatsapp", detail.rental)} type="button">WhatsApp</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onShare("telegram", detail.rental)} type="button">Telegram</button>
+            <button className="ghost-button" disabled={busy} onClick={() => onShare("email", detail.rental)} type="button">Email</button>
             <button className="ghost-button" disabled={busy} onClick={() => onSign(detail)} type="button">{contractSigned ? "Подписано" : "Подписать"}</button>
             <button className="ghost-button" disabled={busy} onClick={() => onCreatePickup(detail.rental)} type="button">{pickup ? "Выдача OK" : "Акт выдачи"}</button>
             <button className="ghost-button" disabled={busy} onClick={() => onCreateReturn(detail.rental)} type="button">{returned ? "Возврат OK" : "Акт возврата"}</button>

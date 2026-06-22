@@ -153,6 +153,8 @@ test("dashboard client keeps production account and document flows wired", () =>
     "ClientIntakeShareDialog",
     "shareRentalContract",
     "ShareContractDialog",
+    "rental-delivery-card",
+    "Client delivery",
     "DocumentPreviewDialog",
     "document-preview-modal",
     "share-channel-grid",
