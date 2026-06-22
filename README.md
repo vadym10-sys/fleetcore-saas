@@ -58,11 +58,26 @@ Use `https://fleetcore-web.onrender.com/status` or `GET /status` on the API to s
 
 ### Transactional Email
 
-FleetCore sends transactional emails through a provider selected by environment:
+FleetCore sends notifications through one delivery service with `email`, `whatsapp`, and `telegram` channels.
+
+Global notification controls:
+
+- `NOTIFICATION_MODE=mock` records delivery rows without external sending.
+- `NOTIFICATION_MODE=live` allows provider adapters to send when credentials exist.
+- `NOTIFICATION_RETRY_ATTEMPTS=2` retries failed provider calls before marking delivery as failed.
+- `NOTIFICATION_TEST_MODE=true` suppresses external delivery.
+- `NOTIFICATION_SEND_IN_TEST=true` explicitly allows external sends during tests.
+
+Email provider selection:
 
 - `EMAIL_PROVIDER=resend` uses `RESEND_API_KEY`.
 - `EMAIL_PROVIDER=smtp` uses `SMTP_URL`.
 - `EMAIL_PROVIDER=log` records delivery rows without sending external email.
+
+Messaging provider adapters:
+
+- WhatsApp uses Meta WhatsApp Cloud API with `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`.
+- Telegram uses Bot API with `TELEGRAM_BOT_TOKEN`; recipient must be a Telegram `chat_id`.
 
 Supported transactional emails:
 
@@ -76,6 +91,7 @@ Supported transactional emails:
 Safety defaults:
 
 - `NODE_ENV=test` and `EMAIL_TEST_MODE=true` suppress external delivery.
+- `NODE_ENV=test` and `NOTIFICATION_TEST_MODE=true` suppress WhatsApp and Telegram delivery.
 - Set `EMAIL_SEND_IN_TEST=true` only when you intentionally want a test run to send real emails.
 - Delivery errors are logged by the API and stored on `delivery_messages.error`.
 

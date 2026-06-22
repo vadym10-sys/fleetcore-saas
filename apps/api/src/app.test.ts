@@ -4,6 +4,7 @@ import { after, before, test } from "node:test";
 import { buildServer } from "./app.js";
 import { validateProductionEnv } from "./config/env.js";
 import { sendTransactionalEmail } from "./lib/email.js";
+import { sendNotification } from "./lib/notifications.js";
 
 const app = await buildServer();
 let token = "";
@@ -122,6 +123,77 @@ test("transactional email switches provider and suppresses external sending in t
     assert.equal(called, true);
     assert.equal(sent.sent, true);
     assert.equal(sent.messageId, "email_test_123");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("notification adapters support mock mode, retries, WhatsApp and Telegram", async () => {
+  const mocked = await sendNotification({
+    body: "FleetCore mock message",
+    channel: "whatsapp",
+    recipient: "+15551234567",
+  }, {
+    NODE_ENV: "production",
+    NOTIFICATION_MODE: "mock",
+    WHATSAPP_ACCESS_TOKEN: "wa_live",
+    WHATSAPP_PHONE_NUMBER_ID: "phone_id",
+  } as NodeJS.ProcessEnv);
+  assert.equal(mocked.provider, "mock");
+  assert.equal(mocked.sent, false);
+  assert.equal(mocked.skipped, true);
+
+  const originalFetch = globalThis.fetch;
+  let whatsappAttempts = 0;
+  globalThis.fetch = async (input, init) => {
+    whatsappAttempts += 1;
+    assert.equal(String(input), "https://graph.facebook.com/v20.0/phone_id/messages");
+    assert.equal((init?.headers as Record<string, string>).Authorization, "Bearer wa_live");
+    if (whatsappAttempts === 1) {
+      return new Response("rate limited", { status: 429 });
+    }
+    return new Response(JSON.stringify({ messages: [{ id: "wamid.test" }] }), {
+      headers: { "content-type": "application/json" },
+      status: 200,
+    });
+  };
+  try {
+    const whatsapp = await sendNotification({
+      body: "Rental confirmed",
+      channel: "whatsapp",
+      recipient: "+1 (555) 123-4567",
+    }, {
+      NODE_ENV: "production",
+      NOTIFICATION_MODE: "live",
+      NOTIFICATION_RETRY_ATTEMPTS: "2",
+      WHATSAPP_ACCESS_TOKEN: "wa_live",
+      WHATSAPP_PHONE_NUMBER_ID: "phone_id",
+    } as NodeJS.ProcessEnv);
+    assert.equal(whatsapp.sent, true);
+    assert.equal(whatsapp.provider, "whatsapp");
+    assert.equal(whatsapp.providerMessageId, "wamid.test");
+    assert.equal(whatsapp.attempts, 2);
+
+    globalThis.fetch = async (input, init) => {
+      assert.equal(String(input), "https://api.telegram.org/bottelegram_live/sendMessage");
+      assert.equal((init?.headers as Record<string, string>)["Content-Type"], "application/json");
+      return new Response(JSON.stringify({ result: { message_id: 42 } }), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      });
+    };
+    const telegram = await sendNotification({
+      body: "FleetCore Telegram message",
+      channel: "telegram",
+      recipient: "123456",
+    }, {
+      NODE_ENV: "production",
+      NOTIFICATION_MODE: "live",
+      TELEGRAM_BOT_TOKEN: "telegram_live",
+    } as NodeJS.ProcessEnv);
+    assert.equal(telegram.sent, true);
+    assert.equal(telegram.provider, "telegram");
+    assert.equal(telegram.providerMessageId, "42");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -555,6 +627,46 @@ test("commercial readiness APIs expose billing, delivery and compliance controls
   assert.equal(compliance.json().data.company.id, "company_atlas");
   assert.ok(Array.isArray(compliance.json().data.auditLogs));
   assert.ok(Array.isArray(compliance.json().data.vehicles));
+});
+
+test("delivery API sends WhatsApp through notification adapter and logs provider id", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ messages: [{ id: "wamid.api.test" }] }), {
+    headers: { "content-type": "application/json" },
+    status: 200,
+  });
+  const originalEnv = {
+    mode: process.env.NOTIFICATION_MODE,
+    phone: process.env.WHATSAPP_PHONE_NUMBER_ID,
+    token: process.env.WHATSAPP_ACCESS_TOKEN,
+  };
+  process.env.NOTIFICATION_MODE = "live";
+  process.env.WHATSAPP_ACCESS_TOKEN = "wa_test_token";
+  process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_id";
+  try {
+    const response = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "POST",
+      payload: {
+        body: "FleetCore WhatsApp delivery smoke",
+        channel: "whatsapp",
+        entityType: "system",
+        recipient: "+15551234567",
+      },
+      url: "/delivery/messages",
+    });
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.json().data.status, "sent");
+    assert.equal(response.json().data.channel, "whatsapp");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalEnv.mode === undefined) delete process.env.NOTIFICATION_MODE;
+    else process.env.NOTIFICATION_MODE = originalEnv.mode;
+    if (originalEnv.token === undefined) delete process.env.WHATSAPP_ACCESS_TOKEN;
+    else process.env.WHATSAPP_ACCESS_TOKEN = originalEnv.token;
+    if (originalEnv.phone === undefined) delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+    else process.env.WHATSAPP_PHONE_NUMBER_ID = originalEnv.phone;
+  }
 });
 
 test("stripe webhook verifies signatures, is idempotent and grants plan only after confirmed payment", async () => {

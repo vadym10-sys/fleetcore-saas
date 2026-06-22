@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { createDeliveryMessage, listDeliveryMessages, updateDeliveryMessageStatus, writeAuditLog } from "../db/repositories.js";
 import { getRequestUser, getTenantScope, requireRoles } from "../lib/access-control.js";
-import { sendTransactionalEmail } from "../lib/email.js";
 import { envelope } from "../lib/http.js";
+import { sendNotification } from "../lib/notifications.js";
 import { deliveryMessageInput } from "../schemas.js";
 
 export const deliveryRoutes: FastifyPluginAsync = async (app) => {
@@ -24,25 +24,23 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
     const scope = getTenantScope(request);
     const user = getRequestUser(request);
     let message = await createDeliveryMessage(scope, parsed.data, user?.id);
-    if (message.channel === "email") {
-      try {
-        const result = await sendTransactionalEmail({
-          data: { message: parsed.data.body },
-          kind: "admin_notification",
-          to: message.recipient,
-          ...(message.subject ? { subject: message.subject } : {}),
-        });
-        message = await updateDeliveryMessageStatus(scope, message.id, {
-          status: result.sent ? "sent" : "queued",
-          ...(result.messageId ? { providerMessageId: result.messageId } : {}),
-        }) ?? message;
-      } catch (error) {
-        request.log.error({ error, messageId: message.id }, "Transactional email delivery failed");
-        message = await updateDeliveryMessageStatus(scope, message.id, {
-          error: error instanceof Error ? error.message : "Unknown email delivery error",
-          status: "failed",
-        }) ?? message;
-      }
+    try {
+      const result = await sendNotification({
+        body: parsed.data.body,
+        channel: parsed.data.channel,
+        recipient: parsed.data.recipient,
+        ...(parsed.data.subject ? { subject: parsed.data.subject } : {}),
+      });
+      message = await updateDeliveryMessageStatus(scope, message.id, {
+        status: result.sent ? "sent" : "queued",
+        ...(result.providerMessageId ? { providerMessageId: result.providerMessageId } : {}),
+      }) ?? message;
+    } catch (error) {
+      request.log.error({ error, messageId: message.id }, "Notification delivery failed");
+      message = await updateDeliveryMessageStatus(scope, message.id, {
+        error: error instanceof Error ? error.message : "Unknown notification delivery error",
+        status: "failed",
+      }) ?? message;
     }
     await writeAuditLog({
       action: "delivery.message.created",
