@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { createInvoice, createInvoicePayment, customerExists, getInvoice, listInvoices, listPayments, updateInvoice } from "../db/repositories.js";
+import { createInvoice, createInvoicePayment, customerExists, getInvoice, listInvoices, listPayments, PaymentValidationError, updateInvoice } from "../db/repositories.js";
 import { getTenantScope, requireRoles } from "../lib/access-control.js";
 import { envelope } from "../lib/http.js";
 import { invoiceInput, invoicePatchInput, paymentInput } from "../schemas.js";
@@ -67,7 +67,15 @@ export const financeRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: "Invalid payment payload", issues: parsed.error.flatten() });
     }
 
-    const payment = await createInvoicePayment(getTenantScope(request), invoiceId, parsed.data);
+    let payment;
+    try {
+      payment = await createInvoicePayment(getTenantScope(request), invoiceId, parsed.data);
+    } catch (error) {
+      if (error instanceof PaymentValidationError) {
+        return reply.code(422).send({ error: error.message });
+      }
+      throw error;
+    }
     if (!payment) {
       return reply.code(404).send({ error: "Invoice not found" });
     }

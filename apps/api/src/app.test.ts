@@ -383,18 +383,35 @@ test("owner can update company branding and billing profile", async () => {
 });
 
 test("authenticated API can create an invoice payment", async () => {
-  const invoices = await app.inject({
+  const customers = await app.inject({
     headers: { authorization: `Bearer ${token}` },
     method: "GET",
+    url: "/customers",
+  });
+  assert.equal(customers.statusCode, 200);
+  const customer = customers.json().data[0];
+
+  const invoiceResponse = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      currency: "USD",
+      customerId: customer.id,
+      dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      status: "issued",
+      subtotal: 100,
+      tax: 0,
+    },
     url: "/finance/invoices",
   });
-  const invoice = invoices.json().data[0];
+  assert.equal(invoiceResponse.statusCode, 201);
+  const invoice = invoiceResponse.json().data;
 
   const response = await app.inject({
     headers: { authorization: `Bearer ${token}` },
     method: "POST",
     payload: {
-      amount: 1,
+      amount: 40,
       currency: invoice.currency,
       method: "manual",
       reference: `test-${Date.now()}`,
@@ -404,6 +421,32 @@ test("authenticated API can create an invoice payment", async () => {
 
   assert.equal(response.statusCode, 201);
   assert.equal(response.json().data.invoiceId, invoice.id);
+
+  const overpayment = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      amount: 70,
+      currency: invoice.currency,
+      method: "manual",
+      reference: `overpayment-${Date.now()}`,
+    },
+    url: `/finance/invoices/${invoice.id}/payments`,
+  });
+  assert.equal(overpayment.statusCode, 422);
+
+  const finalPayment = await app.inject({
+    headers: { authorization: `Bearer ${token}` },
+    method: "POST",
+    payload: {
+      amount: 60,
+      currency: invoice.currency,
+      method: "manual",
+      reference: `final-${Date.now()}`,
+    },
+    url: `/finance/invoices/${invoice.id}/payments`,
+  });
+  assert.equal(finalPayment.statusCode, 201);
 });
 
 test("authenticated API can upsert GPS state", async () => {

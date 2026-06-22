@@ -52,6 +52,14 @@ type CustomerDocumentInput = z.infer<typeof customerDocumentInput>;
 type RentalContractInput = z.infer<typeof rentalContractInput>;
 type FileUploadInput = z.infer<typeof fileUploadInput>;
 type TeamMemberInput = z.infer<typeof teamMemberInput>;
+
+export class PaymentValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaymentValidationError";
+  }
+}
+
 export type AuthTokenType = "refresh" | "password_reset" | "email_verification";
 export type AuditLogInput = {
   action: string;
@@ -1002,6 +1010,19 @@ export async function createInvoicePayment(scope: TenantScope, invoiceId: string
   const client = await pool.connect();
   try {
     await client.query("begin");
+    const paidResult = await client.query(
+      "select coalesce(sum(amount), 0)::float as paid from payments where tenant_id = $1 and company_id = $2 and invoice_id = $3",
+      [scope.tenantId, scope.companyId, invoiceId],
+    );
+    const paidAmount = Number(paidResult.rows[0]?.paid ?? 0);
+    const remainingAmount = Number(invoice.total) - paidAmount;
+    if (remainingAmount <= 0) {
+      throw new PaymentValidationError("Invoice is already paid");
+    }
+    if (input.amount > remainingAmount + 0.01) {
+      throw new PaymentValidationError(`Payment amount exceeds remaining invoice balance (${remainingAmount.toFixed(2)} ${invoice.currency})`);
+    }
+
     const paymentResult = await client.query(
       `insert into payments (
         id, tenant_id, company_id, invoice_id, customer_id, amount,
