@@ -839,11 +839,13 @@ test("delivery API sends WhatsApp through notification adapter and logs provider
     status: 200,
   });
   const originalEnv = {
+    allowSendInTest: process.env.NOTIFICATION_SEND_IN_TEST,
     mode: process.env.NOTIFICATION_MODE,
     phone: process.env.WHATSAPP_PHONE_NUMBER_ID,
     token: process.env.WHATSAPP_ACCESS_TOKEN,
   };
   process.env.NOTIFICATION_MODE = "live";
+  process.env.NOTIFICATION_SEND_IN_TEST = "true";
   process.env.WHATSAPP_ACCESS_TOKEN = "wa_test_token";
   process.env.WHATSAPP_PHONE_NUMBER_ID = "phone_id";
   try {
@@ -863,6 +865,8 @@ test("delivery API sends WhatsApp through notification adapter and logs provider
     assert.equal(response.json().data.channel, "whatsapp");
   } finally {
     globalThis.fetch = originalFetch;
+    if (originalEnv.allowSendInTest === undefined) delete process.env.NOTIFICATION_SEND_IN_TEST;
+    else process.env.NOTIFICATION_SEND_IN_TEST = originalEnv.allowSendInTest;
     if (originalEnv.mode === undefined) delete process.env.NOTIFICATION_MODE;
     else process.env.NOTIFICATION_MODE = originalEnv.mode;
     if (originalEnv.token === undefined) delete process.env.WHATSAPP_ACCESS_TOKEN;
