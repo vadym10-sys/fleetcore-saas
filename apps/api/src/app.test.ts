@@ -90,6 +90,34 @@ test("production env validation keeps pilot mode safe and fails strict productio
     WHATSAPP_ACCESS_TOKEN: "whatsapp-live-token",
     WHATSAPP_PHONE_NUMBER_ID: "123456789",
   }).mode, "production");
+
+  assert.throws(
+    () => validateProductionEnv({
+      API_PUBLIC_URL: "http://fleetcore-api.example.com",
+      DATABASE_URL: "postgresql://fleetcore:secret@db.example.com:5432/fleetcore",
+      GDPR_DOCS_URL: "https://fleetcore.example.com/gdpr",
+      JWT_SECRET: "production-jwt-secret-at-least-32-characters",
+      PRIVACY_POLICY_URL: "https://fleetcore.example.com/privacy",
+      PRODUCTION: "true",
+      RESEND_API_KEY: "re_live_example",
+      S3_ACCESS_KEY_ID: "s3-access",
+      S3_BUCKET: "fleetcore-production",
+      S3_REGION: "eu-central-1",
+      S3_SECRET_ACCESS_KEY: "s3-secret",
+      SENTRY_DSN: "https://public@example.com/1",
+      STRIPE_PRICE_ENTERPRISE: "price_enterprise",
+      STRIPE_PRICE_GROWTH: "price_growth",
+      STRIPE_PRICE_STARTER: "price_starter",
+      STRIPE_SECRET_KEY: "sk_live_example",
+      STRIPE_WEBHOOK_SECRET: "whsec_live_example",
+      TELEGRAM_BOT_TOKEN: "telegram-live-token",
+      TERMS_URL: "https://fleetcore.example.com/terms",
+      WEB_ORIGIN: "https://fleetcore.example.com",
+      WHATSAPP_ACCESS_TOKEN: "whatsapp-live-token",
+      WHATSAPP_PHONE_NUMBER_ID: "123456789",
+    }),
+    /Missing or invalid variables: API_PUBLIC_URL/u,
+  );
 });
 
 test("monitoring reports critical errors to webhook, supports Sentry and keeps test mode safe", async () => {
@@ -1176,59 +1204,70 @@ test("authenticated API can attach and remove a custom vehicle photo", async () 
 });
 
 test("authenticated API stores and serves uploaded files", async () => {
+  const originalApiPublicUrl = process.env.API_PUBLIC_URL;
+  delete process.env.API_PUBLIC_URL;
+
   const content = "FleetCore upload smoke test";
-  const upload = await app.inject({
-    headers: { authorization: `Bearer ${token}`, "x-forwarded-proto": "https" },
-    method: "POST",
-    payload: {
-      base64: Buffer.from(content).toString("base64"),
-      mimeType: "text/plain",
-      originalName: "smoke-document.txt",
-    },
-    url: "/uploads",
-  });
+  try {
+    const upload = await app.inject({
+      headers: { authorization: `Bearer ${token}`, "x-forwarded-proto": "https" },
+      method: "POST",
+      payload: {
+        base64: Buffer.from(content).toString("base64"),
+        mimeType: "text/plain",
+        originalName: "smoke-document.txt",
+      },
+      url: "/uploads",
+    });
 
-  assert.equal(upload.statusCode, 201);
-  const file = upload.json().data;
-  assert.equal(file.originalName, "smoke-document.txt");
-  assert.equal(file.mimeType, "text/plain");
-  assert.equal(file.sizeBytes, Buffer.byteLength(content));
-  assert.equal(file.storageProvider, "database");
-  assert.equal(typeof file.sha256, "string");
-  assert.equal(new URL(file.publicUrl).protocol, "https:");
+    assert.equal(upload.statusCode, 201);
+    const file = upload.json().data;
+    assert.equal(file.originalName, "smoke-document.txt");
+    assert.equal(file.mimeType, "text/plain");
+    assert.equal(file.sizeBytes, Buffer.byteLength(content));
+    assert.equal(file.storageProvider, "database");
+    assert.equal(typeof file.sha256, "string");
+    assert.equal(new URL(file.publicUrl).protocol, "https:");
 
-  const list = await app.inject({
-    headers: { authorization: `Bearer ${token}` },
-    method: "GET",
-    url: "/uploads",
-  });
-  assert.equal(list.statusCode, 200);
-  assert.ok(list.json().data.some((item: { id: string }) => item.id === file.id));
+    const list = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "GET",
+      url: "/uploads",
+    });
+    assert.equal(list.statusCode, 200);
+    assert.ok(list.json().data.some((item: { id: string }) => item.id === file.id));
 
-  const metadata = await app.inject({
-    headers: { authorization: `Bearer ${token}` },
-    method: "GET",
-    url: `/uploads/${file.id}`,
-  });
-  assert.equal(metadata.statusCode, 200);
-  assert.equal(metadata.json().data.sha256, file.sha256);
+    const metadata = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "GET",
+      url: `/uploads/${file.id}`,
+    });
+    assert.equal(metadata.statusCode, 200);
+    assert.equal(metadata.json().data.sha256, file.sha256);
 
-  const download = await app.inject({
-    method: "GET",
-    url: new URL(file.publicUrl).pathname,
-  });
-  assert.equal(download.statusCode, 401);
+    const download = await app.inject({
+      method: "GET",
+      url: new URL(file.publicUrl).pathname,
+    });
+    assert.equal(download.statusCode, 401);
 
-  const authorizedDownload = await app.inject({
-    headers: { authorization: `Bearer ${token}` },
-    method: "GET",
-    url: new URL(file.publicUrl).pathname,
-  });
+    const authorizedDownload = await app.inject({
+      headers: { authorization: `Bearer ${token}` },
+      method: "GET",
+      url: new URL(file.publicUrl).pathname,
+    });
 
-  assert.equal(authorizedDownload.statusCode, 200);
-  assert.equal(authorizedDownload.headers["content-type"], "text/plain");
-  assert.equal(authorizedDownload.headers.etag, `"${file.sha256}"`);
-  assert.equal(authorizedDownload.body, content);
+    assert.equal(authorizedDownload.statusCode, 200);
+    assert.equal(authorizedDownload.headers["content-type"], "text/plain");
+    assert.equal(authorizedDownload.headers.etag, `"${file.sha256}"`);
+    assert.equal(authorizedDownload.body, content);
+  } finally {
+    if (originalApiPublicUrl) {
+      process.env.API_PUBLIC_URL = originalApiPublicUrl;
+    } else {
+      delete process.env.API_PUBLIC_URL;
+    }
+  }
 });
 
 test("authenticated API stores production uploads in S3-compatible storage and returns signed private URLs", async () => {

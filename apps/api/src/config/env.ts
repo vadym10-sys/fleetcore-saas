@@ -1,12 +1,16 @@
 import { z } from "zod";
 import type { ProductionIntegrationState } from "@fleetcore/shared";
 
+const productionHttpsUrl = z.string().url().refine((value) => new URL(value).protocol === "https:", {
+  message: "Production public URLs must use https.",
+});
+
 const productionEnvSchema = z.object({
-  API_PUBLIC_URL: z.string().url(),
+  API_PUBLIC_URL: productionHttpsUrl,
   DATABASE_URL: z.string().url(),
-  GDPR_DOCS_URL: z.string().url(),
+  GDPR_DOCS_URL: productionHttpsUrl,
   JWT_SECRET: z.string().min(32),
-  PRIVACY_POLICY_URL: z.string().url(),
+  PRIVACY_POLICY_URL: productionHttpsUrl,
   S3_ACCESS_KEY_ID: z.string().min(1),
   S3_BUCKET: z.string().min(1),
   S3_ENDPOINT: z.string().url().optional(),
@@ -19,8 +23,8 @@ const productionEnvSchema = z.object({
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TERMS_URL: z.string().url(),
-  WEB_ORIGIN: z.string().url(),
+  TERMS_URL: productionHttpsUrl,
+  WEB_ORIGIN: productionHttpsUrl,
   WHATSAPP_ACCESS_TOKEN: z.string().min(1),
   WHATSAPP_PHONE_NUMBER_ID: z.string().min(1),
   MONITORING_DSN: z.string().min(1).optional(),
