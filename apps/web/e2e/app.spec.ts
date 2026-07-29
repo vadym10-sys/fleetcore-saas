@@ -181,7 +181,7 @@ test("desktop rental workflow creates rental, enables sending and closes return"
       make: "Audi",
       model: "Q8",
       odometerKm: 145,
-      plateNumber: `QA-${String(uniqueId).slice(-6)}`,
+      plateNumber: `E2E-${String(uniqueId).slice(-6)}`,
       status: "available",
       vin: `QA${uniqueId}`,
       year: 2026,

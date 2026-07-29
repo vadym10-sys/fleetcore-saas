@@ -1,8 +1,12 @@
 name: Keep Render services warm
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
+  # Scheduled runs are disabled because the production API Render service currently
+  # accepts connections but does not return /health before the workflow timeout.
+  # Re-enable with a low-frequency cron after https://fleetcore-api.onrender.com/health
+  # returns HTTP 200 consistently, for example:
+  # schedule:
+  #   - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -11,7 +15,21 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Ping FleetCore web
-        run: curl --fail --location --max-time 60 https://fleetcore-web.onrender.com >/dev/null
+        run: |
+          curl --fail --show-error --location \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            https://fleetcore-web.onrender.com >/dev/null
 
-      - name: Ping FleetCore API
-        run: curl --fail --location --max-time 60 https://fleetcore-api.onrender.com/health >/dev/null
+      - name: Diagnose FleetCore API
+        run: |
+          curl --fail --show-error --location \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --retry 3 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            https://fleetcore-api.onrender.com/health >/dev/null
